@@ -222,42 +222,6 @@ func TestStringRuleLabel(t *testing.T) {
 	}
 }
 
-func TestStringRuleCaseInsensitive(t *testing.T) {
-	rule := &StringRule{
-		PropertyPath:    "properties.tenantId",
-		Regex:           `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
-		CaseInsensitive: true,
-		Message:         "must be a valid UUID",
-	}
-
-	// lowercase — valid
-	if err := rule.Validate("550e8400-e29b-41d4-a716-446655440000"); err != nil {
-		t.Errorf("lowercase UUID should be valid: %v", err)
-	}
-	// uppercase — valid because CaseInsensitive is true
-	if err := rule.Validate("550E8400-E29B-41D4-A716-446655440000"); err != nil {
-		t.Errorf("uppercase UUID should be valid with CaseInsensitive: %v", err)
-	}
-	// mixed case — valid
-	if err := rule.Validate("550e8400-E29B-41d4-A716-446655440000"); err != nil {
-		t.Errorf("mixed-case UUID should be valid with CaseInsensitive: %v", err)
-	}
-	// invalid — still rejected
-	if err := rule.Validate("not-a-uuid"); err == nil {
-		t.Error("expected error for non-UUID value")
-	}
-
-	// Without CaseInsensitive, uppercase should fail
-	strictRule := &StringRule{
-		PropertyPath: "properties.tenantId",
-		Regex:        `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
-		Message:      "must be a valid UUID",
-	}
-	if err := strictRule.Validate("550E8400-E29B-41D4-A716-446655440000"); err == nil {
-		t.Error("expected uppercase UUID to fail without CaseInsensitive")
-	}
-}
-
 // ---------------------------------------------------------------------------
 // BaseKnowledge.ValidateName with StringRules
 // ---------------------------------------------------------------------------

@@ -75,13 +75,12 @@ type ForceNewRule struct {
 // StringRule validates a string value — resource name (PropertyPath == "") or body property.
 // Supports regex pattern matching, length constraints, and enum (AllowedValues).
 type StringRule struct {
-	PropertyPath    string   // dot-separated ARM JSON path; empty = resource name attribute
-	Regex           string   // pattern the value must match; empty = no pattern check
-	CaseInsensitive bool     // when true, regex matching is case-insensitive (prepends (?i))
-	MinLength       int      // 0 = no minimum
-	MaxLength       int      // 0 = no maximum
-	AllowedValues   []string // if non-empty, value must be one of these (case-insensitive)
-	Message         string   // human-readable explanation
+	PropertyPath  string   // dot-separated ARM JSON path; empty = resource name attribute
+	Regex         string   // pattern the value must match; empty = no pattern check
+	MinLength     int      // 0 = no minimum
+	MaxLength     int      // 0 = no maximum
+	AllowedValues []string // if non-empty, value must be one of these (case-insensitive)
+	Message       string   // human-readable explanation
 }
 
 // Validate checks a string value against the rule.
@@ -105,11 +104,7 @@ func (s *StringRule) Validate(value string) error {
 		}
 	}
 	if s.Regex != "" {
-		pattern := s.Regex
-		if s.CaseInsensitive {
-			pattern = "(?i)" + pattern
-		}
-		re, err := regexp.Compile(pattern)
+		re, err := regexp.Compile(s.Regex)
 		if err != nil {
 			return fmt.Errorf("invalid regex %q for %s: %s", s.Regex, s.label(), err)
 		}
