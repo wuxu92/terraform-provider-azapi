@@ -251,7 +251,7 @@ func TestStorageValidate(t *testing.T) {
 	if len(diags) != 0 {
 		t.Errorf("expected 0 diagnostics, got %d:", len(diags))
 		for _, d := range diags {
-			t.Errorf("  %s: %s", d.Summary, d.Detail)
+			t.Errorf("  %s: %s", d.Summary(), d.Detail())
 		}
 	}
 
@@ -260,10 +260,10 @@ func TestStorageValidate(t *testing.T) {
 	if len(diags) != 1 {
 		t.Errorf("expected 1 diagnostic (sensitive), got %d:", len(diags))
 		for _, d := range diags {
-			t.Errorf("  %s: %s", d.Summary, d.Detail)
+			t.Errorf("  %s: %s", d.Summary(), d.Detail())
 		}
 	}
-	if len(diags) == 1 && diags[0].Summary != "Sensitive properties should use sensitive_body" {
-		t.Errorf("unexpected summary: %s", diags[0].Summary)
+	if len(diags) == 1 && diags[0].Summary() != "Sensitive properties should use sensitive_body" {
+		t.Errorf("unexpected summary: %s", diags[0].Summary())
 	}
 }

@@ -813,7 +813,7 @@ func TestKeyVaultValidate(t *testing.T) {
 	if len(diags) != 0 {
 		t.Errorf("expected 0 diagnostics for valid config, got %d:", len(diags))
 		for _, d := range diags {
-			t.Errorf("  %s: %s", d.Summary, d.Detail)
+			t.Errorf("  %s: %s", d.Summary(), d.Detail())
 		}
 	}
 
@@ -839,7 +839,7 @@ func TestKeyVaultValidate(t *testing.T) {
 	if len(diags) != 2 {
 		t.Errorf("expected 2 diagnostics, got %d:", len(diags))
 		for _, d := range diags {
-			t.Errorf("  %s: %s", d.Summary, d.Detail)
+			t.Errorf("  %s: %s", d.Summary(), d.Detail())
 		}
 	}
 }

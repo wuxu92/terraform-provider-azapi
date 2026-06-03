@@ -540,13 +540,7 @@ func (r *AzapiResource) ValidateConfig(ctx context.Context, request resource.Val
 			_ = unmarshalBody(config.Body, &body)
 		}
 
-		for _, d := range azwise.Validate(azureResourceType, apiVersion, name, body, !config.SensitiveBody.IsNull()) {
-			if d.Severity == azwise.DiagError {
-				response.Diagnostics.AddError(d.Summary, d.Detail)
-			} else {
-				response.Diagnostics.AddWarning(d.Summary, d.Detail)
-			}
-		}
+		response.Diagnostics.Append(azwise.Validate(azureResourceType, apiVersion, name, body, !config.SensitiveBody.IsNull())...)
 	}
 }
 

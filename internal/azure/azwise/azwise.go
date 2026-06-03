@@ -10,28 +10,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
-// ---------------------------------------------------------------------------
-// Diagnostics
-// ---------------------------------------------------------------------------
-
-// DiagSeverity indicates the severity of a validation diagnostic.
-type DiagSeverity int
-
-const (
-	// DiagError indicates a validation error that should block apply.
-	DiagError DiagSeverity = iota
-	// DiagWarning indicates a validation warning.
-	DiagWarning
-)
-
-// Diagnostic represents a single validation finding.
-type Diagnostic struct {
-	Severity DiagSeverity
-	Summary  string
-	Detail   string
-}
 
 // ---------------------------------------------------------------------------
 // Interface
@@ -50,7 +32,7 @@ type ResourceKnowledge interface {
 	// Validate checks the resource name, body properties, and sensitive field usage.
 	// name is empty when not configured or unknown; body is nil when not configured or unknown;
 	// hasSensitiveBody indicates whether the sensitive_body attribute is set.
-	Validate(name string, body map[string]interface{}, hasSensitiveBody bool) []Diagnostic
+	Validate(name string, body map[string]interface{}, hasSensitiveBody bool) diag.Diagnostics
 
 	// CheckForceNew returns true if the body change requires resource replacement.
 	CheckForceNew(oldBody, newBody map[string]interface{}) bool
@@ -311,16 +293,15 @@ func (b *BaseKnowledge) ValidateProperties(body map[string]interface{}) []error 
 // Validate performs all validation: name, body properties, and sensitive field usage.
 // Errors of the same category are grouped into a single Diagnostic to avoid
 // repetitive output in terraform plan/apply.
-func (b *BaseKnowledge) Validate(name string, body map[string]interface{}, hasSensitiveBody bool) []Diagnostic {
-	var diags []Diagnostic
+func (b *BaseKnowledge) Validate(name string, body map[string]interface{}, hasSensitiveBody bool) diag.Diagnostics {
+	var diags diag.Diagnostics
 
 	if name != "" {
 		if err := b.ValidateName(name); err != nil {
-			diags = append(diags, Diagnostic{
-				Severity: DiagError,
-				Summary:  "Invalid resource name",
-				Detail:   fmt.Sprintf("The name %q is not valid: %s", name, err.Error()),
-			})
+			diags.AddError(
+				"Invalid resource name",
+				fmt.Sprintf("The name %q is not valid: %s", name, err.Error()),
+			)
 		}
 	}
 
@@ -334,21 +315,19 @@ func (b *BaseKnowledge) Validate(name string, body map[string]interface{}, hasSe
 				buf.WriteString("- ")
 				buf.WriteString(err.Error())
 			}
-			diags = append(diags, Diagnostic{
-				Severity: DiagError,
-				Summary:  "Invalid property value(s)",
-				Detail:   buf.String(),
-			})
+			diags.AddError(
+				"Invalid property value(s)",
+				buf.String(),
+			)
 		}
 	}
 
 	if body != nil && !hasSensitiveBody && len(b.SensitiveFields) > 0 {
-		diags = append(diags, Diagnostic{
-			Severity: DiagError,
-			Summary:  "Sensitive properties should use sensitive_body",
-			Detail: fmt.Sprintf("Known sensitive fields (%s) should be moved from body to sensitive_body.",
+		diags.AddError(
+			"Sensitive properties should use sensitive_body",
+			fmt.Sprintf("Known sensitive fields (%s) should be moved from body to sensitive_body.",
 				strings.Join(b.SensitiveFields, ", ")),
-		})
+		)
 	}
 
 	return diags
@@ -426,7 +405,7 @@ func EnsureRegistered() {
 // ---------------------------------------------------------------------------
 
 // Validate performs all validation checks for a resource type.
-func Validate(resourceType, apiVersion, name string, body map[string]interface{}, hasSensitiveBody bool) []Diagnostic {
+func Validate(resourceType, apiVersion, name string, body map[string]interface{}, hasSensitiveBody bool) diag.Diagnostics {
 	EnsureRegistered()
 	k := Get(resourceType, apiVersion)
 	if k == nil {

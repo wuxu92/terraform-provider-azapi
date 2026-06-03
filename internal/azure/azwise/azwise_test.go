@@ -4,6 +4,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
 // resetRegistry clears the registry and sync.Once for test isolation.
@@ -469,7 +471,7 @@ func TestBaseKnowledgeValidate(t *testing.T) {
 			if len(diags) != tc.wantCount {
 				t.Errorf("Validate() got %d diagnostics, want %d:", len(diags), tc.wantCount)
 				for _, d := range diags {
-					t.Errorf("  [%d] %s: %s", d.Severity, d.Summary, d.Detail)
+					t.Errorf("  [%s] %s: %s", d.Severity(), d.Summary(), d.Detail())
 				}
 			}
 		})
@@ -488,11 +490,11 @@ func TestBaseKnowledgeValidateDiagnosticSeverity(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
-	if diags[0].Severity != DiagError {
-		t.Errorf("expected DiagError, got %d", diags[0].Severity)
+	if diags[0].Severity() != diag.SeverityError {
+		t.Errorf("expected SeverityError, got %v", diags[0].Severity())
 	}
-	if diags[0].Summary != "Invalid resource name" {
-		t.Errorf("unexpected summary: %s", diags[0].Summary)
+	if diags[0].Summary() != "Invalid resource name" {
+		t.Errorf("unexpected summary: %s", diags[0].Summary())
 	}
 }
 
