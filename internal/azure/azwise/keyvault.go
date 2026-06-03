@@ -100,23 +100,26 @@ func NewKeyVault() *KeyVault {
 				// ── properties.tenantId ──
 				// validation.IsUUID in schema.
 				{
-					PropertyPath: "properties.tenantId",
-					Regex:        `(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
-					Message:      "must be a valid UUID",
+					PropertyPath:    "properties.tenantId",
+					Regex:           `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
+					CaseInsensitive: true,
+					Message:         "must be a valid UUID",
 				},
 				// ── properties.accessPolicies[*].tenantId ──
 				// validation.IsUUID in schema.
 				{
-					PropertyPath: "properties.accessPolicies[*].tenantId",
-					Regex:        `(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
-					Message:      "must be a valid UUID",
+					PropertyPath:    "properties.accessPolicies[*].tenantId",
+					Regex:           `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
+					CaseInsensitive: true,
+					Message:         "must be a valid UUID",
 				},
 				// ── properties.accessPolicies[*].objectId ──
 				// validation.IsUUID in schema.
 				{
-					PropertyPath: "properties.accessPolicies[*].objectId",
-					Regex:        `(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
-					Message:      "must be a valid UUID",
+					PropertyPath:    "properties.accessPolicies[*].objectId",
+					Regex:           `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
+					CaseInsensitive: true,
+					Message:         "must be a valid UUID",
 				},
 				// ── properties.accessPolicies[*].permissions.certificates[*] ──
 				// validation.StringInSlice(certificatePermissions(), false) in schema.
