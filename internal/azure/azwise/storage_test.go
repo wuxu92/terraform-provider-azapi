@@ -73,6 +73,29 @@ func TestStorageCheckForceNew(t *testing.T) {
 			}
 		})
 	}
+
+	// Verify base ForceNew rules still fire through the override
+	t.Run("base rule isHnsEnabled", func(t *testing.T) {
+		oldBody := map[string]interface{}{"properties": map[string]interface{}{"isHnsEnabled": false}}
+		newBody := map[string]interface{}{"properties": map[string]interface{}{"isHnsEnabled": true}}
+		if !k.CheckForceNew(oldBody, newBody) {
+			t.Error("expected ForceNew when isHnsEnabled changes")
+		}
+	})
+	t.Run("base rule dnsEndpointType", func(t *testing.T) {
+		oldBody := map[string]interface{}{"properties": map[string]interface{}{"dnsEndpointType": "Standard"}}
+		newBody := map[string]interface{}{"properties": map[string]interface{}{"dnsEndpointType": "AzureDnsZone"}}
+		if !k.CheckForceNew(oldBody, newBody) {
+			t.Error("expected ForceNew when dnsEndpointType changes")
+		}
+	})
+	t.Run("base rule no change", func(t *testing.T) {
+		oldBody := map[string]interface{}{"properties": map[string]interface{}{"isHnsEnabled": true}}
+		newBody := map[string]interface{}{"properties": map[string]interface{}{"isHnsEnabled": true}}
+		if k.CheckForceNew(oldBody, newBody) {
+			t.Error("expected no ForceNew when isHnsEnabled unchanged")
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------

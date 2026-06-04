@@ -13,9 +13,12 @@ type StorageAccount struct {
 
 var _ ResourceKnowledge = (*StorageAccount)(nil)
 
-// CheckForceNew overrides BaseKnowledge — only cross-zone SKU migration triggers replacement.
-// Changing between zonal (ZRS/GZRS/RAGZRS) and non-zonal (LRS/GRS/RAGRS) requires recreation.
+// CheckForceNew extends BaseKnowledge — checks standard ForceNew rules first, then adds
+// conditional SKU zone-migration logic (cross-zone changes require recreation).
 func (s *StorageAccount) CheckForceNew(oldBody, newBody map[string]interface{}) bool {
+	if s.BaseKnowledge.CheckForceNew(oldBody, newBody) {
+		return true
+	}
 	oldSku := strings.ToUpper(extractStringValue(oldBody, "sku.name"))
 	newSku := strings.ToUpper(extractStringValue(newBody, "sku.name"))
 	if oldSku == "" || newSku == "" || oldSku == newSku {
