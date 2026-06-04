@@ -222,12 +222,16 @@ func TestStorageTimeouts(t *testing.T) {
 func TestStorageSensitiveFields(t *testing.T) {
 	k := NewStorageAccount()
 	fields := k.SensitiveFields
-	if len(fields) != 2 {
-		t.Fatalf("expected 2 sensitive fields, got %d", len(fields))
+	if len(fields) != 6 {
+		t.Fatalf("expected 6 sensitive fields, got %d", len(fields))
 	}
 	expected := map[string]bool{
-		"properties.primaryAccessKey":   true,
-		"properties.secondaryAccessKey": true,
+		"properties.primaryAccessKey":              true,
+		"properties.secondaryAccessKey":            true,
+		"properties.primaryConnectionString":       true,
+		"properties.secondaryConnectionString":     true,
+		"properties.primaryBlobConnectionString":   true,
+		"properties.secondaryBlobConnectionString": true,
 	}
 	for _, f := range fields {
 		if !expected[f] {
@@ -256,7 +260,10 @@ func TestStorageValidate(t *testing.T) {
 	}
 
 	// Missing sensitive_body should produce sensitive field diagnostic
-	diags = k.Validate("", map[string]interface{}{}, false)
+	diags = k.Validate("", map[string]interface{}{
+		"sku":  map[string]interface{}{"name": "Standard_LRS"},
+		"kind": "StorageV2",
+	}, false)
 	if len(diags) != 1 {
 		t.Errorf("expected 1 diagnostic (sensitive), got %d:", len(diags))
 		for _, d := range diags {
@@ -265,5 +272,83 @@ func TestStorageValidate(t *testing.T) {
 	}
 	if len(diags) == 1 && diags[0].Summary() != "Sensitive properties should use sensitive_body" {
 		t.Errorf("unexpected summary: %s", diags[0].Summary())
+	}
+
+	// Missing required fields should produce required-fields diagnostic
+	diags = k.Validate("", map[string]interface{}{}, true)
+	if len(diags) != 1 {
+		t.Errorf("expected 1 diagnostic (required), got %d:", len(diags))
+		for _, d := range diags {
+			t.Errorf("  %s: %s", d.Summary(), d.Detail())
+		}
+	}
+	if len(diags) == 1 && diags[0].Summary() != "Missing required properties" {
+		t.Errorf("unexpected summary: %s", diags[0].Summary())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Storage Account: computed fields coverage
+// ---------------------------------------------------------------------------
+
+func TestStorageComputedFields(t *testing.T) {
+	k := NewStorageAccount()
+	if len(k.ComputedFields) != 18 {
+		t.Fatalf("expected 18 computed fields, got %d", len(k.ComputedFields))
+	}
+	// Spot-check critical entries
+	want := map[string]bool{
+		"properties.primaryEndpoints":                true,
+		"properties.secondaryEndpoints":              true,
+		"properties.provisioningState":               true,
+		"properties.primaryLocation":                 true,
+		"properties.privateEndpointConnections":      true,
+		"properties.storageAccountSkuConversionStatus": true,
+	}
+	for _, f := range k.ComputedFields {
+		delete(want, f)
+	}
+	for f := range want {
+		t.Errorf("missing expected computed field: %s", f)
+	}
+}
+
+func TestStorageForceNewRules(t *testing.T) {
+	k := NewStorageAccount()
+	if len(k.ForceNew) != 9 {
+		t.Fatalf("expected 9 ForceNew rules, got %d", len(k.ForceNew))
+	}
+	want := map[string]bool{
+		"sku.tier":              true,
+		"properties.isHnsEnabled":  true,
+		"extendedLocation":        true,
+		"properties.dnsEndpointType": true,
+	}
+	for _, r := range k.ForceNew {
+		delete(want, r.PropertyPath)
+	}
+	for f := range want {
+		t.Errorf("missing expected ForceNew rule: %s", f)
+	}
+}
+
+func TestStorageDefaultValues(t *testing.T) {
+	k := NewStorageAccount()
+	if len(k.DefaultValues) != 18 {
+		t.Fatalf("expected 18 default values, got %d", len(k.DefaultValues))
+	}
+	// Spot-check a few key defaults
+	defaults := make(map[string]interface{})
+	for _, dv := range k.DefaultValues {
+		defaults[dv.PropertyPath] = dv.Value
+	}
+	if defaults["kind"] != "StorageV2" {
+		t.Errorf("kind default: got %v, want StorageV2", defaults["kind"])
+	}
+	if defaults["properties.minimumTlsVersion"] != "TLS1_2" {
+		t.Errorf("minimumTlsVersion default: got %v, want TLS1_2", defaults["properties.minimumTlsVersion"])
+	}
+	if defaults["properties.allowBlobPublicAccess"] != false {
+		t.Errorf("allowBlobPublicAccess default: got %v, want false", defaults["properties.allowBlobPublicAccess"])
 	}
 }

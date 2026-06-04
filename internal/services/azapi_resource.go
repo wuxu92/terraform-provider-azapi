@@ -644,6 +644,14 @@ func (r *AzapiResource) ModifyPlan(ctx context.Context, request resource.ModifyP
 			option.IgnoreOtherItemsInList = m
 		}
 		remoteBody := utils.UpdateObject(configBody, responseBody, option)
+		// azwise: strip computed (read-only) fields from both sides so
+		// server-computed properties don't prevent no-op detection.
+		if !r.ProviderData.Features.DisableResourceKnowledge {
+			azwise.StripComputedFields(azureResourceType, apiVersion, configBody)
+			if m, ok := remoteBody.(map[string]interface{}); ok {
+				azwise.StripComputedFields(azureResourceType, apiVersion, m)
+			}
+		}
 		// suppress the change if the remote body is equal to the config body
 		if reflect.DeepEqual(remoteBody, configBody) {
 			plan.Body = state.Body

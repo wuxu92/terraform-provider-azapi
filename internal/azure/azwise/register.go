@@ -5,4 +5,6 @@ package azwise
 func RegisterAll() {
 	Register(NewStorageAccount())
 	Register(NewKeyVault())
+	Register(NewKeyVaultKey())
+	Register(NewKeyVaultSecret())
 }

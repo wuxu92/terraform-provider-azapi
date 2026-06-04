@@ -1,6 +1,7 @@
 package azwise
 
 import (
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -88,6 +89,34 @@ func TestRegistryGetVersionSpecific(t *testing.T) {
 	got = Get("Microsoft.Nonexistent/things", "2024-01-01")
 	if got != nil {
 		t.Fatal("expected nil for unregistered type")
+	}
+}
+
+func TestRegistryGetVersionOnlyFallback(t *testing.T) {
+	resetRegistry(t)
+
+	versionOnly := &BaseKnowledge{
+		ResourceType: "Microsoft.KeyVault/vaults",
+		ApiVersions:  []string{"2023-02-01"},
+	}
+	Register(versionOnly)
+
+	// Exact version match should work.
+	got := Get("Microsoft.KeyVault/vaults", "2023-02-01")
+	if got != versionOnly {
+		t.Fatal("expected exact version match")
+	}
+
+	// Empty version should fall back to the only entry.
+	got = Get("Microsoft.KeyVault/vaults", "")
+	if got != versionOnly {
+		t.Fatal("expected fallback to first entry when apiVersion is empty")
+	}
+
+	// Mismatched version should also fall back (best-effort).
+	got = Get("Microsoft.KeyVault/vaults", "2025-01-01")
+	if got != versionOnly {
+		t.Fatal("expected fallback to first entry when no exact match")
 	}
 }
 
@@ -585,4 +614,283 @@ func TestExtractStringValue(t *testing.T) {
 	if v := extractStringValue(m, "missing"); v != "" {
 		t.Errorf("expected empty string, got %q", v)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// removeNestedField
+// ---------------------------------------------------------------------------
+
+func TestRemoveNestedField(t *testing.T) {
+	m := map[string]interface{}{
+		"properties": map[string]interface{}{
+			"vaultUri": "https://vault.azure.net/",
+			"sku":      map[string]interface{}{"name": "standard"},
+			"nested": map[string]interface{}{
+				"deep": map[string]interface{}{
+					"value": "keep",
+					"gone":  "remove",
+				},
+			},
+		},
+		"topLevel": "stays",
+	}
+
+	// Remove a nested field
+	removeNestedField(m, "properties.vaultUri")
+	if _, ok := m["properties"].(map[string]interface{})["vaultUri"]; ok {
+		t.Error("vaultUri should have been removed")
+	}
+
+	// Remove a deeply nested field
+	removeNestedField(m, "properties.nested.deep.gone")
+	deep := m["properties"].(map[string]interface{})["nested"].(map[string]interface{})["deep"].(map[string]interface{})
+	if _, ok := deep["gone"]; ok {
+		t.Error("gone should have been removed")
+	}
+	if deep["value"] != "keep" {
+		t.Error("value should still be present")
+	}
+
+	// Removing a non-existent path is a no-op
+	removeNestedField(m, "properties.nonexistent.path")
+	removeNestedField(m, "totally.missing")
+
+	// Top-level and sku should be intact
+	if m["topLevel"] != "stays" {
+		t.Error("topLevel should still be present")
+	}
+	if m["properties"].(map[string]interface{})["sku"].(map[string]interface{})["name"] != "standard" {
+		t.Error("sku.name should still be present")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// StripComputedFields
+// ---------------------------------------------------------------------------
+
+func TestStripComputedFields(t *testing.T) {
+	resetRegistry(t)
+	Register(&BaseKnowledge{
+		ResourceType: "Microsoft.Test/computed",
+		ComputedFields: []string{
+			"properties.readOnly",
+			"properties.nested.serverGenerated",
+		},
+	})
+
+	t.Run("strips present fields", func(t *testing.T) {
+		body := map[string]interface{}{
+			"properties": map[string]interface{}{
+				"readOnly": "will-be-removed",
+				"userSet":  "stays",
+				"nested": map[string]interface{}{
+					"serverGenerated": "removed",
+					"other":           "stays",
+				},
+			},
+		}
+		stripped := StripComputedFields("Microsoft.Test/computed", "", body)
+		if !stripped {
+			t.Error("expected stripped=true")
+		}
+		props := body["properties"].(map[string]interface{})
+		if _, ok := props["readOnly"]; ok {
+			t.Error("readOnly should have been stripped")
+		}
+		if props["userSet"] != "stays" {
+			t.Error("userSet should remain")
+		}
+		nested := props["nested"].(map[string]interface{})
+		if _, ok := nested["serverGenerated"]; ok {
+			t.Error("serverGenerated should have been stripped")
+		}
+		if nested["other"] != "stays" {
+			t.Error("other should remain")
+		}
+	})
+
+	t.Run("no-op when fields absent", func(t *testing.T) {
+		body := map[string]interface{}{
+			"properties": map[string]interface{}{"userSet": "value"},
+		}
+		stripped := StripComputedFields("Microsoft.Test/computed", "", body)
+		if stripped {
+			t.Error("expected stripped=false when no computed fields present")
+		}
+	})
+
+	t.Run("no-op for unknown resource", func(t *testing.T) {
+		body := map[string]interface{}{"anything": "value"}
+		stripped := StripComputedFields("Microsoft.Unknown/type", "", body)
+		if stripped {
+			t.Error("expected stripped=false for unknown resource type")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Validate — computed field warning
+// ---------------------------------------------------------------------------
+
+func TestValidateComputedFieldWarning(t *testing.T) {
+	b := &BaseKnowledge{
+		ResourceType: "Microsoft.Test/things",
+		ComputedFields: []string{
+			"properties.vaultUri",
+			"properties.primaryEndpoints",
+		},
+	}
+
+	t.Run("warns when computed fields present in body", func(t *testing.T) {
+		body := map[string]interface{}{
+			"properties": map[string]interface{}{
+				"vaultUri": "https://vault.azure.net/",
+				"sku":      map[string]interface{}{"name": "standard"},
+			},
+		}
+		diags := b.Validate("", body, true)
+		var warnings int
+		for _, d := range diags {
+			if d.Severity() == diag.SeverityWarning {
+				warnings++
+			}
+		}
+		if warnings != 1 {
+			t.Errorf("expected 1 warning, got %d", warnings)
+		}
+	})
+
+	t.Run("no warning when no computed fields in body", func(t *testing.T) {
+		body := map[string]interface{}{
+			"properties": map[string]interface{}{
+				"sku": map[string]interface{}{"name": "standard"},
+			},
+		}
+		diags := b.Validate("", body, true)
+		for _, d := range diags {
+			if d.Severity() == diag.SeverityWarning {
+				t.Error("expected no warnings")
+			}
+		}
+	})
+
+	t.Run("no warning when body is nil", func(t *testing.T) {
+		diags := b.Validate("", nil, true)
+		for _, d := range diags {
+			if d.Severity() == diag.SeverityWarning {
+				t.Error("expected no warnings for nil body")
+			}
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Validate — required fields
+// ---------------------------------------------------------------------------
+
+func TestValidateRequiredFields(t *testing.T) {
+	b := &BaseKnowledge{
+		ResourceType: "Microsoft.Test/things",
+		RequiredFields: []string{
+			"properties.tenantId",
+			"properties.sku.name",
+			"properties.secret",
+		},
+		SensitiveFields: []string{
+			"properties.secret",
+		},
+		DefaultValues: []DefaultValue{
+			{PropertyPath: "properties.sku.name", Value: "Standard"},
+		},
+	}
+
+	t.Run("all present", func(t *testing.T) {
+		body := map[string]interface{}{
+			"properties": map[string]interface{}{
+				"tenantId": "tid",
+				"sku":      map[string]interface{}{"name": "Premium"},
+				"secret":   "s3cret",
+			},
+		}
+		diags := b.Validate("", body, true)
+		for _, d := range diags {
+			if d.Summary() == "Missing required properties" {
+				t.Errorf("should not report missing: %s", d.Detail())
+			}
+		}
+	})
+
+	t.Run("missing non-sensitive field", func(t *testing.T) {
+		body := map[string]interface{}{
+			"properties": map[string]interface{}{
+				"secret": "s3cret",
+			},
+		}
+		diags := b.Validate("", body, true)
+		var found bool
+		for _, d := range diags {
+			if d.Summary() == "Missing required properties" {
+				found = true
+				if !strings.Contains(d.Detail(), "properties.tenantId") {
+					t.Errorf("should mention tenantId: %s", d.Detail())
+				}
+				if !strings.Contains(d.Detail(), "properties.sku.name") {
+					t.Errorf("should mention sku.name: %s", d.Detail())
+				}
+				// sku.name has a default — should include hint
+				if !strings.Contains(d.Detail(), "AzureRM default: Standard") {
+					t.Errorf("should include default hint: %s", d.Detail())
+				}
+			}
+		}
+		if !found {
+			t.Error("expected Missing required properties diagnostic")
+		}
+	})
+
+	t.Run("sensitive field skipped when sensitive_body set", func(t *testing.T) {
+		body := map[string]interface{}{
+			"properties": map[string]interface{}{
+				"tenantId": "tid",
+				"sku":      map[string]interface{}{"name": "Premium"},
+			},
+		}
+		// secret is missing from body but hasSensitiveBody=true → no error for it
+		diags := b.Validate("", body, true)
+		for _, d := range diags {
+			if d.Summary() == "Missing required properties" {
+				if strings.Contains(d.Detail(), "properties.secret") {
+					t.Errorf("should NOT report sensitive field when sensitive_body is set: %s", d.Detail())
+				}
+			}
+		}
+	})
+
+	t.Run("sensitive field reported when no sensitive_body", func(t *testing.T) {
+		body := map[string]interface{}{
+			"properties": map[string]interface{}{
+				"tenantId": "tid",
+				"sku":      map[string]interface{}{"name": "Premium"},
+			},
+		}
+		diags := b.Validate("", body, false)
+		var found bool
+		for _, d := range diags {
+			if d.Summary() == "Missing required properties" && strings.Contains(d.Detail(), "properties.secret") {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected sensitive required field to be reported when no sensitive_body")
+		}
+	})
+
+	t.Run("nil body skips check", func(t *testing.T) {
+		diags := b.Validate("", nil, false)
+		for _, d := range diags {
+			if d.Summary() == "Missing required properties" {
+				t.Error("should not check required fields when body is nil")
+			}
+		}
+	})
 }

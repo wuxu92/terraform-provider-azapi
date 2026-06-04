@@ -39,6 +39,25 @@ func NewStorageAccount() *StorageAccount {
 	return &StorageAccount{
 		BaseKnowledge: BaseKnowledge{
 			ResourceType: "Microsoft.Storage/storageAccounts",
+			ApiVersions:  []string{"2025-08-01"},
+			ForceNew: []ForceNewRule{
+				{PropertyPath: "sku.tier"},
+				{PropertyPath: "properties.isHnsEnabled"},
+				{PropertyPath: "properties.isNfsV3Enabled"},
+				{PropertyPath: "properties.encryption.requireInfrastructureEncryption"},
+				{PropertyPath: "properties.dnsEndpointType"},
+				{PropertyPath: "properties.encryption.services.queue.keyType"},
+				{PropertyPath: "properties.encryption.services.table.keyType"},
+				{PropertyPath: "properties.immutableStorageWithVersioning"},
+				{PropertyPath: "extendedLocation"},
+			},
+			SoftDelete: true,
+			// sku.name combines account_tier + account_replication_type (e.g. "Standard_LRS").
+			// kind is Required by ARM API; AzureRM defaults it to "StorageV2".
+			RequiredFields: []string{
+				"sku.name",
+				"kind",
+			},
 			TimeoutsConfig: &Timeouts{
 				Create: 60 * time.Minute,
 				Read:   5 * time.Minute,
@@ -56,9 +75,12 @@ func NewStorageAccount() *StorageAccount {
 				{
 					PropertyPath: "sku.name",
 					AllowedValues: []string{
-						"Standard_LRS", "Standard_GRS", "Standard_RAGRS",
-						"Standard_ZRS", "Standard_GZRS", "Standard_RAGZRS",
 						"Premium_LRS", "Premium_ZRS",
+						"PremiumV2_LRS", "PremiumV2_ZRS",
+						"Standard_GRS", "Standard_GZRS",
+						"Standard_LRS", "Standard_RAGRS", "Standard_RAGZRS", "Standard_ZRS",
+						"StandardV2_GRS", "StandardV2_GZRS",
+						"StandardV2_LRS", "StandardV2_ZRS",
 					},
 					Message: "must be a valid storage SKU (e.g. Standard_LRS, Premium_ZRS)",
 				},
@@ -72,13 +94,198 @@ func NewStorageAccount() *StorageAccount {
 				},
 				{
 					PropertyPath:  "properties.accessTier",
-					AllowedValues: []string{"Hot", "Cool", "Premium"},
-					Message:       "must be Hot, Cool, or Premium",
+					AllowedValues: []string{"Hot", "Cool", "Cold", "Premium", "Smart"},
+					Message:       "must be Hot, Cool, Cold, Premium, or Smart",
+				},
+				{
+					PropertyPath:  "properties.minimumTlsVersion",
+					AllowedValues: []string{"TLS1_0", "TLS1_1", "TLS1_2", "TLS1_3"},
+					Message:       "must be TLS1_0, TLS1_1, TLS1_2, or TLS1_3",
+				},
+				{
+					PropertyPath:  "properties.dnsEndpointType",
+					AllowedValues: []string{"Standard", "AzureDnsZone"},
+					Message:       "must be Standard or AzureDnsZone",
+				},
+				{
+					PropertyPath:  "properties.allowedCopyScope",
+					AllowedValues: []string{"AAD", "All", "PrivateLink"},
+					Message:       "must be AAD, All, or PrivateLink",
+				},
+				{
+					PropertyPath:  "properties.publicNetworkAccess",
+					AllowedValues: []string{"Enabled", "Disabled", "SecuredByPerimeter"},
+					Message:       "must be Enabled, Disabled, or SecuredByPerimeter",
+				},
+				// ── networkAcls ──
+				{
+					PropertyPath:  "properties.networkAcls.defaultAction",
+					AllowedValues: []string{"Allow", "Deny"},
+					Message:       "must be Allow or Deny",
+				},
+				// ── routingPreference ──
+				{
+					PropertyPath:  "properties.routingPreference.routingChoice",
+					AllowedValues: []string{"MicrosoftRouting", "InternetRouting"},
+					Message:       "must be MicrosoftRouting or InternetRouting",
+				},
+				// ── encryption ──
+				{
+					PropertyPath:  "properties.encryption.services.queue.keyType",
+					AllowedValues: []string{"Account", "Service"},
+					Message:       "must be Account or Service",
+				},
+				{
+					PropertyPath:  "properties.encryption.services.table.keyType",
+					AllowedValues: []string{"Account", "Service"},
+					Message:       "must be Account or Service",
+				},
+				// ── sasPolicy ──
+				{
+					PropertyPath:  "properties.sasPolicy.expirationAction",
+					AllowedValues: []string{"Log", "Block"},
+					Message:       "must be Log or Block",
+				},
+				// ── immutableStorageWithVersioning ──
+				{
+					PropertyPath:  "properties.immutableStorageWithVersioning.immutabilityPolicy.state",
+					AllowedValues: []string{"Disabled", "Unlocked", "Locked"},
+					Message:       "must be Disabled, Unlocked, or Locked",
+				},
+				// ── azureFilesIdentityBasedAuthentication ──
+				{
+					PropertyPath:  "properties.azureFilesIdentityBasedAuthentication.directoryServiceOptions",
+					AllowedValues: []string{"None", "AADDS", "AD", "AADKERB"},
+					Message:       "must be None, AADDS, AD, or AADKERB",
+				},
+				// ── fileServiceProperties.protocolSettings.smb ──
+				{
+					PropertyPath:  "properties.fileServiceProperties.protocolSettings.smb.authenticationMethods",
+					AllowedValues: []string{"Kerberos", "NTLMv2"},
+					Message:       "must be Kerberos or NTLMv2",
+				},
+				{
+					PropertyPath:  "properties.fileServiceProperties.protocolSettings.smb.channelEncryption",
+					AllowedValues: []string{"AES-128-CCM", "AES-128-GCM", "AES-256-GCM"},
+					Message:       "must be AES-128-CCM, AES-128-GCM, or AES-256-GCM",
+				},
+				{
+					PropertyPath:  "properties.fileServiceProperties.protocolSettings.smb.kerberosTicketEncryption",
+					AllowedValues: []string{"AES-256", "RC4-HMAC"},
+					Message:       "must be AES-256 or RC4-HMAC",
+				},
+				{
+					PropertyPath:  "properties.fileServiceProperties.protocolSettings.smb.versions",
+					AllowedValues: []string{"SMB2.1", "SMB3.0", "SMB3.1.1"},
+					Message:       "must be SMB2.1, SMB3.0, or SMB3.1.1",
 				},
 			},
+			IntRules: []IntRule{
+				// ── blobServiceProperties ──
+				{
+					PropertyPath: "properties.blobServiceProperties.changeFeed.retentionInDays",
+					MinValue:     ptr(int64(1)),
+					MaxValue:     ptr(int64(146000)),
+					Message:      "change feed retention must be between 1 and 146000 days",
+				},
+				{
+					PropertyPath: "properties.blobServiceProperties.deleteRetentionPolicy.days",
+					MinValue:     ptr(int64(1)),
+					MaxValue:     ptr(int64(365)),
+					Message:      "blob delete retention must be between 1 and 365 days",
+				},
+				{
+					PropertyPath: "properties.blobServiceProperties.containerDeleteRetentionPolicy.days",
+					MinValue:     ptr(int64(1)),
+					MaxValue:     ptr(int64(365)),
+					Message:      "container delete retention must be between 1 and 365 days",
+				},
+				{
+					PropertyPath: "properties.blobServiceProperties.restorePolicy.days",
+					MinValue:     ptr(int64(1)),
+					MaxValue:     ptr(int64(365)),
+					Message:      "blob restore policy must be between 1 and 365 days",
+				},
+				// ── fileServiceProperties ──
+				{
+					PropertyPath: "properties.fileServiceProperties.shareDeleteRetentionPolicy.days",
+					MinValue:     ptr(int64(1)),
+					MaxValue:     ptr(int64(365)),
+					Message:      "share delete retention must be between 1 and 365 days",
+				},
+				// ── queueServiceProperties ──
+				{
+					PropertyPath: "properties.queueServiceProperties.logging.retentionPolicy.days",
+					MinValue:     ptr(int64(1)),
+					MaxValue:     ptr(int64(365)),
+					Message:      "queue logging retention must be between 1 and 365 days",
+				},
+				{
+					PropertyPath: "properties.queueServiceProperties.hourMetrics.retentionPolicy.days",
+					MinValue:     ptr(int64(1)),
+					MaxValue:     ptr(int64(365)),
+					Message:      "queue hour metrics retention must be between 1 and 365 days",
+				},
+				{
+					PropertyPath: "properties.queueServiceProperties.minuteMetrics.retentionPolicy.days",
+					MinValue:     ptr(int64(1)),
+					MaxValue:     ptr(int64(365)),
+					Message:      "queue minute metrics retention must be between 1 and 365 days",
+				},
+			},
+			// Keys and connection strings come from the ListKeys API, not the account body.
+			// They are sensitive Terraform outputs but not ARM body properties.
 			SensitiveFields: []string{
 				"properties.primaryAccessKey",
 				"properties.secondaryAccessKey",
+				"properties.primaryConnectionString",
+				"properties.secondaryConnectionString",
+				"properties.primaryBlobConnectionString",
+				"properties.secondaryBlobConnectionString",
+			},
+			// Server-computed ARM body properties returned by GET but never set in PUT.
+			ComputedFields: []string{
+				"properties.primaryEndpoints",
+				"properties.secondaryEndpoints",
+				"properties.primaryLocation",
+				"properties.secondaryLocation",
+				"properties.provisioningState",
+				"properties.creationTime",
+				"properties.statusOfPrimary",
+				"properties.statusOfSecondary",
+				"properties.geoReplicationStats",
+				"properties.privateEndpointConnections",
+				"properties.blobRestoreStatus",
+				"properties.failoverInProgress",
+				"properties.accountMigrationInProgress",
+				"properties.isSkuConversionBlocked",
+				"properties.keyCreationTime",
+				"properties.lastGeoFailoverTime",
+				"properties.storageAccountSkuConversionStatus",
+				"properties.geoPriorityReplicationStatus",
+			},
+			DefaultValues: []DefaultValue{
+				// Top-level body defaults from AzureRM schema
+				{PropertyPath: "kind", Value: "StorageV2"},
+				{PropertyPath: "properties.accessTier", Value: "Hot"},
+				{PropertyPath: "properties.minimumTlsVersion", Value: "TLS1_2"},
+				{PropertyPath: "properties.supportsHttpsTrafficOnly", Value: true},
+				{PropertyPath: "properties.allowBlobPublicAccess", Value: false},
+				{PropertyPath: "properties.allowSharedKeyAccess", Value: true},
+				{PropertyPath: "properties.publicNetworkAccess", Value: "Enabled"},
+				{PropertyPath: "properties.allowCrossTenantReplication", Value: false},
+				{PropertyPath: "properties.defaultToOAuthAuthentication", Value: false},
+				{PropertyPath: "properties.encryption.requireInfrastructureEncryption", Value: false},
+				{PropertyPath: "properties.dnsEndpointType", Value: "Standard"},
+				{PropertyPath: "properties.encryption.services.queue.keyType", Value: "Service"},
+				{PropertyPath: "properties.encryption.services.table.keyType", Value: "Service"},
+				// networkAcls expand defaults when block is absent
+				{PropertyPath: "properties.networkAcls.defaultAction", Value: "Allow"},
+				{PropertyPath: "properties.networkAcls.bypass", Value: "AzureServices"},
+				// Routing block defaults
+				{PropertyPath: "properties.routingPreference.routingChoice", Value: "MicrosoftRouting"},
+				{PropertyPath: "properties.routingPreference.publishInternetEndpoints", Value: false},
+				{PropertyPath: "properties.routingPreference.publishMicrosoftEndpoints", Value: false},
 			},
 		},
 	}

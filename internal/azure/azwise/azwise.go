@@ -43,6 +43,20 @@ type ResourceKnowledge interface {
 
 	// IsSoftDelete returns whether the resource supports soft-delete.
 	IsSoftDelete() bool
+
+	// GetComputedFields returns ARM property paths that are read-only (server-computed).
+	GetComputedFields() []string
+
+	// GetDefaultFields returns ARM property paths that have server-side defaults.
+	GetDefaultFields() []string
+
+	// GetDefaultValues returns default values from AzureRM for properties with
+	// server-side or provider-defined defaults. Value is the ARM-format default.
+	GetDefaultValues() []DefaultValue
+
+	// GetRequiredFields returns ARM body property paths that must be present
+	// for a valid resource creation request.
+	GetRequiredFields() []string
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +66,15 @@ type ResourceKnowledge interface {
 // ForceNewRule describes a body property that triggers resource replacement.
 type ForceNewRule struct {
 	PropertyPath string // dot-separated ARM JSON path (e.g. "sku.name")
+}
+
+// DefaultValue pairs an ARM property path with its AzureRM-recommended default.
+// Value holds the default in ARM wire format: string for enums, bool for flags,
+// float64 for numbers, or nil when AzureRM marks the field Optional+Computed but
+// does not define an explicit default.
+type DefaultValue struct {
+	PropertyPath string      // dot-separated ARM JSON path
+	Value        interface{} // ARM-format default (nil = no explicit default, server decides)
 }
 
 // StringRule validates a string value — resource name (PropertyPath == "") or body property.
@@ -207,11 +230,36 @@ type BaseKnowledge struct {
 	IntRules        []IntRule
 	ArrayRules      []ArrayRule
 	SensitiveFields []string
+	// ComputedFields lists ARM property paths that are read-only (server-computed).
+	// These should not appear in the request body; the API populates them in the response.
+	ComputedFields []string
+	// DefaultValues pairs ARM property paths with their AzureRM-recommended defaults.
+	// Corresponds to Optional+Computed in AzureRM schema: user can set, but Azure
+	// (or AzureRM) provides a default if omitted.
+	DefaultValues []DefaultValue
+	// RequiredFields lists ARM body property paths that must be present for a
+	// valid resource creation. Derived from AzureRM Required:true schema fields,
+	// excluding envelope properties (name, location, resourceGroup).
+	RequiredFields []string
 }
 
-func (b *BaseKnowledge) GetResourceType() string { return b.ResourceType }
-func (b *BaseKnowledge) GetApiVersions() []string { return b.ApiVersions }
-func (b *BaseKnowledge) IsSoftDelete() bool       { return b.SoftDelete }
+func (b *BaseKnowledge) GetResourceType() string         { return b.ResourceType }
+func (b *BaseKnowledge) GetApiVersions() []string         { return b.ApiVersions }
+func (b *BaseKnowledge) IsSoftDelete() bool               { return b.SoftDelete }
+func (b *BaseKnowledge) GetComputedFields() []string      { return b.ComputedFields }
+func (b *BaseKnowledge) GetDefaultValues() []DefaultValue { return b.DefaultValues }
+func (b *BaseKnowledge) GetRequiredFields() []string      { return b.RequiredFields }
+
+func (b *BaseKnowledge) GetDefaultFields() []string {
+	if len(b.DefaultValues) == 0 {
+		return nil
+	}
+	fields := make([]string, len(b.DefaultValues))
+	for i, d := range b.DefaultValues {
+		fields[i] = d.PropertyPath
+	}
+	return fields
+}
 
 // CheckForceNew compares old and new bodies for changes in ForceNew property paths.
 func (b *BaseKnowledge) CheckForceNew(oldBody, newBody map[string]interface{}) bool {
@@ -322,12 +370,68 @@ func (b *BaseKnowledge) Validate(name string, body map[string]interface{}, hasSe
 		}
 	}
 
+	if body != nil && len(b.RequiredFields) > 0 {
+		// Build a set of sensitive fields so we can skip required-field checks
+		// for fields the user may have placed in sensitive_body.
+		sensitiveSet := make(map[string]bool, len(b.SensitiveFields))
+		for _, sf := range b.SensitiveFields {
+			sensitiveSet[sf] = true
+		}
+		var missing []string
+		for _, field := range b.RequiredFields {
+			if extractNestedValue(body, field) != nil {
+				continue // present in body
+			}
+			if sensitiveSet[field] && hasSensitiveBody {
+				continue // expected in sensitive_body
+			}
+			missing = append(missing, field)
+		}
+		if len(missing) > 0 {
+			// Append default-value hints when available.
+			defaultMap := make(map[string]interface{}, len(b.DefaultValues))
+			for _, dv := range b.DefaultValues {
+				if dv.Value != nil {
+					defaultMap[dv.PropertyPath] = dv.Value
+				}
+			}
+			var buf strings.Builder
+			buf.WriteString("The following properties are required for this resource type:\n")
+			for _, m := range missing {
+				buf.WriteString("- ")
+				buf.WriteString(m)
+				if v, ok := defaultMap[m]; ok {
+					buf.WriteString(fmt.Sprintf(" (AzureRM default: %v)", v))
+				}
+				buf.WriteByte('\n')
+			}
+			diags.AddError("Missing required properties", buf.String())
+		}
+	}
+
 	if body != nil && !hasSensitiveBody && len(b.SensitiveFields) > 0 {
 		diags.AddError(
 			"Sensitive properties should use sensitive_body",
 			fmt.Sprintf("Known sensitive fields (%s) should be moved from body to sensitive_body.",
 				strings.Join(b.SensitiveFields, ", ")),
 		)
+	}
+
+	if body != nil && len(b.ComputedFields) > 0 {
+		var found []string
+		for _, field := range b.ComputedFields {
+			if extractNestedValue(body, field) != nil {
+				found = append(found, field)
+			}
+		}
+		if len(found) > 0 {
+			diags.AddWarning(
+				"Read-only properties in body will be ignored",
+				fmt.Sprintf("The following properties are computed by the server and cannot be set: %s. "+
+					"Remove them from body to avoid perpetual diffs.",
+					strings.Join(found, ", ")),
+			)
+		}
 	}
 
 	return diags
@@ -375,15 +479,19 @@ func Register(k ResourceKnowledge) {
 }
 
 // Get returns the best-matching ResourceKnowledge for a resource type + API version.
-// Priority: version-specific match > catch-all (empty ApiVersions) > nil.
+// Priority: exact version match > catch-all (empty ApiVersions) > first registered entry
+// (when apiVersion is empty or no exact match exists).
 func Get(resourceType, apiVersion string) ResourceKnowledge {
 	key := strings.ToLower(resourceType)
 	entries := registry[key]
-	var fallback ResourceKnowledge
+	if len(entries) == 0 {
+		return nil
+	}
+	var catchAll ResourceKnowledge
 	for _, k := range entries {
 		versions := k.GetApiVersions()
 		if len(versions) == 0 {
-			fallback = k
+			catchAll = k
 			continue
 		}
 		for _, v := range versions {
@@ -392,7 +500,13 @@ func Get(resourceType, apiVersion string) ResourceKnowledge {
 			}
 		}
 	}
-	return fallback
+	if catchAll != nil {
+		return catchAll
+	}
+	// No exact match and no catch-all: return the first entry as a best-effort
+	// fallback. This handles the case where apiVersion is "" (unknown) or
+	// the caller uses a version not listed but the knowledge is still applicable.
+	return entries[0]
 }
 
 // EnsureRegistered calls RegisterAll exactly once.
@@ -433,4 +547,67 @@ func TimeoutDefault(resourceType, apiVersion, operation string, fallback time.Du
 		return fallback
 	}
 	return k.TimeoutDefault(operation, fallback)
+}
+
+// GetComputedFields returns ARM property paths that are read-only (server-computed)
+// for the given resource type and API version.
+func GetComputedFields(resourceType, apiVersion string) []string {
+	EnsureRegistered()
+	k := Get(resourceType, apiVersion)
+	if k == nil {
+		return nil
+	}
+	return k.GetComputedFields()
+}
+
+// GetDefaultFields returns ARM property paths that have server-side defaults
+// for the given resource type and API version.
+func GetDefaultFields(resourceType, apiVersion string) []string {
+	EnsureRegistered()
+	k := Get(resourceType, apiVersion)
+	if k == nil {
+		return nil
+	}
+	return k.GetDefaultFields()
+}
+
+// GetDefaultValues returns default values from AzureRM knowledge for properties
+// with known defaults, for the given resource type and API version.
+func GetDefaultValues(resourceType, apiVersion string) []DefaultValue {
+	EnsureRegistered()
+	k := Get(resourceType, apiVersion)
+	if k == nil {
+		return nil
+	}
+	return k.GetDefaultValues()
+}
+
+// GetRequiredFields returns ARM body property paths that must be present
+// for a valid resource creation, for the given resource type and API version.
+func GetRequiredFields(resourceType, apiVersion string) []string {
+	EnsureRegistered()
+	k := Get(resourceType, apiVersion)
+	if k == nil {
+		return nil
+	}
+	return k.GetRequiredFields()
+}
+
+// StripComputedFields removes known read-only (server-computed) properties from body.
+// Returns true if any field was present and removed. This prevents perpetual plan
+// diffs when users include server-computed properties in their config body.
+func StripComputedFields(resourceType, apiVersion string, body map[string]interface{}) bool {
+	EnsureRegistered()
+	k := Get(resourceType, apiVersion)
+	if k == nil {
+		return false
+	}
+	stripped := false
+	for _, field := range k.GetComputedFields() {
+		if extractNestedValue(body, field) != nil {
+			removeNestedField(body, field)
+			stripped = true
+		}
+	}
+	return stripped
 }

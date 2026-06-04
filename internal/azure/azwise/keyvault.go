@@ -22,8 +22,16 @@ func NewKeyVault() *KeyVault {
 	return &KeyVault{
 		BaseKnowledge: BaseKnowledge{
 			ResourceType: "Microsoft.KeyVault/vaults",
+			ApiVersions:  []string{"2023-02-01"},
 			ForceNew:     []ForceNewRule{{PropertyPath: "name"}},
 			SoftDelete:   true,
+			// ARM API requires tenantId, sku.name, and sku.family for vault creation.
+			// AzureRM hardcodes sku.family to "A" (the only valid value).
+			RequiredFields: []string{
+				"properties.tenantId",
+				"properties.sku.name",
+				"properties.sku.family",
+			},
 			TimeoutsConfig: &Timeouts{
 				Create: 30 * time.Minute,
 				Read:   5 * time.Minute,
@@ -184,6 +192,20 @@ func NewKeyVault() *KeyVault {
 					MaxItems:     1024,
 					Message:      "a key vault supports a maximum of 1024 access policies",
 				},
+			},
+			// vault_uri is returned by Azure, never set by the user.
+			ComputedFields: []string{
+				"properties.vaultUri",
+			},
+			// These properties are optional; Azure/AzureRM fills in defaults if omitted.
+			DefaultValues: []DefaultValue{
+				{PropertyPath: "properties.accessPolicies"},                                              // empty list when omitted
+				{PropertyPath: "properties.enableRbacAuthorization", Value: false},                       // AzureRM: Optional+Computed, Azure defaults false
+				{PropertyPath: "properties.networkAcls.defaultAction", Value: "Allow"},                   // expand default when block absent
+				{PropertyPath: "properties.networkAcls.bypass", Value: "AzureServices"},                  // expand default when block absent
+				{PropertyPath: "properties.softDeleteRetentionInDays", Value: float64(90)},               // Azure default 90 days
+				{PropertyPath: "properties.enableSoftDelete", Value: true},                               // Azure enforced true since 2025
+				{PropertyPath: "properties.enablePurgeProtection", Value: false},                         // Azure defaults false; AzureRM strongly recommends true
 			},
 		},
 	}

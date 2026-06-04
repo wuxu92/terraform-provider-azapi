@@ -821,7 +821,8 @@ func TestKeyVaultValidate(t *testing.T) {
 	// 1 "Invalid resource name" + 1 "Invalid property value(s)" (3 errors grouped).
 	diags = k.Validate("ab", map[string]interface{}{
 		"properties": map[string]interface{}{
-			"sku": map[string]interface{}{"name": "basic"},
+			"tenantId": "00000000-0000-0000-0000-000000000000",
+			"sku":      map[string]interface{}{"name": "basic", "family": "A"},
 			"networkAcls": map[string]interface{}{
 				"ipRules": []interface{}{
 					map[string]interface{}{"value": "bad-ip"},
@@ -841,5 +842,56 @@ func TestKeyVaultValidate(t *testing.T) {
 		for _, d := range diags {
 			t.Errorf("  %s: %s", d.Summary(), d.Detail())
 		}
+	}
+}
+
+func TestKeyVaultComputedFields(t *testing.T) {
+	k := NewKeyVault()
+	computed := k.GetComputedFields()
+	if len(computed) != 1 || computed[0] != "properties.vaultUri" {
+		t.Errorf("unexpected computed fields: %v", computed)
+	}
+}
+
+func TestKeyVaultDefaultFields(t *testing.T) {
+	k := NewKeyVault()
+
+	// GetDefaultFields returns paths derived from DefaultValues.
+	defaults := k.GetDefaultFields()
+	if len(defaults) != 7 {
+		t.Fatalf("expected 7 default fields, got %d: %v", len(defaults), defaults)
+	}
+
+	// Verify actual default values are present.
+	vals := k.GetDefaultValues()
+	byPath := map[string]interface{}{}
+	for _, v := range vals {
+		byPath[v.PropertyPath] = v.Value
+	}
+	if v, ok := byPath["properties.enableRbacAuthorization"]; !ok || v != false {
+		t.Errorf("expected enableRbacAuthorization default false, got %v", v)
+	}
+	if v, ok := byPath["properties.networkAcls.defaultAction"]; !ok || v != "Allow" {
+		t.Errorf("expected networkAcls.defaultAction default Allow, got %v", v)
+	}
+	if v, ok := byPath["properties.enableSoftDelete"]; !ok || v != true {
+		t.Errorf("expected enableSoftDelete default true, got %v", v)
+	}
+}
+
+func TestKeyVaultComputedFieldsPackageLevel(t *testing.T) {
+	// Test the package-level accessor resolves through the registry.
+	EnsureRegistered()
+	computed := GetComputedFields("Microsoft.KeyVault/vaults", "")
+	if len(computed) == 0 {
+		t.Error("expected computed fields from package-level GetComputedFields")
+	}
+	defaults := GetDefaultFields("Microsoft.KeyVault/vaults", "")
+	if len(defaults) == 0 {
+		t.Error("expected default fields from package-level GetDefaultFields")
+	}
+	// Unknown resource returns nil.
+	if got := GetComputedFields("Microsoft.Fake/noSuchResource", ""); got != nil {
+		t.Errorf("expected nil for unknown resource, got %v", got)
 	}
 }

@@ -111,3 +111,18 @@ func toFloat64(v interface{}) (float64, bool) {
 func ptr[T any](v T) *T {
 	return &v
 }
+
+// removeNestedField deletes the leaf key at a dot-separated path from a nested map.
+// Intermediate segments that are not maps are silently skipped.
+func removeNestedField(m map[string]interface{}, dotPath string) {
+	parts := strings.Split(dotPath, ".")
+	target := m
+	for i := 0; i < len(parts)-1; i++ {
+		next, ok := target[parts[i]].(map[string]interface{})
+		if !ok {
+			return
+		}
+		target = next
+	}
+	delete(target, parts[len(parts)-1])
+}
