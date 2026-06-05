@@ -79,3 +79,4 @@ When `automap` returns `recommendation: "Large resource"` (>30 top-level fields)
 - When adding a new resource, add its `Register(NewTypeName())` call to `register.go`'s `RegisterAll()` function.
 - If the extraction is ambiguous or a pattern is too complex to represent with the current rule types, add a `// TODO:` comment in the generated file explaining what was observed and why it could not be captured.
 - Validate that property paths you emit are valid ARM paths by checking the SDK model structs or the AzureRM expand/flatten functions.
+- When overriding a `BaseKnowledge` method (e.g., `CheckForceNew`), **always call the base method first** (`s.BaseKnowledge.CheckForceNew(oldBody, newBody)`) before adding custom logic. Overrides extend behavior, they do not replace it — the base implementation processes the declarative rules in the struct fields.

@@ -142,7 +142,7 @@ func New<Type>() *<Type> {
 }
 ```
 
-Override methods only for non-trivial logic (see `storage.go` `CheckForceNew` for conditional SKU zone-migration).
+Override methods only for non-trivial logic (see `storage.go` `CheckForceNew` for conditional SKU zone-migration). **Always call the base method first** — e.g. `s.BaseKnowledge.CheckForceNew(oldBody, newBody)` — so that the declarative rules in `ForceNew`, `StringRules`, etc. are still evaluated. The override adds behavior on top, it does not replace the base.
 
 ## Verification checklist
 
@@ -152,6 +152,7 @@ Before finalizing a knowledge file:
 2. **Enum completeness**: Use the full ARM SDK enum values from `PossibleValuesFor*()` in `constants.go`, not the AzureRM-restricted subset. AzAPI users send raw ARM values.
 3. **ARM path accuracy**: Verify each `PropertyPath` traces correctly through the nested struct chain (e.g., `properties.immutableStorageWithVersioning.immutabilityPolicy.state` not `...immutabilityPeriodSinceCreationInDays`). Check the `json:"..."` tags in the SDK model files.
 4. **Computed vs user-settable**: `ComputedFields` should only list properties that appear in GET responses but are never part of a PUT/PATCH request body. Properties that are optional-but-server-defaulted belong in `DefaultValues`, not `ComputedFields`.
+5. **Method override base calls**: Every method override (e.g., `func (s *Type) CheckForceNew(...)`) must call `s.BaseKnowledge.<Method>(...)` first. An override that omits the base call silently disables the declarative rules.
 
 ## Registration
 

@@ -689,6 +689,50 @@ function findResourceStruct(
   return candidates[0] ?? null;
 }
 
+// Check that method overrides call their BaseKnowledge counterpart.
+// Scans for `func (x *Type) MethodName(` and verifies the body contains
+// `x.BaseKnowledge.MethodName(`. Missing base calls silently disable
+// declarative rules stored in the struct fields.
+function checkBaseMethodCalls(source: string): Issue[] {
+  const issues: Issue[] = [];
+  // Match method declarations on pointer receivers: func (x *TypeName) MethodName(
+  // Exclude BaseKnowledge's own methods by requiring the receiver type != BaseKnowledge
+  const methodRe =
+    /func\s+\((\w+)\s+\*(\w+)\)\s+(\w+)\s*\([^)]*\)[^{]*\{/g;
+  let m: RegExpExecArray | null;
+  while ((m = methodRe.exec(source)) !== null) {
+    const receiver = m[1];
+    const typeName = m[2];
+    const methodName = m[3];
+    if (typeName === "BaseKnowledge") continue;
+
+    // Extract the method body (balanced braces)
+    const bodyStart = m.index + m[0].length;
+    let depth = 1;
+    let i = bodyStart;
+    while (i < source.length && depth > 0) {
+      if (source[i] === "{") depth++;
+      else if (source[i] === "}") depth--;
+      i++;
+    }
+    const body = source.slice(bodyStart, i - 1);
+
+    // Check if the body calls the base method
+    const baseCall = `${receiver}.BaseKnowledge.${methodName}(`;
+    if (!body.includes(baseCall)) {
+      issues.push({
+        severity: "error",
+        category: "missing_base_call",
+        propertyPath: "",
+        ruleKind: methodName,
+        message: `${typeName}.${methodName} overrides BaseKnowledge but does not call ${baseCall.slice(0, -1)})`,
+        detail: `Add \`${baseCall.slice(0, -1)}...)\` at the top of the method to ensure declarative rules in BaseKnowledge fields are evaluated.`,
+      });
+    }
+  }
+  return issues;
+}
+
 // ---------------------------------------------------------------------------
 // Validation engine
 // ---------------------------------------------------------------------------
@@ -1083,6 +1127,9 @@ const factory: CustomToolFactory = (pi) => ({
       }
 
       const issues: Issue[] = [];
+
+      // Check method overrides call their BaseKnowledge counterpart
+      issues.push(...checkBaseMethodCalls(source));
 
       // Validate rules (StringRules, IntRules, FloatRules)
       issues.push(

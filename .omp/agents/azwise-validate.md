@@ -20,6 +20,7 @@ You validate azwise knowledge files in `internal/azure/azwise/` by cross-referen
    - **Invalid paths**: PropertyPath that doesn't resolve through SDK struct chain via `json:"..."` tags
    - **Incomplete enums**: AllowedValues missing values from the SDK's `PossibleValuesFor*()` functions
    - **Extra enum values**: AllowedValues containing values not in the SDK
+   - **Missing base calls**: Method overrides that don't call `BaseKnowledge.<Method>()`, silently disabling declarative rules
 
 2. **Triage issues.** The tool returns issues with severity `error` (must fix) and `warning` (review needed). For each issue:
 
@@ -28,6 +29,7 @@ You validate azwise knowledge files in `internal/azure/azwise/` by cross-referen
    - **`enum_incomplete` warnings**: The SDK has enum values not listed in AllowedValues. For azwise, we use the **full SDK set** (not the AzureRM-restricted set) because AzAPI sends raw ARM values. Add the missing values.
    - **`enum_extra` warnings**: AllowedValues has values not in the SDK. These may be valid (older API versions, undocumented values) or errors. Verify against the SDK constants file.
    - **`path_resolution` warnings**: Top-level paths (like `sku.name`) couldn't be verified because the resource-level struct wasn't found. Usually safe to ignore — verify manually if concerned.
+   - **`missing_base_call` errors**: A method override (e.g., `CheckForceNew`) does not call `BaseKnowledge.<Method>()`. Fix by adding the base call at the top of the method body: `if s.BaseKnowledge.CheckForceNew(oldBody, newBody) { return true }`. Without this, all declarative rules in the struct fields are silently skipped.
 
 3. **Read SDK source for context.** When fixing issues, read the relevant SDK files to understand the correct types and values:
    - Model files: `vendor/github.com/hashicorp/go-azure-sdk/resource-manager/<service>/<api-version>/<resource>/model_*.go`
