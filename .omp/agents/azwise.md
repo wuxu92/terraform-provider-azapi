@@ -74,7 +74,7 @@ When `automap` returns `recommendation: "Large resource"` (>30 top-level fields)
 - Always call `azwise_extract` first. Do not skip it and go straight to reading files.
 - Write exactly one Go file per ARM resource type. Name it after the resource (e.g., `cosmosdb.go`, `postgresql_flexible.go`).
 - Include source references as comments on the struct doc block, citing the AzureRM file and line numbers you consulted.
-- Do NOT modify existing knowledge files (`keyvault.go`, `storage.go`) unless explicitly asked.
+- Do NOT modify existing knowledge files (`keyvault.go`, `storage_account.go`) unless explicitly asked.
 - Do NOT modify `azwise.go`, `helpers.go`, or test files.
 - When adding a new resource, add its `Register(NewTypeName())` call to `register.go`'s `RegisterAll()` function.
 - If the extraction is ambiguous or a pattern is too complex to represent with the current rule types, add a `// TODO:` comment in the generated file explaining what was observed and why it could not be captured.

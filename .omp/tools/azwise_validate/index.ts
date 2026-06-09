@@ -999,7 +999,7 @@ const factory: CustomToolFactory = (pi) => ({
       .string()
       .optional()
       .describe(
-        "Resource file to validate (e.g. 'storage' for storage.go). Omit to validate all."
+        "Resource file to validate (e.g. 'storage_account' for storage_account.go). Omit to validate all."
       ),
   }),
   execute: async (args, { onUpdate, cwd }) => {

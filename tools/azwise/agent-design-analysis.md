@@ -185,7 +185,7 @@ terraform-provider-azapi/
         └── azwise/                      # Go runtime package (generated output)
             ├── registry.go              # Types + registry
             ├── keyvault.go              # Per-service knowledge (generated)
-            ├── storage.go
+            ├── storage_account.go
             └── ...
 ```
 

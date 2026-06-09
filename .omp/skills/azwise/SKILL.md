@@ -142,7 +142,7 @@ func New<Type>() *<Type> {
 }
 ```
 
-Override methods only for non-trivial logic (see `storage.go` `CheckForceNew` for conditional SKU zone-migration). **Always call the base method first** — e.g. `s.BaseKnowledge.CheckForceNew(oldBody, newBody)` — so that the declarative rules in `ForceNew`, `StringRules`, etc. are still evaluated. The override adds behavior on top, it does not replace the base.
+Override methods only for non-trivial logic (see `storage_account.go` `CheckForceNew` for conditional SKU zone-migration). **Always call the base method first** — e.g. `s.BaseKnowledge.CheckForceNew(oldBody, newBody)` — so that the declarative rules in `ForceNew`, `StringRules`, etc. are still evaluated. The override adds behavior on top, it does not replace the base.
 
 ## Verification checklist
 
@@ -236,7 +236,7 @@ After generating or modifying knowledge files, run `azwise_validate` to cross-re
 
 **Usage:**
 - `azwise_validate` — validate all knowledge files
-- `azwise_validate resource=storage` — validate only `storage.go` (and `storage_*.go`)
+- `azwise_validate resource=storage_account` — validate only `storage_account.go` (and `storage_account_*.go`)
 
 **What it checks:**
 1. **Type mismatches**: StringRule on a `*int64` field (should be IntRule), IntRule on a `*string` enum field
