@@ -172,7 +172,9 @@ func NewStorageAccount() *StorageAccount {
 				"properties.primaryBlobConnectionString",
 				"properties.secondaryBlobConnectionString",
 			},
-			// Server-computed ARM body properties returned by GET but never set in PUT.
+			// Fields explicitly marked Computed-only in AzureRM (not in the ARM Create model).
+			// Only include fields that are truly read-only — NOT fields that are simply
+			// unsupported by AzureRM but settable via ARM API.
 			ComputedFields: []string{
 				"properties.primaryEndpoints",
 				"properties.secondaryEndpoints",
@@ -191,7 +193,6 @@ func NewStorageAccount() *StorageAccount {
 				"properties.keyCreationTime",
 				"properties.lastGeoFailoverTime",
 				"properties.storageAccountSkuConversionStatus",
-				"properties.geoPriorityReplicationStatus",
 			},
 			DefaultValues: []DefaultValue{
 				// Top-level body defaults from AzureRM schema

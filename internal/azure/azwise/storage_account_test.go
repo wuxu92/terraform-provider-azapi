@@ -316,8 +316,8 @@ func TestStorageValidate(t *testing.T) {
 
 func TestStorageComputedFields(t *testing.T) {
 	k := NewStorageAccount()
-	if len(k.ComputedFields) != 18 {
-		t.Fatalf("expected 18 computed fields, got %d", len(k.ComputedFields))
+	if len(k.ComputedFields) != 17 {
+		t.Fatalf("expected 17 computed fields, got %d", len(k.ComputedFields))
 	}
 	// Spot-check critical entries
 	want := map[string]bool{

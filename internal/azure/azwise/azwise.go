@@ -44,7 +44,9 @@ type ResourceKnowledge interface {
 	// IsSoftDelete returns whether the resource supports soft-delete.
 	IsSoftDelete() bool
 
-	// GetComputedFields returns ARM property paths that are read-only (server-computed).
+	// GetComputedFields returns ARM property paths that are read-only (server-computed,
+	// not present in the ARM Create/Update model). Only fields explicitly marked
+	// Computed-only in AzureRM — NOT fields that are merely unsupported by AzureRM.
 	GetComputedFields() []string
 
 	// GetDefaultFields returns ARM property paths that have server-side defaults.
@@ -230,8 +232,11 @@ type BaseKnowledge struct {
 	IntRules        []IntRule
 	ArrayRules      []ArrayRule
 	SensitiveFields []string
-	// ComputedFields lists ARM property paths that are read-only (server-computed).
-	// These should not appear in the request body; the API populates them in the response.
+	// ComputedFields lists ARM property paths that are truly read-only — present in
+	// the GET response model but absent from the Create/Update model. Only include
+	// fields explicitly Computed-only in AzureRM; fields that are merely unsupported
+	// by AzureRM but settable via the ARM API must NOT be listed here, as
+	// StripComputedFields would silently discard user-provided values.
 	ComputedFields []string
 	// DefaultValues pairs ARM property paths with their AzureRM-recommended defaults.
 	// Corresponds to Optional+Computed in AzureRM schema: user can set, but Azure
