@@ -68,6 +68,7 @@ When `automap` returns `recommendation: "Large resource"` (>30 top-level fields)
 - `ComputedFields`: list ARM property paths that are read-only (computed-only in provider-schema.json). Exclude provider-internal fields that have no ARM equivalent.
 - `DefaultValues`: list `DefaultValue{PropertyPath, Value}` for optional+computed fields. Value is the ARM-format default from AzureRM schema `Default:` or expand function logic. Use `nil` Value when AzureRM has no explicit default (server decides).
 - `RequiredFields`: list ARM body property paths that must be present for resource creation. Derived from `Required: true` in AzureRM schema. Exclude envelope fields (name, location, resource_group_name) and parent references (key_vault_id). Include fields that AzureRM hardcodes (e.g. `properties.sku.family` = "A" for KeyVault).
+- **Sub-service API separation**: AzureRM often bundles sub-service settings into a parent resource (e.g., `blob_properties`, `share_properties`, `queue_properties` inside `azurerm_storage_account`). In ARM, these are separate API resources (e.g., `Microsoft.Storage/storageAccounts/blobServices/default`, `fileServices/default`, `queueServices/default`). Rules for sub-service properties must go in their own knowledge file for the sub-service resource type, NOT in the parent resource's knowledge file.
 
 # Directives
 

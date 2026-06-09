@@ -153,6 +153,7 @@ Before finalizing a knowledge file:
 3. **ARM path accuracy**: Verify each `PropertyPath` traces correctly through the nested struct chain (e.g., `properties.immutableStorageWithVersioning.immutabilityPolicy.state` not `...immutabilityPeriodSinceCreationInDays`). Check the `json:"..."` tags in the SDK model files.
 4. **Computed vs user-settable**: `ComputedFields` should only list properties that appear in GET responses but are never part of a PUT/PATCH request body. Properties that are optional-but-server-defaulted belong in `DefaultValues`, not `ComputedFields`.
 5. **Method override base calls**: Every method override (e.g., `func (s *Type) CheckForceNew(...)`) must call `s.BaseKnowledge.<Method>(...)` first. An override that omits the base call silently disables the declarative rules.
+6. **Sub-service API separation**: Verify every `PropertyPath` belongs to the resource's own ARM API, not a sub-service API. AzureRM bundles sub-service settings (e.g., `blob_properties`, `share_properties`, `queue_properties` in `azurerm_storage_account`) but ARM manages them as separate resources (`Microsoft.Storage/storageAccounts/blobServices/default`, etc.). Rules for sub-service properties must go in their own knowledge file.
 
 ## Registration
 
