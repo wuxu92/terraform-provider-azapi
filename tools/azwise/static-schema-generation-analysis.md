@@ -2,17 +2,23 @@
 
 ## Overview
 
-This document analyzes the approach of generating static Terraform resource schemas from the bicep type definitions already embedded in `internal/azure/generated/`. Instead of the current `azapi_resource` with a single `body` dynamic attribute, each Azure resource type would get its own Terraform resource (e.g., `azapi_storage_account`) with a fully typed schema derived from the ARM API spec.
+This document analyzes the approach of generating static Terraform resource schemas from the bicep type definitions already embedded in `internal/azure/generated/`. Each Azure resource type would get its own Terraform resource (e.g., `azapi_storage_account`) with a fully typed schema derived from the ARM API spec. These static resources coexist alongside the existing `azapi_resource`, which remains untouched for day-zero and advanced use cases.
 
 ## Source Material
 
-AzAPI already embeds **31,175** resource type+version definitions covering **3,314** unique ARM resource types in `internal/azure/generated/index.json`. Each definition is a `types.json` file containing a full type graph: ObjectType, StringLiteralType, UnionType, ArrayType, IntegerType, BooleanType — with property flags (Required, ReadOnly, WriteOnly, etc.) and descriptions. This is the same data currently used for `schema_validation_enabled` runtime checks on the dynamic `body`.
+AzAPI already embeds **31,175** resource type+version definitions covering **3,314** unique ARM resource types (2,631 with stable API versions) in `internal/azure/generated/index.json`. Each definition is a `types.json` file containing a full type graph: ObjectType, StringLiteralType, UnionType, ArrayType, IntegerType, BooleanType — with property flags (Required, ReadOnly, WriteOnly, etc.) and descriptions. This is the same data currently used for `schema_validation_enabled` runtime checks on the dynamic `body`.
+
+The current provider binary is already **358 MB**, with **334 MB** from the embedded bicep type data in `internal/azure/generated/`. Generated Go schema code would add comparatively little to the binary size.
 
 ## How It Would Work
 
+### Scope: Latest Stable API Version Only
+
+Generate one Terraform resource per ARM resource type, using the latest stable (non-preview) API version. This gives **~2,631 resources** — complete coverage of all stable ARM services in a single generation pass. Preview-only resource types are excluded; users fall back to `azapi_resource` for those.
+
 ### Schema Generation Pipeline
 
-1. **Read** `types.json` for a resource type + API version
+1. **Read** `types.json` for the latest stable API version of each resource type
 2. **Walk** the type graph starting from the ResourceType's body reference
 3. **Map** each property to a Terraform `schema.Attribute`:
    - ObjectType → `schema.SingleNestedAttribute`
@@ -27,9 +33,32 @@ AzAPI already embeds **31,175** resource type+version definitions covering **3,3
    - Default → `Optional: true, Computed: true`
 5. **Emit** Go source with resource struct, Schema(), CRUD methods, and plan modifiers
 
-### Resource Registration
+### Property Naming: camelCase → snake_case (Required)
 
-Each generated resource registers itself via `init()`:
+The Terraform plugin framework SDK **enforces** lowercase attribute names via `ValidAttributeNameRegex = regexp.MustCompile("^[a-z_][a-z0-9_]*$")` in `fwschema/attribute_name_validation.go`. camelCase names like `minimumTlsVersion` produce a hard error:
+
+```
+Invalid Attribute/Block Name: "minimumTlsVersion" at schema path "properties.minimumTlsVersion"
+is an invalid attribute/block name. Names must only contain lowercase alphanumeric characters
+(a-z, 0-9) and underscores (_).
+```
+
+This means the generator **must** convert ARM camelCase to Terraform snake_case. The conversion must be:
+- **Deterministic**: Same algorithm everywhere (generator, CRUD marshaling, import)
+- **Reversible**: Reconstruct the ARM JSON key from the Terraform attribute name
+- **Documented**: Users need to know `minimumTlsVersion` → `minimum_tls_version`
+
+Note: Alignment with AzureRM naming is explicitly a non-goal. AzureRM uses heavily curated names (e.g., `account_replication_type` for `sku.name`). The generated resources use a mechanical, predictable conversion that directly mirrors the ARM property structure.
+
+The conversion algorithm is straightforward for the vast majority of cases:
+- Insert `_` before each uppercase letter, then lowercase: `minimumTlsVersion` → `minimum_tls_version`
+- Consecutive uppercase (acronyms) need care: `isHnsEnabled` → `is_hns_enabled`, `iPRules` → `ip_rules`
+
+AzAPI already has this algorithm implemented as `snake2Camel` / `camel2Snake` functions for the `provider::azapi::snake2camel` / `provider::azapi::camel2snake` Terraform functions. The reverse is needed for schema generation.
+
+Edge cases where collisions occur are rare. The generator should detect them at build time and fail with an explicit error, forcing a manual resolution via an override table.
+
+### Resource Registration
 
 ```go
 // Generated: Microsoft.Storage/storageAccounts@2025-01-01
@@ -40,7 +69,7 @@ func init() {
 
 ### Customization Layer
 
-Generated resources would accept overlay functions for custom logic:
+Generated resources accept overlay functions for custom logic:
 
 ```go
 // Hand-written overlay in storage_account_overlay.go
@@ -53,10 +82,6 @@ type StorageAccountOverlay struct{}
 func (o StorageAccountOverlay) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
     // Custom ForceNew for SKU zone migration
 }
-
-func (o StorageAccountOverlay) Validate(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-    // Custom cross-field validation
-}
 ```
 
 ## Pros
@@ -66,7 +91,6 @@ func (o StorageAccountOverlay) Validate(ctx context.Context, req resource.Valida
 Every property is a named Terraform attribute. Users get autocomplete, type checking at plan time, and clear error messages pointing to the exact attribute — not a JSON path inside a dynamic blob.
 
 ```hcl
-# Static schema — autocomplete works, typos caught at plan time
 resource "azapi_storage_account" "example" {
   name     = "mystorage"
   location = "westus2"
@@ -84,7 +108,7 @@ resource "azapi_storage_account" "example" {
 
 ### 2. Property-Level Plan Diffs
 
-Terraform can show which specific property changed, not "body changed":
+Terraform shows which specific property changed, not "body changed":
 
 ```diff
 # azapi_storage_account.example will be updated in-place
@@ -97,17 +121,11 @@ Terraform can show which specific property changed, not "body changed":
 
 ### 3. ForceNew / Computed / Sensitive at the Schema Level
 
-No runtime azwise lookup needed — the schema itself declares `ForceNew`, `Computed`, `Sensitive` per property. Terraform handles plan modification natively.
+No runtime lookup needed — the schema itself declares `ForceNew`, `Computed`, `Sensitive` per property. Terraform handles plan modification natively.
 
 ### 4. Cross-Field References Work Naturally
 
 ```hcl
-resource "azapi_storage_account" "example" {
-  properties {
-    minimum_tls_version = "TLS1_2"
-  }
-}
-
 output "tls_version" {
   value = azapi_storage_account.example.properties.minimum_tls_version
 }
@@ -121,94 +139,89 @@ Terraform registry docs can be generated from the schema descriptions embedded i
 
 ### 6. ARM API Coverage Is Complete by Construction
 
-The bicep types cover every ARM resource type and API version. No manual extraction or knowledge transfer needed — the schema IS the API.
+2,631 stable resource types are covered by the bicep type definitions. No manual extraction or knowledge transfer needed — the schema IS the API.
 
 ### 7. State Migration and Import Are Simpler
 
-Each attribute has a known type and path. `terraform import` can populate the state from a GET response by walking the schema, not guessing dynamic types.
+Each attribute has a known type and path. `terraform import` can populate the state from a GET response by walking the schema.
+
+### 8. Coexists with azapi_resource
+
+`azapi_resource` remains untouched. Users choose per resource:
+- `azapi_resource` for day-zero coverage, preview APIs, advanced use cases, or when they prefer raw ARM JSON
+- `azapi_storage_account` (etc.) for autocomplete, typed diffs, and AzureRM-like experience
+
+No migration required. Users adopt static resources incrementally, one resource at a time.
 
 ## Cons
 
-### 1. Massive Code Generation Volume
+### 1. Property Name Translation (Required by Terraform SDK)
 
-3,314 unique resource types × multiple API versions = potentially tens of thousands of generated Go files. Binary size, compilation time, and test surface area explode.
+The Terraform framework SDK enforces `^[a-z_][a-z0-9_]*$` for attribute names — camelCase is rejected with a hard error. The generator must convert all ARM property names to snake_case.
 
-**Mitigation**: Generate only "popular" resources, or generate on-demand per API version. But this reintroduces the coverage gap problem.
+This introduces a translation layer users must understand: ARM docs say `minimumTlsVersion`, Terraform config uses `minimum_tls_version`. The mapping is mechanical and predictable, but it's still a mental translation that `azapi_resource` doesn't require.
 
-### 2. Property Name Mapping: ARM camelCase → Terraform snake_case
+**Mitigations:**
+- The conversion algorithm is deterministic — users can predict it
+- The provider already ships `snake2camel` / `camel2snake` functions
+- Generated documentation maps each Terraform name to its ARM path
+- Collision detection at build time catches the rare ambiguous cases
 
-ARM uses `minimumTlsVersion`; Terraform convention is `minimum_tls_version`. This mapping must be:
-- Consistent (same algorithm everywhere)
-- Reversible (to reconstruct the ARM JSON)
-- Collision-free (e.g., `iPRules` → `ip_rules` vs `ipRules` → `ip_rules`)
+### 2. Code Generation Volume
 
-Edge cases: acronyms (DNS, TLS, HTTP, SKU), single-letter segments, consecutive uppercase. AzureRM's manual naming fixes over 10 years demonstrate this is non-trivial.
+2,631 stable resource types with ~500-2,000 LOC per resource = ~1.3-5.2M lines of generated Go. However:
+- The bicep type data (334 MB) is already embedded — generated code adds comparatively little
+- Generated code is boilerplate and can be organized into sub-packages for parallel compilation
+- Only the latest stable version per resource type is generated, not all 31K definitions
+- Build tags or conditional compilation can exclude generated resources from development builds
 
-### 3. Schema Drift Across API Versions
+### 3. Read-Only Flag Inaccuracy in Bicep Types
 
-Each API version has a different schema. Users must upgrade their `.tf` config when changing `api_version`. A property added in `2025-01-01` doesn't exist in `2023-01-01` — Terraform would reject it at plan time.
+Some properties are flagged ReadOnly in the spec but are actually settable in PUT. The generator would reject valid configurations for these properties.
 
-The current dynamic body handles this transparently: any JSON is accepted, validation is optional.
+**Mitigations:**
+- The generator can accept an override file listing properties where the ReadOnly flag should be ignored
+- Runtime discovery: if a property is in the Create model but flagged ReadOnly, the generator can emit it as `Optional + Computed` instead of `Computed`-only
+- These overrides are a finite, knowable set that can be curated and shared
 
-### 4. Breaking Changes Between API Versions
+### 4. Discriminated Unions
 
-ARM API versions sometimes rename properties, change nesting, or alter types. A static schema makes these breaking changes visible to Terraform users as plan-time errors — which is both a pro (explicit) and a con (painful upgrades).
+ARM uses polymorphic types keyed by a discriminator field (e.g., `type`). Terraform has no native discriminated union type.
 
-### 5. Read-Only vs Settable Is Not Always Clear in Bicep Types
+**Mitigations:**
+- The generator can flatten all variant properties into a single block with mutual-exclusivity validators
+- For simple cases (2-3 variants), separate blocks with `ExactlyOneOf` work well
+- For complex cases, fall back to a `types.Dynamic` attribute for that specific property, preserving the static schema for everything else
+- The bicep type graph already encodes discriminators — the generator has full type information
 
-The bicep type flags mark properties as ReadOnly, but this flag is sometimes inaccurate:
-- Some "ReadOnly" properties are actually settable in PUT (the spec is wrong)
-- Some settable properties are marked ReadOnly because they're only meaningful on GET
-- The flag granularity is per-API-version and may differ from what the service actually accepts
+### 5. Maintenance of Custom Overlays
 
-This leads to false rejections: "you can't set X" when the ARM API happily accepts it.
+Custom logic (conditional ForceNew, cross-field validation, non-standard defaults) must be maintained per resource type as overlay files. This is necessary work to provide a better user experience — the same work azwise does today, but with the advantage of being schema-level rather than runtime heuristics.
 
-### 6. Discriminated Unions Are Hard to Map
-
-ARM uses discriminated unions (polymorphic types based on a `type` field). Mapping these to Terraform's type system requires either:
-- One attribute per variant (with mutual exclusivity validators) — verbose
-- A single dynamic attribute for the union body — defeats the purpose
-- Terraform's `object` type with all variants flattened — confusing
-
-### 7. Nested Block Depth Explosion
-
-ARM resources like Virtual Machines have deeply nested properties (5-7 levels). In Terraform schema, each level becomes a `SingleNestedAttribute` or `ListNestedAttribute`. The resulting HCL is deeply indented and verbose.
-
-### 8. Write-Only and Sensitive Properties
-
-ARM has "write-only" properties (accepted in PUT, never returned in GET). Terraform's state stores all attributes, so write-only properties cause perpetual diffs unless special plan modifiers suppress them. This requires per-property handling.
-
-### 9. Existing azapi_resource Users Must Migrate
-
-Every user of `azapi_resource` for a generated resource type would need to migrate their config. The migration path from dynamic body to static schema is non-trivial: JSON structure → HCL attributes with different naming.
-
-### 10. ARM Envelope Fields Are Duplicated
-
-ARM resources have envelope fields (`name`, `location`, `tags`, `identity`, `sku`) that azapi_resource already handles as top-level attributes. Generated resources must avoid duplicating these while still including them in the ARM body.
-
-### 11. Maintenance Burden of Overlays
-
-Custom overlays (ForceNew, validation, defaults) must be maintained per resource type, similar to what azwise does today. The overlay system adds framework complexity, and overlays must be updated when the generated schema changes.
+The overlay system is additive: a resource works correctly without any overlay (the generated schema handles standard cases), and overlays add polish for resources that need it.
 
 ## Scale Estimate
 
 | Metric | Value |
 |---|---|
-| Unique ARM resource types | 3,314 |
+| Unique ARM resource types (stable) | 2,631 |
+| Preview-only resource types | 683 |
 | Total type+version definitions | 31,175 |
-| Storage account properties (2025-01-01) | 688 type entries in types.json |
-| Estimated generated Go LOC per resource | 500-2,000 |
-| Total generated Go LOC (all resources) | ~2-6M lines |
-| Binary size impact | +50-200 MB (estimated) |
+| Current provider binary size | 358 MB (334 MB embedded bicep types) |
+| Estimated generated Go LOC (latest stable only) | ~1.3-5.2M lines |
+| Estimated additional binary size | Marginal (type data already embedded) |
 
 ## Key Technical Risks
 
-1. **camelCase → snake_case collisions**: ARM naming is inconsistent; automated conversion will produce collisions or unintuitive names
-2. **Discriminated union mapping**: No clean Terraform representation for polymorphic ARM types
-3. **State compatibility**: Generated schema must round-trip through Terraform state without data loss, including properties the schema doesn't know about (forward compatibility)
-4. **API version selection**: Must decide whether each resource is version-pinned or version-flexible; either choice has drawbacks
-5. **Compilation time**: Tens of thousands of Go files will significantly slow `go build` and CI
+1. **snake_case naming edge cases**: Consecutive uppercase, acronyms, single-letter segments. Build-time collision detection catches problems, but override curation is needed for a minority of resources.
+2. **Discriminated union UX**: Flattened variants may be confusing for complex polymorphic types. Fall back to dynamic attributes for the worst cases.
+3. **State round-tripping**: Generated schema must handle the snake_case ↔ camelCase conversion losslessly when reading/writing ARM JSON.
+4. **Compilation time**: Large generated codebase may need sub-packaging or build-tag gating to keep development builds fast.
 
 ## Conclusion
 
-Static schema generation from bicep types is technically feasible — the type information is rich enough to produce valid Terraform schemas. The main value is a dramatically better user experience: autocomplete, typed diffs, native ForceNew/Computed. The main risk is the scale (3,314 resource types), the naming problem (camelCase → snake_case), and the loss of flexibility that makes azapi_resource uniquely useful as a "day-zero" provider.
+Static schema generation from bicep types is feasible and delivers a dramatically better user experience for the ~2,631 stable ARM resource types. The main engineering challenge is the mandatory snake_case conversion (enforced by Terraform SDK) and discriminated union modeling. Both are solvable with known techniques.
+
+The approach is additive — `azapi_resource` remains the escape hatch for day-zero, preview, and advanced use cases. Generated resources are a strictly better experience for stable, well-defined ARM resource types.
+
+Azwise knowledge is not wasted: ForceNew rules, validation constraints, and computed field identification feed directly into the overlay system that customizes generated resources beyond what the bicep types alone can express.

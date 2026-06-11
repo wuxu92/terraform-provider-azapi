@@ -26,7 +26,7 @@ resource "azapi_resource" "storage" {
 
 ### Approach B: Static Schema Generation
 
-Each ARM resource type gets a dedicated Terraform resource with a fully typed schema generated from the bicep type definitions in `internal/azure/generated/`. Users write HCL with named attributes, autocomplete, and plan-time type checking.
+Each ARM resource type gets a dedicated Terraform resource with a fully typed schema generated from the bicep type definitions. Users write HCL with named attributes, autocomplete, and plan-time type checking. `azapi_resource` is **kept untouched** — both approaches coexist.
 
 ```hcl
 resource "azapi_storage_account" "example" {
@@ -47,6 +47,12 @@ resource "azapi_storage_account" "example" {
 }
 ```
 
+## Naming Constraint: Terraform SDK Enforces snake_case
+
+The Terraform plugin framework SDK validates attribute names with `^[a-z_][a-z0-9_]*$` — camelCase names produce a **hard error**. This is enforced in `fwschema/attribute_name_validation.go` and cannot be bypassed. Any static schema generation must convert ARM camelCase to snake_case.
+
+This is the primary UX difference between the two approaches: `azapi_resource` users write exact ARM names (`minimumTlsVersion`), while generated resources use Terraform-style names (`minimum_tls_version`). The conversion is mechanical and predictable, but it is mandatory.
+
 ## Head-to-Head Comparison
 
 | Dimension | Dynamic Body + Azwise | Static Schema Generation |
@@ -57,112 +63,106 @@ resource "azapi_storage_account" "example" {
 | **ForceNew detection** | Azwise runtime lookup → plan modifier | Schema-level `RequiresReplace` per attribute |
 | **Computed fields** | Azwise strips from diff | Schema `Computed: true` — native |
 | **Validation** | Azwise validates at plan time | Schema validators — native |
-| **Day-zero coverage** | Instant — any ARM type works with `body = {}` | Must generate + compile + release first |
-| **API version flexibility** | User sets `type = "...@version"`, body is freeform | Each version needs a schema; changing version may break config |
-| **ARM naming** | User writes exact ARM camelCase | Must map camelCase ↔ snake_case (error-prone) |
+| **Day-zero coverage** | Instant — any ARM type works | Falls back to `azapi_resource` for unsupported types |
+| **API version handling** | User changes `@version`, body is freeform | Each resource pins to latest stable; preview uses `azapi_resource` |
+| **Property naming** | Exact ARM camelCase | snake_case (SDK requirement); documented mapping |
 | **Cross-field references** | `output` + `response_export_values` | Native `resource.attr` references |
-| **Code volume** | ~1K LOC for azwise core + ~300 LOC per resource knowledge | ~500-2,000 LOC per generated resource × 3,314 types |
-| **Binary size** | Negligible (knowledge is data, not schema) | +50-200 MB estimated for full generation |
-| **Maintenance** | Knowledge files updated manually or via extraction | Regenerate from bicep types (automated but needs review) |
-| **Migration from existing** | No migration — `azapi_resource` unchanged | Every user must rewrite `body = {}` → named attributes |
-| **AzureRM migration** | Different syntax than AzureRM | Closer to AzureRM feel (named attributes) |
-| **Sensitive/write-only** | `sensitive_body` attribute | Schema `Sensitive: true` per attribute |
-| **Discriminated unions** | JSON handles polymorphism naturally | Requires complex schema modeling |
+| **Code volume** | ~1K LOC core + ~300 LOC per resource | ~500-2K LOC per resource × 2,631 types |
+| **Binary size impact** | Negligible | Marginal (334 MB type data already embedded) |
+| **Migration needed** | No — transparent improvements | No — coexists with `azapi_resource` |
+| **Discriminated unions** | JSON handles naturally | Generator flattens or falls back to dynamic |
+| **Nested depth** | Same depth in JSON body | Same depth in HCL blocks |
+| **Sensitive/write-only** | `sensitive_body` attribute | Schema `Sensitive: true`; handled by generator |
 
 ## Detailed Analysis
 
-### Where Static Schema Wins
+### Where Static Schema Wins Clearly
 
 **1. User experience for known resources.**
-For the top ~100 resource types that most users interact with, a typed schema is dramatically better. Autocomplete prevents typos, plan diffs are readable, and ForceNew/Computed behavior is transparent without any hidden runtime logic.
+For the ~2,631 stable resource types, a typed schema is dramatically better. Autocomplete prevents typos, plan diffs are readable, and ForceNew/Computed behavior is transparent.
 
 **2. Terraform ecosystem integration.**
 Static schemas work with `terraform validate`, `tflint`, IDE plugins, and documentation generators out of the box. Dynamic bodies are opaque to all of these tools.
 
 **3. No invisible behavior.**
-Azwise silently strips computed fields, validates properties, and detects ForceNew — but users don't know this is happening until it doesn't work. Static schemas make all constraints visible in the schema definition.
+Azwise silently strips computed fields, validates properties, and detects ForceNew — but users don't see this happening. Static schemas make all constraints visible and inspectable.
 
 **4. State management.**
-Terraform knows every attribute's type and can diff, import, and migrate state reliably. With dynamic bodies, state contains raw JSON that requires custom diff logic (`IgnoreNoOpChanges`, `ignore_missing_property`, `ignore_casing`).
+Terraform knows every attribute's type. No `ignore_missing_property`, `ignore_casing`, or custom diff suppression needed.
 
-### Where Dynamic Body + Azwise Wins
+### Where Dynamic Body + Azwise Wins Clearly
 
 **1. Day-zero coverage.**
-Any ARM resource type works immediately — no code generation, no compilation, no release cycle. Users can manage a new Azure service the day it launches. This is the core value proposition of azapi and the reason it exists.
+Any ARM resource type works immediately — no generation, compilation, or release. This is the core value proposition of AzAPI and remains critical for preview APIs and newly launched services.
 
-**2. API version flexibility.**
-Changing `@2023-01-01` to `@2025-01-01` just works. The body is freeform; new properties are accepted without schema changes. Static schemas would require regeneration and potentially config rewrites for each version upgrade.
+**2. No naming translation.**
+Users write the exact ARM property names from Azure docs, Portal, and ARM templates. No mental translation between `minimumTlsVersion` (ARM) and `minimum_tls_version` (Terraform).
 
-**3. No naming translation.**
-Users write the exact ARM property names they see in the Azure API documentation, Azure Portal, and ARM templates. No mental translation between `minimumTlsVersion` (ARM) and `minimum_tls_version` (Terraform). This eliminates an entire class of "what's the Terraform name for X?" questions.
+**3. Escape hatch for ARM edge cases.**
+ARM APIs sometimes accept properties not in their spec, or have behavior that differs from the spec. Dynamic body lets users work around these. Static schemas would reject valid configurations when the spec is wrong.
 
-**4. Polymorphic types work naturally.**
-ARM's discriminated unions (e.g., virtual machine image reference types, encryption key sources) are just JSON. No need for complex schema modeling or "one of these blocks" validators.
+### Non-Issues (Previously Overstated Cons)
 
-**5. Minimal code volume.**
-Azwise knowledge for storage account is ~220 lines of Go. A generated static schema for the same resource would be 1,000-2,000 lines, and there are 3,314 resource types to cover.
+Several concerns from the initial analysis are less significant than originally assessed:
 
-**6. No migration.**
-Existing `azapi_resource` users are unaffected. Azwise improvements are invisible — they just get better validation, ForceNew detection, and diff suppression without changing their configs.
+**Schema drift across API versions**: This already exists for `azapi_resource` — users must update their `body` content when changing `@version`. A static schema makes the same changes explicit at plan time rather than as runtime API errors. This is arguably better, not worse.
 
-**7. Escape hatch for ARM edge cases.**
-ARM APIs sometimes accept properties not in their spec, or have behavior that differs from the spec. Dynamic body lets users work around these issues. Static schemas would reject valid configurations when the spec is wrong.
+**Breaking changes between API versions**: Same as above — these are an ARM API reality, not a schema generation problem. Static schemas surface them earlier (plan time vs apply time).
 
-### The Naming Problem
+**Binary size**: The provider binary is already 358 MB, of which 334 MB is embedded bicep type data. Generated Go code adds comparatively little.
 
-This deserves special attention because it's the single largest technical risk of static schema generation.
+**Nested depth**: The same nesting exists whether properties are JSON objects in `body = {}` or HCL blocks in a static schema. Neither approach changes the ARM API structure.
 
-ARM property naming is inconsistent:
-- `minimumTlsVersion` vs `minTlsVersion` (different services)
-- `isHnsEnabled` → `is_hns_enabled` or `hns_enabled`?
-- `iPRules` → `ip_rules` or `i_p_rules`?
-- `allowBlobPublicAccess` → `allow_blob_public_access`
-- `supportsHttpsTrafficOnly` → `supports_https_traffic_only` or `https_traffic_only`?
+**Existing user migration**: `azapi_resource` remains untouched. Users adopt static resources incrementally, one resource at a time, or not at all.
 
-AzureRM spent 10+ years manually curating these names, with breaking changes when they got it wrong. Automated conversion will produce names that are correct-but-ugly or incorrect-and-confusing. There is no algorithm that handles all ARM naming conventions correctly.
+**Maintenance of overlays**: This is the same work azwise does today — curating ForceNew rules, validation, defaults. The difference is that overlays enhance a typed schema (schema-level constraints) rather than patching a dynamic body (runtime heuristics). The investment in better UX is the point, not a drawback.
 
-### The Scale Problem
+## The Real Challenges
 
-| What | Dynamic + Azwise | Static Generation |
-|---|---|---|
-| Resources to support "well" | ~20-50 high-priority | 3,314 (all or nothing) |
-| LOC per resource | ~200-300 (knowledge file) | ~1,000-2,000 (generated schema) |
-| Total new LOC | ~10K-15K | ~3-6M |
-| Compilation time impact | None | Significant (+minutes) |
-| Binary size impact | ~100KB | +50-200MB |
-| CI/CD impact | Minimal | Major (build time, test matrix) |
+### 1. Property Name Conversion (Mandatory)
 
-## Hybrid Approach
+The Terraform SDK's `^[a-z_][a-z0-9_]*$` regex is a hard constraint. The generator must convert every ARM property name to snake_case and maintain a lossless reverse mapping for CRUD operations.
 
-The two approaches are not mutually exclusive. A practical path:
+The conversion is mechanical (`minimumTlsVersion` → `minimum_tls_version`) and AzAPI already has `snake2camel` / `camel2snake` functions. Edge cases (acronyms, consecutive uppercase) need a build-time collision detector. Override tables handle the rare ambiguous cases.
 
-### Phase 1: Dynamic Body + Azwise (Current)
-Continue enhancing azwise for high-priority resources. This delivers incremental value (validation, ForceNew, computed field handling) without any user-facing changes or migration.
+This is solvable engineering, not a blocking risk. But it does mean generated resources use different property names than `azapi_resource` and ARM docs. Documentation must bridge this gap.
 
-### Phase 2: Static Schema for Top-N Resources
-Generate typed resources for the ~20-50 most-used resource types. These coexist alongside `azapi_resource` — users choose the experience they want:
-- `azapi_resource` for day-zero, flexibility, or raw ARM access
-- `azapi_storage_account` for autocomplete, typed diffs, and AzureRM-like experience
+### 2. Discriminated Unions
 
-### Phase 3: Azwise Knowledge Feeds Generation
-The azwise knowledge (ForceNew, defaults, computed fields, validation) becomes input to the code generator. Instead of maintaining knowledge files AND generated schemas, knowledge files generate the custom overlays that augment the generated schemas.
+ARM's polymorphic types need Terraform representation. Options:
+- Flatten all variant properties with mutual-exclusivity validators (works for 2-3 variants)
+- Fall back to `types.Dynamic` for complex unions (preserves static schema for everything else)
 
-### Value Matrix
+The generator has full type information from bicep types and can choose the best strategy per union.
 
-| Approach | Coverage | UX | Effort | Risk |
-|---|---|---|---|---|
-| Azwise only | 20-50 resources, deep | Good (invisible improvements) | Low | Low |
-| Static only | 3,314 resources, shallow | Excellent (autocomplete, typed diffs) | Very high | High (naming, scale, migration) |
-| Hybrid (recommended) | 20-50 static + all dynamic | Best of both | Medium | Medium |
+### 3. ReadOnly Flag Accuracy
+
+Some bicep type flags are wrong. The generator needs an override mechanism for properties that are flagged ReadOnly but are actually settable. This is a finite, curated set.
+
+### 4. Compilation Time
+
+~2,631 generated resources at 500-2,000 LOC each is significant. Sub-packaging, build tags, or incremental compilation strategies can keep development builds fast.
 
 ## Recommendation
 
-**Start with azwise, prepare for hybrid.**
+**Build static schema generation as an additive layer on top of `azapi_resource`.**
 
-1. **Short term**: Complete azwise for the top 20 resource types. This delivers immediate value with minimal risk. Every azwise knowledge file is also a specification that a future code generator can consume.
+The two approaches are complementary, not competing:
 
-2. **Medium term**: Build a proof-of-concept schema generator that converts one `types.json` → Terraform resource schema. Validate the naming algorithm, discriminated union handling, and plan modifier generation on 3-5 resource types.
+| User need | Best tool |
+|---|---|
+| Day-zero / preview API | `azapi_resource` |
+| Stable resource, wants autocomplete | `azapi_storage_account` (generated) |
+| Working around ARM spec bugs | `azapi_resource` |
+| AzureRM migration target | Generated resources (closer UX) |
+| CI/CD with strict validation | Generated resources (plan-time checks) |
 
-3. **Long term**: If the PoC proves viable, generate static resources for the top 50 types and ship them alongside `azapi_resource`. Users opt into the typed experience per resource type.
+Azwise knowledge is reusable in both approaches: ForceNew rules, validation, computed fields, and defaults feed into the overlay system that customizes generated resources. The investment is portable.
 
-The key insight: **azwise knowledge is not wasted work** — it's the operational knowledge that any approach needs. Whether the schema is dynamic or static, you still need to know which properties are ForceNew, what the valid enum values are, and which fields are computed. Azwise captures this knowledge in a portable format.
+### Implementation Path
+
+1. **Build the generator**: Convert `types.json` → Terraform resource schema for latest stable versions. Start with 5 resources as proof of concept.
+2. **Solve naming**: Implement camelCase → snake_case with collision detection. Validate on all 2,631 resource types.
+3. **Handle discriminated unions**: Choose strategy per union complexity. Measure how many resources have them.
+4. **Ship alongside `azapi_resource`**: Both in the same provider binary. Users choose per resource.
+5. **Feed azwise into overlays**: Reuse existing knowledge files as the override layer for generated resources.
