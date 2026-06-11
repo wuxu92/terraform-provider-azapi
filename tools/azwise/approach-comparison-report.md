@@ -119,13 +119,11 @@ Several concerns from the initial analysis are less significant than originally 
 
 ## The Real Challenges
 
-### 1. Property Name Conversion (Mandatory)
+### 1. Property Name Conversion (Solved by Type Graph)
 
-The Terraform SDK's `^[a-z_][a-z0-9_]*$` regex is a hard constraint. The generator must convert every ARM property name to snake_case and maintain a lossless reverse mapping for CRUD operations.
+The Terraform SDK enforces snake_case (`^[a-z_][a-z0-9_]*$`). The generator converts ARM camelCase to snake_case for attribute names, but the original ARM name is preserved from the bicep type graph and stored alongside each attribute. CRUD operations use the stored ARM name directly for JSON marshaling — no heuristic runtime conversion. Build-time collision detection catches the rare edge cases (acronyms, consecutive uppercase).
 
-The conversion is mechanical (`minimumTlsVersion` → `minimum_tls_version`) and AzAPI already has `snake2camel` / `camel2snake` functions. Edge cases (acronyms, consecutive uppercase) need a build-time collision detector. Override tables handle the rare ambiguous cases.
-
-This is solvable engineering, not a blocking risk. But it does mean generated resources use different property names than `azapi_resource` and ARM docs. Documentation must bridge this gap.
+Users write `minimum_tls_version` in HCL while ARM docs say `minimumTlsVersion`. Generated documentation maps each name to its ARM path.
 
 ### 2. Discriminated Unions
 
