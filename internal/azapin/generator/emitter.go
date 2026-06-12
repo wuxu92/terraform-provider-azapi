@@ -234,9 +234,10 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 // Rules:
 //   - Required flag set → Required: true
 //   - Computed (ReadOnly or all-children-ReadOnly) → Computed: true only
-//   - Otherwise → Optional: true (no Computed, since value doesn't come from server
-//     unless we know a default; Computed is added only when the property also appears
-//     in GET responses with server-populated data)
+//   - Default → Optional: true, Computed: true (safe default: most ARM properties
+//     appear in GET responses with server-populated values even when the user didn't
+//     set them; marking as Optional-only would cause permanent diffs when the server
+//     returns a default value but Terraform expects null)
 func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs string) {
 	if prop.Description != "" {
 		desc := strings.ReplaceAll(prop.Description, `"`, `\"`)
@@ -251,6 +252,7 @@ func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs
 		b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
 	} else {
 		b.WriteString(fmt.Sprintf("%s\tOptional: true,\n", tabs))
+		b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
 	}
 	if prop.Flags.IsWriteOnly() {
 		b.WriteString(fmt.Sprintf("%s\tSensitive: true,\n", tabs))

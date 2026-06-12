@@ -62,18 +62,29 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 		t.Error("missing Hot enum value for accessTier")
 	}
 	// Verify computed-only fields don't have validators
-	if strings.Contains(source, "Computed: true,\n") {
-		// Find blocks that are Computed-only and ensure no Validators follow
-		// (This is a basic check; detailed validation is done in separate test)
+	// (Detailed validation done separately; basic check here)
+	
+	// Verify fully-computed blocks (like ipv6_endpoints inside primaryEndpoints)
+	// are Computed-only, not Optional+Computed
+	ipv6Idx := strings.Index(source, `"ipv6_endpoints"`)
+	if ipv6Idx >= 0 {
+		ipv6Block := source[ipv6Idx : ipv6Idx+200]
+		if strings.Contains(ipv6Block, "Optional:") {
+			t.Error("ipv6_endpoints should be Computed-only (all children are ReadOnly)")
+		}
 	}
-	// Verify sas_policy is Optional-only (not Computed)
+
+	// Verify sas_policy is Optional+Computed (safe default — server may return it in GET)
 	sasIdx := strings.Index(source, `"sas_policy"`)
 	if sasIdx < 0 {
 		t.Error("missing sas_policy")
 	} else {
 		sasBlock := source[sasIdx : sasIdx+200]
-		if strings.Contains(sasBlock, "Computed:") {
-			t.Error("sas_policy should be Optional-only, not Computed")
+		if !strings.Contains(sasBlock, "Optional:") {
+			t.Error("sas_policy should be Optional")
+		}
+		if !strings.Contains(sasBlock, "Computed:") {
+			t.Error("sas_policy should be Optional+Computed (safe default)")
 		}
 	}
 

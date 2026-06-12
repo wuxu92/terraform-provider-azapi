@@ -25,11 +25,13 @@ If the bicep flag has bit 0 set, the Terraform attribute is `Required: true`. Th
 
 If the bicep flag has bit 1 set, the Terraform attribute is `Computed: true` only. The user cannot set it; the server populates it. This applies to properties like `provisioningState`, `creationTime`, `primaryEndpoints`.
 
-**Rule 3: Optional properties → `Optional: true` (no Computed)**
+**Rule 3: Optional properties → `Optional: true, Computed: true` (safe default)**
 
-If the property is neither Required nor ReadOnly, it is `Optional: true`. We do NOT add `Computed: true` because the property is entirely user-controlled — the server does not populate it unless the user sets it.
+If the property is neither Required nor ReadOnly, it is `Optional: true, Computed: true`. This is the safe default because most ARM properties appear in GET responses with server-populated values even when the user didn't explicitly set them. Marking as `Optional`-only would cause permanent diffs when the server returns a default value but Terraform expects null.
 
-Exception: For properties where the ARM API applies a server default (e.g., `supportsHttpsTrafficOnly` defaults to `true`), a future enhancement will add `Computed: true` with a `Default` value. This requires out-of-band default value knowledge (from azwise or an override file), not derivable from the bicep types alone.
+`Computed` should only be removed from `Optional` properties when there is explicit evidence that the server never populates the field unless the user sets it. This evidence comes from out-of-band sources (azwise knowledge, override files, manual testing), not from the bicep types alone.
+
+When a known default value is available (from azwise or an override file), the property should use `Optional: true` with a `Default` plan modifier instead of `Optional + Computed`.
 
 **Rule 4: WriteOnly properties → `Sensitive: true`**
 
@@ -49,11 +51,11 @@ If an ObjectType (block) has ALL leaf descendants ReadOnly, the block itself is 
 
 Example: `primaryEndpoints` is `flags=2` (ReadOnly), and all its children (`blob`, `queue`, `table`, etc.) are also ReadOnly. The `ipv6Endpoints` sub-block has `flags=0` (Optional in bicep) but ALL its children are ReadOnly — so azapin emits it as `Computed: true`.
 
-**Rule 7: Settable blocks → `Optional: true` (no Computed)**
+**Rule 7: Settable blocks → `Optional: true, Computed: true` (safe default)**
 
-If an ObjectType has at least one settable (non-ReadOnly) leaf descendant, the block is `Optional: true`. It is NOT marked `Computed` because the user controls its content.
+If an ObjectType has at least one settable (non-ReadOnly) leaf descendant, the block follows Rule 3: `Optional: true, Computed: true`. The server may return the block in GET with default values even when the user didn't set it.
 
-Example: `sasPolicy` has `flags=0` and its children (`sasExpirationPeriod`, `expirationAction`) are Required. Therefore `sasPolicy` is `Optional: true` only.
+Example: `sasPolicy` has `flags=0` and its children (`sasExpirationPeriod`, `expirationAction`) are Required. The block is `Optional: true, Computed: true` — the user can set it, and the server may return it.
 
 ## Validators
 
