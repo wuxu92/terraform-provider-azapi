@@ -50,10 +50,11 @@ type Type struct {
 
 // Property represents one property within an ObjectType.
 type Property struct {
-	Name        string       // ARM JSON name (camelCase)
-	Type        *Type        // Resolved type
-	Flags       PropertyFlag
-	Description string
+	Name         string       // ARM JSON name (camelCase)
+	Type         *Type        // Resolved type
+	Flags        PropertyFlag
+	Description  string
+	DefaultValue string       // Extracted from description, empty if none detected
 }
 
 // IsEnum returns true if this type is a union of string literals (enum).

@@ -28,6 +28,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Apply post-processing: extract defaults from descriptions, promote single-optional children
+	generator.PostProcess(defs)
+
 	// Find storage account
 	var sa *generator.ResourceDefinition
 	for _, d := range defs {

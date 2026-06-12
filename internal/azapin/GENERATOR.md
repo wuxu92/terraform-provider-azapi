@@ -57,19 +57,52 @@ If an ObjectType has at least one settable (non-ReadOnly) leaf descendant, the b
 
 Example: `sasPolicy` has `flags=0` and its children (`sasExpirationPeriod`, `expirationAction`) are Required. The block is `Optional: true, Computed: true` — the user can set it, and the server may return it.
 
+### Default Value Extraction
+
+**Rule 8: Extract defaults from descriptions**
+
+Many ARM property descriptions mention default values even when the OpenAPI/bicep spec doesn't formally declare them. The generator scans descriptions for patterns like:
+
+- "The default value is true"
+- "defaults to TLS1_2"
+- "default is NoRootSquash"
+- "enabled by default" (→ `true` for bool)
+- "disabled by default" (→ `false` for bool)
+
+When a valid default is extracted and type-checked against the property type:
+- The property is emitted as `Optional: true` with a `Default` plan modifier (no `Computed`)
+- Terraform shows the default value in plan output instead of "(known after apply)"
+- The default implementation uses `azapinschema.StaticBool`, `azapinschema.StaticString`, or `azapinschema.StaticInt64`
+
+The extracted value is validated:
+- Bool defaults must be "true" or "false"
+- Enum defaults must match one of the allowed values (case-insensitive)
+- Int defaults must be numeric
+- "null" and "undefined" are rejected
+
+### Single-Optional-Child Promotion
+
+**Rule 9: Single optional child in a block → Required**
+
+If an ObjectType has exactly one Optional property and zero Required properties (ignoring SystemManaged and ReadOnly properties), the Optional property is promoted to Required.
+
+Rationale: a block with only one settable property serves no purpose when that property is absent — the user would be creating an empty block. Making it Required ensures the block is meaningful when present.
+
+Example: `Placement` has one property `zonePlacementPolicy` (Optional in bicep). After promotion, `zone_placement_policy` becomes Required within the `placement` block.
+
 ## Validators
 
-**Rule 8: No validators on Computed-only fields**
+**Rule 10: No validators on Computed-only fields**
 
 Computed fields are populated by the server. Validators constrain user input, which doesn't exist for computed fields. The generator never emits `Validators` for fields where the effective flag is Computed-only.
 
-**Rule 9: Enum validators for settable enum fields**
+**Rule 11: Enum validators for settable enum fields**
 
 String enum types (UnionType of StringLiteralType values) emit `stringvalidator.OneOf(...)` with all allowed values — but only when the field is settable (Required or Optional).
 
 ## Property Name Conversion
 
-**Rule 10: camelCase → snake_case with stored ARM name**
+**Rule 12: camelCase → snake_case with stored ARM name**
 
 The Terraform SDK requires `^[a-z_][a-z0-9_]*$` for attribute names. The generator converts ARM camelCase to Terraform snake_case using `naming.CamelToSnake()`.
 
@@ -82,13 +115,13 @@ Algorithm:
 - `iPRules` → `ip_rules`
 - `isNfsV3Enabled` → `is_nfs_v3_enabled`
 
-**Rule 11: Build-time collision detection**
+**Rule 13: Build-time collision detection**
 
 The generator checks all 3,246 ARM resource types for Terraform name collisions. 9 collisions exist (Admin namespaces, duplicate naming); these are resolved via an override table.
 
 ## Runtime Property Mapping
 
-**Rule 12: No static property map — use embedded type graph**
+**Rule 14: No static property map — use embedded type graph**
 
 The generated code does NOT include a `PropertyMap` variable. Instead, at runtime the CRUD methods use the bicep type graph already embedded in `internal/azure/generated/` to:
 
@@ -117,11 +150,11 @@ This avoids duplicating ~215 property mappings per resource (storage account has
 
 ## Scope Selection
 
-**Rule 13: Latest stable API version only**
+**Rule 15: Latest stable API version only**
 
 For each ARM resource type, the generator selects the latest non-preview API version. This gives ~2,631 resources. Preview-only resource types are excluded — users fall back to `azapi_resource`.
 
-**Rule 14: One Terraform resource per ARM resource type**
+**Rule 16: One Terraform resource per ARM resource type**
 
 Each ARM resource type produces exactly one Terraform resource, pinned to one API version. The resource name encodes the service and resource path but NOT the API version.
 

@@ -33,6 +33,7 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator\"\n")
 	b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/schema/validator\"\n")
 	b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/types\"\n")
+	b.WriteString("\tazapinschema \"github.com/Azure/terraform-provider-azapi/internal/azapin/schema\"\n")
 	b.WriteString(")\n\n")
 
 	// Schema function
@@ -234,10 +235,8 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 // Rules:
 //   - Required flag set → Required: true
 //   - Computed (ReadOnly or all-children-ReadOnly) → Computed: true only
-//   - Default → Optional: true, Computed: true (safe default: most ARM properties
-//     appear in GET responses with server-populated values even when the user didn't
-//     set them; marking as Optional-only would cause permanent diffs when the server
-//     returns a default value but Terraform expects null)
+//   - Has default value → Optional: true + Default (not Computed)
+//   - Default → Optional: true, Computed: true (safe default)
 func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs string) {
 	if prop.Description != "" {
 		desc := strings.ReplaceAll(prop.Description, `"`, `\"`)
@@ -250,12 +249,36 @@ func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs
 		b.WriteString(fmt.Sprintf("%s\tRequired: true,\n", tabs))
 	} else if computed {
 		b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
+	} else if prop.DefaultValue != "" {
+		// Known default → Optional with Default, no Computed needed
+		b.WriteString(fmt.Sprintf("%s\tOptional: true,\n", tabs))
+		emitDefault(b, prop, tabs)
 	} else {
 		b.WriteString(fmt.Sprintf("%s\tOptional: true,\n", tabs))
 		b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
 	}
 	if prop.Flags.IsWriteOnly() {
 		b.WriteString(fmt.Sprintf("%s\tSensitive: true,\n", tabs))
+	}
+}
+
+// emitDefault writes a Default plan modifier for the property's type.
+// emitDefault writes a Default plan modifier for the property's type.
+func emitDefault(b *strings.Builder, prop *Property, tabs string) {
+	switch prop.Type.Kind {
+	case KindBool:
+		b.WriteString(fmt.Sprintf("%s\tDefault: azapinschema.StaticBool(%s),\n", tabs, prop.DefaultValue))
+	case KindString:
+		b.WriteString(fmt.Sprintf("%s\tDefault: azapinschema.StaticString(%q),\n", tabs, prop.DefaultValue))
+	case KindInt:
+		b.WriteString(fmt.Sprintf("%s\tDefault: azapinschema.StaticInt64(%s),\n", tabs, prop.DefaultValue))
+	default:
+		if prop.Type.IsEnum() {
+			b.WriteString(fmt.Sprintf("%s\tDefault: azapinschema.StaticString(%q),\n", tabs, prop.DefaultValue))
+		} else {
+			// Unknown type with default — fall back to Computed
+			b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
+		}
 	}
 }
 
