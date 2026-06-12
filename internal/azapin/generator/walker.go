@@ -54,8 +54,27 @@ type Property struct {
 	Type         *Type        // Resolved type
 	Flags        PropertyFlag
 	Description  string
-	DefaultValue string       // Extracted from description, empty if none detected
+	DefaultValue string              // Extracted from description, empty if none detected
+	Validators   []DescriptionValidator // Extracted from description
 }
+
+// DescriptionValidator is a validation rule extracted from a property description.
+type DescriptionValidator struct {
+	Kind    ValidatorKind
+	Pattern string // For regex/format validators
+	Min     *int64 // For numeric range validators
+	Max     *int64 // For numeric range validators
+	Message string // Human-readable description
+}
+
+// ValidatorKind identifies the type of description-extracted validator.
+type ValidatorKind int
+
+const (
+	ValidatorArmResourceID ValidatorKind = iota // ARM resource ID format
+	ValidatorRegex                              // Regex pattern
+	ValidatorIntRange                           // Numeric min/max
+)
 
 // IsEnum returns true if this type is a union of string literals (enum).
 func (t *Type) IsEnum() bool {

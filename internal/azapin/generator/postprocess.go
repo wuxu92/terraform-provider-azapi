@@ -1,20 +1,25 @@
 package generator
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
 
 // PostProcess applies semantic rules to a parsed type graph that can't be
 // derived from bicep flags alone. Call after ParseTypesJSON.
+// PostProcess applies semantic rules to a parsed type graph that can't be
+// derived from bicep flags alone. Call after ParseTypesJSON.
 //
 // Rules applied:
 //   - Extract default values from property descriptions
+//   - Extract validators from property descriptions (ARM ID, datetime, numeric ranges)
 //   - Promote single-optional-child block properties to Required
 func PostProcess(defs []*ResourceDefinition) {
 	for _, def := range defs {
 		if def.Body != nil {
 			extractDefaults(def.Body)
+			extractDescriptionValidators(def.Body)
 			promoteSingleOptional(def.Body)
 		}
 	}
@@ -196,4 +201,153 @@ func promoteSingleOptional(typ *Type) {
 			promoteSingleOptional(prop.Type.ElementType)
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Description-based validator extraction
+// ---------------------------------------------------------------------------
+
+// ARM resource ID pattern in descriptions: /subscriptions/{subscriptionId}/...
+var armIDPattern = regexp.MustCompile(`/subscriptions/\{[^}]+\}/resourceGroups/`)
+
+// Datetime format mentions
+var datetimePattern = regexp.MustCompile(`(?i)(?:datetime|date/time)\s+format\s+['\"]?([^'\".\s]+)|(?:ISO\s*8601|RFC\s*3339)|format[:\s]+['"]?(yyyy-MM-dd[^'".\s]*)`)
+
+// Numeric range: "must be greater than 0", "less than or equal to 5120", "between 1 and 100"
+var (
+	greaterThanPattern = regexp.MustCompile(`(?i)(?:must be|value is)\s+greater than\s+(?:or equal to\s+)?(\d+)`)
+	lessThanPattern    = regexp.MustCompile(`(?i)(?:must be|value is)\s+less than\s+(?:or equal to\s+)?(\d+)`)
+	betweenPattern     = regexp.MustCompile(`(?i)between\s+(\d+)\s+and\s+(\d+)`)
+	minimumPattern     = regexp.MustCompile(`(?i)minimum\s+(?:value\s+)?(?:is\s+|of\s+)?(\d+)`)
+	maximumPattern     = regexp.MustCompile(`(?i)maximum\s+(?:value\s+)?(?:is\s+|of\s+)?(\d+)`)
+)
+
+func extractDescriptionValidators(typ *Type) {
+	if typ.Kind != KindObject {
+		return
+	}
+	for _, prop := range typ.Properties {
+		if prop.Flags.IsReadOnly() || prop.Flags.IsSystemManaged() {
+			continue
+		}
+		if prop.Description == "" {
+			continue
+		}
+
+		desc := prop.Description
+
+		// ARM resource ID format
+		if prop.Type.Kind == KindString && armIDPattern.MatchString(desc) {
+			prop.Validators = append(prop.Validators, DescriptionValidator{
+				Kind:    ValidatorArmResourceID,
+				Message: "must be a valid ARM resource ID",
+			})
+		}
+
+		// Datetime format
+		if prop.Type.Kind == KindString {
+			if m := datetimePattern.FindStringSubmatch(desc); m != nil {
+				format := "yyyy-MM-ddTHH:mm:ssZ"
+				for _, g := range m[1:] {
+					if g != "" {
+						format = g
+						break
+					}
+				}
+				prop.Validators = append(prop.Validators, DescriptionValidator{
+					Kind:    ValidatorRegex,
+					Pattern: datetimeFormatToRegex(format),
+					Message: "must be in datetime format " + format,
+				})
+			}
+		}
+
+		// Numeric range
+		if prop.Type.Kind == KindInt {
+			v := extractNumericRange(desc)
+			if v != nil {
+				prop.Validators = append(prop.Validators, *v)
+			}
+		}
+
+		// Recurse into nested objects
+		if prop.Type.Kind == KindObject {
+			extractDescriptionValidators(prop.Type)
+		}
+		if prop.Type.Kind == KindArray && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject {
+			extractDescriptionValidators(prop.Type.ElementType)
+		}
+	}
+}
+
+func extractNumericRange(desc string) *DescriptionValidator {
+	var min, max *int64
+
+	if m := betweenPattern.FindStringSubmatch(desc); m != nil {
+		v1 := parseInt64(m[1])
+		v2 := parseInt64(m[2])
+		min = &v1
+		max = &v2
+	} else {
+		if m := greaterThanPattern.FindStringSubmatch(desc); m != nil {
+			v := parseInt64(m[1])
+			min = &v
+		}
+		if m := minimumPattern.FindStringSubmatch(desc); m != nil && min == nil {
+			v := parseInt64(m[1])
+			min = &v
+		}
+		if m := lessThanPattern.FindStringSubmatch(desc); m != nil {
+			v := parseInt64(m[1])
+			max = &v
+		}
+		if m := maximumPattern.FindStringSubmatch(desc); m != nil && max == nil {
+			v := parseInt64(m[1])
+			max = &v
+		}
+	}
+
+	if min == nil && max == nil {
+		return nil
+	}
+
+	msg := "must be"
+	if min != nil {
+		msg += fmt.Sprintf(" >= %d", *min)
+	}
+	if min != nil && max != nil {
+		msg += " and"
+	}
+	if max != nil {
+		msg += fmt.Sprintf(" <= %d", *max)
+	}
+
+	return &DescriptionValidator{
+		Kind:    ValidatorIntRange,
+		Min:     min,
+		Max:     max,
+		Message: msg,
+	}
+}
+
+func parseInt64(s string) int64 {
+	var v int64
+	fmt.Sscanf(s, "%d", &v)
+	return v
+}
+
+// datetimeFormatToRegex converts a datetime format string to a basic regex.
+func datetimeFormatToRegex(format string) string {
+	// Common datetime format: yyyy-MM-ddTHH:mm:ssZ
+	r := strings.NewReplacer(
+		"yyyy", `\d{4}`,
+		"MM", `\d{2}`,
+		"dd", `\d{2}`,
+		"HH", `\d{2}`,
+		"mm", `\d{2}`,
+		"ss", `\d{2}`,
+		"T", `T`,
+		"Z", `Z`,
+	)
+	return "^" + r.Replace(format) + "$"
 }

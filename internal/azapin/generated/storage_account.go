@@ -2,6 +2,8 @@
 package generated
 
 import (
+	"regexp"
+
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -782,6 +784,12 @@ func AzapiStorageAccountSchema() schema.Schema {
 										"id": schema.StringAttribute{
 											Description: "Resource ID of a subnet, for example: /subscriptions/{subscriptionId}/resourceGroups/{groupName}/providers/Microsoft.Network/virtualNetworks/{vnetName}/subnets/{subnetName}.",
 											Required: true,
+											Validators: []validator.String{
+												stringvalidator.RegexMatches(
+													regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
+													"must be a valid ARM resource ID",
+												),
+											},
 										},
 										"state": schema.StringAttribute{
 											Description: "Gets the state of virtual network rule.",

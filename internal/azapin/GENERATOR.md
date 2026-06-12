@@ -100,9 +100,24 @@ Computed fields are populated by the server. Validators constrain user input, wh
 
 String enum types (UnionType of StringLiteralType values) emit `stringvalidator.OneOf(...)` with all allowed values — but only when the field is settable (Required or Optional).
 
+**Rule 12: Description-based validators for settable fields**
+
+When bicep types don't include formal validators, the generator extracts validation hints from property descriptions. Three patterns are recognized:
+
+1. **ARM resource ID format**: Descriptions containing `/subscriptions/{subscriptionId}/resourceGroups/...` emit a regex validator matching the ARM resource ID pattern.
+   - Example: `VirtualNetworkRule.id` → `regexp.MustCompile('^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/')`
+
+2. **Datetime format**: Descriptions mentioning `datetime format`, `ISO 8601`, or `yyyy-MM-dd` patterns emit a regex validator for the datetime format.
+   - Example: `minCreationTime` with "format 'yyyy-MM-ddTHH:mm:ssZ'" → date regex
+
+3. **Numeric ranges**: Descriptions containing `must be greater than N`, `less than or equal to N`, `between N and M`, `minimum N`, `maximum N` emit `int64validator.AtLeast`, `AtMost`, or `Between`.
+   - Example: `shareQuota` with "Must be greater than 0, and less than or equal to 5120" → `int64validator.Between(0, 5120)`
+
+These validators are only emitted for settable (non-Computed) fields. The extraction is conservative — ambiguous descriptions are skipped.
+
 ## Property Name Conversion
 
-**Rule 12: camelCase → snake_case with stored ARM name**
+**Rule 13: camelCase → snake_case with stored ARM name**
 
 The Terraform SDK requires `^[a-z_][a-z0-9_]*$` for attribute names. The generator converts ARM camelCase to Terraform snake_case using `naming.CamelToSnake()`.
 
@@ -115,13 +130,13 @@ Algorithm:
 - `iPRules` → `ip_rules`
 - `isNfsV3Enabled` → `is_nfs_v3_enabled`
 
-**Rule 13: Build-time collision detection**
+**Rule 14: Build-time collision detection**
 
 The generator checks all 3,246 ARM resource types for Terraform name collisions. 9 collisions exist (Admin namespaces, duplicate naming); these are resolved via an override table.
 
 ## Runtime Property Mapping
 
-**Rule 14: No static property map — use embedded type graph**
+**Rule 15: No static property map — use embedded type graph**
 
 The generated code does NOT include a `PropertyMap` variable. Instead, at runtime the CRUD methods use the bicep type graph already embedded in `internal/azure/generated/` to:
 
@@ -132,29 +147,15 @@ The generated code does NOT include a `PropertyMap` variable. Instead, at runtim
 
 This avoids duplicating ~215 property mappings per resource (storage account has 215 nested paths) across 2,631 resource types.
 
-## Type Mapping
-
-| Bicep Type | Terraform Type | Schema Attribute |
-|---|---|---|
-| StringType | `types.StringType` | `schema.StringAttribute` |
-| StringLiteralType | `types.StringType` | (enum value — used in UnionType) |
-| IntegerType | `types.Int64Type` | `schema.Int64Attribute` |
-| BooleanType | `types.BoolType` | `schema.BoolAttribute` |
-| ObjectType | `types.ObjectType` | `schema.SingleNestedAttribute` |
-| ArrayType(ObjectType) | `types.ListType` | `schema.ListNestedAttribute` |
-| ArrayType(primitive) | `types.ListType` | `schema.ListAttribute` |
-| UnionType(StringLiterals) | `types.StringType` | `schema.StringAttribute` + `stringvalidator.OneOf` |
-| UnionType(mixed) | `types.StringType` | `schema.StringAttribute` (fallback) |
-| AnyType | `types.DynamicType` | `schema.DynamicAttribute` |
-| DiscriminatedObjectType | `types.DynamicType` | `schema.DynamicAttribute` (future: flattened variants) |
-
 ## Scope Selection
 
-**Rule 15: Latest stable API version only**
+**Rule 16: Latest stable API version only**
 
 For each ARM resource type, the generator selects the latest non-preview API version. This gives ~2,631 resources. Preview-only resource types are excluded — users fall back to `azapi_resource`.
 
-**Rule 16: One Terraform resource per ARM resource type**
+**Rule 17: One Terraform resource per ARM resource type**
+
+Each ARM resource type produces exactly one Terraform resource, pinned to one API version. The resource name encodes the service and resource path but NOT the API version.
 
 Each ARM resource type produces exactly one Terraform resource, pinned to one API version. The resource name encodes the service and resource path but NOT the API version.
 
@@ -215,10 +216,6 @@ func AzapiStorageAccountSchema() schema.Schema {
 ```
 
 ## Future Enhancements
-
-### Default Values
-
-When azwise knowledge (or another source) provides actual ARM default values, the generator can emit `Default: value` for Optional properties instead of bare `Optional: true`. This gives better plan-time behavior: Terraform shows the default in plan output rather than "(known after apply)".
 
 ### Discriminated Unions
 
