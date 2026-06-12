@@ -1,10 +1,10 @@
 # Azapin Generator — Technical Specification
 
-This document describes the technical rules and implementation details of the azapin schema generator. It complements DESIGN.md (architecture and project scope) with the specific behaviors that the generator must enforce.
+This document describes the 17 technical rules and implementation details of the azapin schema generator. It complements DESIGN.md (architecture and project scope) with the specific behaviors that the generator must enforce.
 
 ## Schema Flag Derivation
 
-The generator reads bicep property flags (`flags` field in `types.json`) and derives Terraform schema flags. The mapping is not 1:1 — several rules apply.
+The generator reads bicep property flags (`flags` field in `types.json`) and derives Terraform schema flags. The mapping is not 1:1 — several inference, post-processing, and description-mining rules apply.
 
 ### Flag Values
 
@@ -31,7 +31,7 @@ If the property is neither Required nor ReadOnly, it is `Optional: true, Compute
 
 `Computed` should only be removed from `Optional` properties when there is explicit evidence that the server never populates the field unless the user sets it. This evidence comes from out-of-band sources (azwise knowledge, override files, manual testing), not from the bicep types alone.
 
-When a known default value is available (from azwise or an override file), the property should use `Optional: true` with a `Default` plan modifier instead of `Optional + Computed`.
+When a known default value is available (from description extraction or override file), the property uses `Optional: true` with a `Default` plan modifier instead of `Optional + Computed` (see Rule 8).
 
 **Rule 4: WriteOnly properties → `Sensitive: true`**
 
@@ -57,28 +57,34 @@ If an ObjectType has at least one settable (non-ReadOnly) leaf descendant, the b
 
 Example: `sasPolicy` has `flags=0` and its children (`sasExpirationPeriod`, `expirationAction`) are Required. The block is `Optional: true, Computed: true` — the user can set it, and the server may return it.
 
+## Post-Processing Rules
+
+These rules are applied after parsing the type graph (`PostProcess()`), before schema emission. They derive information that bicep flags alone don't capture.
+
 ### Default Value Extraction
 
 **Rule 8: Extract defaults from descriptions**
 
 Many ARM property descriptions mention default values even when the OpenAPI/bicep spec doesn't formally declare them. The generator scans descriptions for patterns like:
 
-- "The default value is true"
-- "defaults to TLS1_2"
-- "default is NoRootSquash"
-- "enabled by default" (→ `true` for bool)
-- "disabled by default" (→ `false` for bool)
+- `"The default value is true"` → bool default `true`
+- `"defaults to TLS1_2"` → string/enum default `"TLS1_2"`
+- `"default is NoRootSquash"` → enum default `"NoRootSquash"`
+- `"enabled by default"` → bool default `true`
+- `"disabled by default"` → bool default `false`
 
 When a valid default is extracted and type-checked against the property type:
 - The property is emitted as `Optional: true` with a `Default` plan modifier (no `Computed`)
 - Terraform shows the default value in plan output instead of "(known after apply)"
-- The default implementation uses `azapinschema.StaticBool`, `azapinschema.StaticString`, or `azapinschema.StaticInt64`
+- Implementations: `azapinschema.StaticBool`, `azapinschema.StaticString`, `azapinschema.StaticInt64` in `internal/azapin/schema/defaults.go`
 
-The extracted value is validated:
+Validation rules for extracted defaults:
 - Bool defaults must be "true" or "false"
 - Enum defaults must match one of the allowed values (case-insensitive)
 - Int defaults must be numeric
 - "null" and "undefined" are rejected
+
+Example: `supportsHttpsTrafficOnly` description says "The default value is true since API version 2019-04-01" → emitted as `Optional: true, Default: azapinschema.StaticBool(true)`.
 
 ### Single-Optional-Child Promotion
 
@@ -88,13 +94,13 @@ If an ObjectType has exactly one Optional property and zero Required properties 
 
 Rationale: a block with only one settable property serves no purpose when that property is absent — the user would be creating an empty block. Making it Required ensures the block is meaningful when present.
 
-Example: `Placement` has one property `zonePlacementPolicy` (Optional in bicep). After promotion, `zone_placement_policy` becomes Required within the `placement` block.
+Example: `Placement` has one property `zonePlacementPolicy` (Optional in bicep). After promotion, `zone_placement_policy` becomes Required within the `placement` block. Other examples: `CorsRules.corsRules`, `Multichannel.enabled`, `DualStackEndpointPreference.publishIpv6Endpoint`.
 
 ## Validators
 
 **Rule 10: No validators on Computed-only fields**
 
-Computed fields are populated by the server. Validators constrain user input, which doesn't exist for computed fields. The generator never emits `Validators` for fields where the effective flag is Computed-only.
+Computed fields are populated by the server. Validators constrain user input, which doesn't exist for computed fields. The generator never emits `Validators` for fields where the effective flag is Computed-only (including fields that are Computed via block-level inference in Rule 6).
 
 **Rule 11: Enum validators for settable enum fields**
 
@@ -105,7 +111,7 @@ String enum types (UnionType of StringLiteralType values) emit `stringvalidator.
 When bicep types don't include formal validators, the generator extracts validation hints from property descriptions. Three patterns are recognized:
 
 1. **ARM resource ID format**: Descriptions containing `/subscriptions/{subscriptionId}/resourceGroups/...` emit a regex validator matching the ARM resource ID pattern.
-   - Example: `VirtualNetworkRule.id` → `regexp.MustCompile('^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/')`
+   - Example: `VirtualNetworkRule.id` → `stringvalidator.RegexMatches(regexp.MustCompile('^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/'))`
 
 2. **Datetime format**: Descriptions mentioning `datetime format`, `ISO 8601`, or `yyyy-MM-dd` patterns emit a regex validator for the datetime format.
    - Example: `minCreationTime` with "format 'yyyy-MM-ddTHH:mm:ssZ'" → date regex
@@ -117,22 +123,24 @@ These validators are only emitted for settable (non-Computed) fields. The extrac
 
 ## Property Name Conversion
 
-**Rule 13: camelCase → snake_case with stored ARM name**
+**Rule 13: camelCase → snake_case**
 
-The Terraform SDK requires `^[a-z_][a-z0-9_]*$` for attribute names. The generator converts ARM camelCase to Terraform snake_case using `naming.CamelToSnake()`.
+The Terraform SDK requires `^[a-z_][a-z0-9_]*$` for attribute names — this is enforced in `fwschema/attribute_name_validation.go` with a hard error. The generator converts ARM camelCase to Terraform snake_case using `naming.CamelToSnake()`.
 
-The original ARM property name is NOT stored in a property map in the generated code. Instead, at runtime the provider reads the bicep type graph (already embedded in `internal/azure/generated/`) to reconstruct the ARM JSON payload. This avoids duplicating the ARM name data.
+The original ARM property name is NOT stored in the generated code. At runtime, the provider looks up the ARM name from the embedded bicep type graph in `internal/azure/generated/`. This is a direct lookup per attribute, not a heuristic runtime conversion.
 
 Algorithm:
 - Insert `_` before an uppercase letter that follows a lowercase letter or digit
-- Insert `_` at the end of an uppercase acronym (before the next lowercase): `isHNSEnabled` → `is_hns_enabled`
+- Insert `_` at the end of an uppercase acronym (before the next lowercase)
 - `minimumTlsVersion` → `minimum_tls_version`
-- `iPRules` → `ip_rules`
+- `isHnsEnabled` → `is_hns_enabled`
 - `isNfsV3Enabled` → `is_nfs_v3_enabled`
+- `iPRules` → `ip_rules`
+- `AzureAD` → `azure_ad`
 
 **Rule 14: Build-time collision detection**
 
-The generator checks all 3,246 ARM resource types for Terraform name collisions. 9 collisions exist (Admin namespaces, duplicate naming); these are resolved via an override table.
+The generator checks all 3,246 ARM resource types for Terraform name collisions. 9 collisions exist (Admin namespaces, duplicate naming); these are resolved via an override table. Collision test runs as `TestResourceNameNoCollisions` in the naming package.
 
 ## Runtime Property Mapping
 
@@ -145,7 +153,23 @@ The generated code does NOT include a `PropertyMap` variable. Instead, at runtim
 3. Build the ARM JSON payload with correct camelCase keys
 4. On GET response, reverse-map ARM JSON keys back to Terraform attribute names
 
-This avoids duplicating ~215 property mappings per resource (storage account has 215 nested paths) across 2,631 resource types.
+This avoids duplicating ~215 property mappings per resource (storage account has 215 nested paths) across 2,631 resource types. The type graph is already in the binary (334 MB) — reusing it costs zero additional binary size.
+
+## Type Mapping
+
+| Bicep Type | Terraform Type | Schema Attribute |
+|---|---|---|
+| StringType | `types.StringType` | `schema.StringAttribute` |
+| StringLiteralType | (enum value) | Used in UnionType for enum validators |
+| IntegerType | `types.Int64Type` | `schema.Int64Attribute` |
+| BooleanType | `types.BoolType` | `schema.BoolAttribute` |
+| ObjectType | `types.ObjectType` | `schema.SingleNestedAttribute` |
+| ArrayType(ObjectType) | `types.ListType` | `schema.ListNestedAttribute` |
+| ArrayType(primitive) | `types.ListType` | `schema.ListAttribute` with `ElementType` |
+| UnionType(StringLiterals) | `types.StringType` | `schema.StringAttribute` + `stringvalidator.OneOf` |
+| UnionType(mixed) | `types.StringType` | `schema.StringAttribute` (fallback) |
+| AnyType | `types.DynamicType` | `schema.DynamicAttribute` |
+| DiscriminatedObjectType | `types.DynamicType` | `schema.DynamicAttribute` (future: flattened) |
 
 ## Scope Selection
 
@@ -157,63 +181,86 @@ For each ARM resource type, the generator selects the latest non-preview API ver
 
 Each ARM resource type produces exactly one Terraform resource, pinned to one API version. The resource name encodes the service and resource path but NOT the API version.
 
-Each ARM resource type produces exactly one Terraform resource, pinned to one API version. The resource name encodes the service and resource path but NOT the API version.
-
 ## Generated Code Structure
+
+Example output for `azapi_storage_account` (simplified):
 
 ```go
 // Code generated by azapin; DO NOT EDIT.
 package generated
 
 import (
+    "regexp"
+
     "github.com/hashicorp/terraform-plugin-framework/resource/schema"
     "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
     "github.com/hashicorp/terraform-plugin-framework/schema/validator"
-    "github.com/hashicorp/terraform-plugin-framework/types"
+    azapinschema "github.com/Azure/terraform-provider-azapi/internal/azapin/schema"
 )
 
-// AzapiStorageAccountSchema returns the Terraform resource schema.
 func AzapiStorageAccountSchema() schema.Schema {
     return schema.Schema{
         Description: "Manages a Microsoft.Storage/storageAccounts resource.",
         Attributes: map[string]schema.Attribute{
             "kind": schema.StringAttribute{
-                Description: "Required. Indicates the type of storage account.",
-                Required:    true,
+                Required: true,
                 Validators: []validator.String{
                     stringvalidator.OneOf("Storage", "StorageV2", "BlobStorage", ...),
                 },
             },
             "properties": schema.SingleNestedAttribute{
                 Optional: true,
+                Computed: true,
                 Attributes: map[string]schema.Attribute{
                     "access_tier": schema.StringAttribute{
                         Optional: true,
+                        Computed: true,
                         Validators: []validator.String{
                             stringvalidator.OneOf("Hot", "Cool", "Premium", "Cold"),
                         },
                     },
-                    "provisioning_state": schema.StringAttribute{
-                        Computed: true,
-                        // No validators — computed-only
+                    "supports_https_traffic_only": schema.BoolAttribute{
+                        Optional: true,
+                        Default:  azapinschema.StaticBool(true), // from description
                     },
-                    ...
+                    "provisioning_state": schema.StringAttribute{
+                        Computed: true, // ReadOnly — no validators
+                    },
+                    "network_acls": schema.SingleNestedAttribute{
+                        Optional: true,
+                        Computed: true,
+                        Attributes: map[string]schema.Attribute{
+                            "virtual_network_rules": schema.ListNestedAttribute{
+                                ...
+                                // id gets ARM resource ID regex from description
+                            },
+                        },
+                    },
                 },
             },
             "primary_endpoints": schema.SingleNestedAttribute{
-                Computed: true,  // All children are ReadOnly
+                Computed: true, // All children ReadOnly — Rule 6
                 Attributes: map[string]schema.Attribute{
-                    "blob": schema.StringAttribute{
-                        Computed: true,
+                    "blob": schema.StringAttribute{Computed: true},
+                    "ipv6_endpoints": schema.SingleNestedAttribute{
+                        Computed: true, // All children ReadOnly — Rule 6
+                        ...
                     },
-                    ...
                 },
             },
-            ...
         },
     }
 }
 ```
+
+### Conditional Imports
+
+The emitter pre-scans the type graph and only includes imports that are actually used:
+- `regexp`: only when description-based regex validators are emitted
+- `int64validator`: only when numeric range validators are emitted
+- `stringvalidator`: only when enum or regex validators are emitted
+- `types`: only when `schema.ListAttribute` with `ElementType` is used
+- `azapinschema`: only when description-extracted default values are emitted
 
 ## Future Enhancements
 
@@ -230,3 +277,11 @@ Type-specific plan modifiers (`UseStateForUnknown`, `RequiresReplace`) can be ad
 - `stringplanmodifier.RequiresReplace()` for ForceNew properties (from azwise overlays)
 
 These require type-matched imports (`stringplanmodifier`, `boolplanmodifier`, `int64planmodifier`, `objectplanmodifier`) which the generator must select based on attribute type.
+
+### Override System
+
+A structured override mechanism to:
+- Strip `Computed` from properties confirmed as user-only
+- Add explicit default values from azwise knowledge
+- Mark ForceNew properties
+- Fix ReadOnly flag inaccuracies in the bicep spec
