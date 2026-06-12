@@ -35,12 +35,6 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/types\"\n")
 	b.WriteString(")\n\n")
 
-	// Property mapping table
-	b.WriteString(fmt.Sprintf("// %sPropertyMap maps Terraform attribute names to ARM JSON names.\n", structName))
-	b.WriteString(fmt.Sprintf("var %sPropertyMap = map[string]string{\n", structName))
-	writePropertyMap(&b, def.Body, "", 1)
-	b.WriteString("}\n\n")
-
 	// Schema function
 	b.WriteString(fmt.Sprintf("// %sSchema returns the Terraform resource schema for %s.\n", structName, def.Name))
 	b.WriteString(fmt.Sprintf("func %sSchema() schema.Schema {\n", structName))
@@ -58,13 +52,85 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	return b.String(), nil
 }
 
+// isFullyComputed returns true if an ObjectType has all leaf properties ReadOnly.
+// This means the block itself should be Computed-only — the user never sets any
+// part of it, the server populates everything.
+func isFullyComputed(typ *Type) bool {
+	if typ.Kind != KindObject {
+		return false
+	}
+	if len(typ.Properties) == 0 {
+		return false // empty objects are ambiguous, treat as not fully computed
+	}
+	for _, prop := range typ.Properties {
+		if prop.Flags.IsSystemManaged() {
+			continue
+		}
+		if prop.Flags.IsReadOnly() {
+			continue
+		}
+		// This property is settable. Check if it's a nested object where
+		// ALL children are still ReadOnly (the property itself may be flagged
+		// as Optional but contain only computed children).
+		if prop.Type.Kind == KindObject {
+			if !isFullyComputed(prop.Type) {
+				return false
+			}
+			continue
+		}
+		// Non-ReadOnly, non-object leaf → block is not fully computed
+		return false
+	}
+	return true
+}
+
+// hasAnySettable returns true if an ObjectType has at least one settable
+// (non-ReadOnly, non-SystemManaged) leaf property.
+func hasAnySettable(typ *Type) bool {
+	if typ.Kind != KindObject {
+		return false
+	}
+	for _, prop := range typ.Properties {
+		if prop.Flags.IsSystemManaged() {
+			continue
+		}
+		if !prop.Flags.IsReadOnly() {
+			if prop.Type.Kind == KindObject {
+				if hasAnySettable(prop.Type) {
+					return true
+				}
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// effectiveComputed determines whether a property should be Computed.
+// A property is computed if:
+// (a) Its own flag says ReadOnly, OR
+// (b) It's an object/array whose ALL leaf descendants are ReadOnly.
+func effectiveComputed(prop *Property) bool {
+	if prop.Flags.IsReadOnly() {
+		return true
+	}
+	if prop.Type.Kind == KindObject && isFullyComputed(prop.Type) {
+		return true
+	}
+	if prop.Type.Kind == KindArray && prop.Type.ElementType != nil &&
+		prop.Type.ElementType.Kind == KindObject && isFullyComputed(prop.Type.ElementType) {
+		return true
+	}
+	return false
+}
+
 // emitAttributes writes Terraform schema attributes for an ObjectType's properties.
 func emitAttributes(b *strings.Builder, objType *Type, indent int) {
 	if objType.Kind != KindObject {
 		return
 	}
 
-	// Sort properties for deterministic output
 	propNames := make([]string, 0, len(objType.Properties))
 	for name := range objType.Properties {
 		propNames = append(propNames, name)
@@ -88,42 +154,45 @@ func emitAttributes(b *strings.Builder, objType *Type, indent int) {
 
 func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs string, indent int) {
 	typ := prop.Type
+	computed := effectiveComputed(prop)
 
 	switch {
 	case typ.Kind == KindString:
 		b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, tfName))
-		writeAttributeFlags(b, prop, tabs)
+		writeAttributeFlags(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	case typ.Kind == KindBool:
 		b.WriteString(fmt.Sprintf("%s%q: schema.BoolAttribute{\n", tabs, tfName))
-		writeAttributeFlags(b, prop, tabs)
+		writeAttributeFlags(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	case typ.Kind == KindInt:
 		b.WriteString(fmt.Sprintf("%s%q: schema.Int64Attribute{\n", tabs, tfName))
-		writeAttributeFlags(b, prop, tabs)
+		writeAttributeFlags(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	case typ.IsEnum():
-		// Enum → StringAttribute with validator
-		values := typ.EnumValues()
 		b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, tfName))
-		writeAttributeFlags(b, prop, tabs)
-		if len(values) > 0 {
-			b.WriteString(fmt.Sprintf("%s\tValidators: []validator.String{\n", tabs))
-			b.WriteString(fmt.Sprintf("%s\t\tstringvalidator.OneOf(\n", tabs))
-			for _, v := range values {
-				b.WriteString(fmt.Sprintf("%s\t\t\t%q,\n", tabs, v))
+		writeAttributeFlags(b, prop, computed, tabs)
+		// Only emit validators for settable (non-computed) fields
+		if !computed {
+			values := typ.EnumValues()
+			if len(values) > 0 {
+				b.WriteString(fmt.Sprintf("%s\tValidators: []validator.String{\n", tabs))
+				b.WriteString(fmt.Sprintf("%s\t\tstringvalidator.OneOf(\n", tabs))
+				for _, v := range values {
+					b.WriteString(fmt.Sprintf("%s\t\t\t%q,\n", tabs, v))
+				}
+				b.WriteString(fmt.Sprintf("%s\t\t),\n", tabs))
+				b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 			}
-			b.WriteString(fmt.Sprintf("%s\t\t),\n", tabs))
-			b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 		}
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	case typ.Kind == KindObject:
 		b.WriteString(fmt.Sprintf("%s%q: schema.SingleNestedAttribute{\n", tabs, tfName))
-		writeAttributeFlags(b, prop, tabs)
+		writeAttributeFlags(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s\tAttributes: map[string]schema.Attribute{\n", tabs))
 		emitAttributes(b, typ, indent+2)
 		b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
@@ -132,7 +201,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 	case typ.Kind == KindArray:
 		if typ.ElementType != nil && typ.ElementType.Kind == KindObject {
 			b.WriteString(fmt.Sprintf("%s%q: schema.ListNestedAttribute{\n", tabs, tfName))
-			writeAttributeFlags(b, prop, tabs)
+			writeAttributeFlags(b, prop, computed, tabs)
 			b.WriteString(fmt.Sprintf("%s\tNestedObject: schema.NestedAttributeObject{\n", tabs))
 			b.WriteString(fmt.Sprintf("%s\t\tAttributes: map[string]schema.Attribute{\n", tabs))
 			emitAttributes(b, typ.ElementType, indent+3)
@@ -140,40 +209,36 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 			b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
 		} else {
-			// Array of primitives → List of string/int/bool
-			elemSchema := "schema.StringAttribute{}"
-			if typ.ElementType != nil {
-				switch typ.ElementType.Kind {
-				case KindInt:
-					elemSchema = "schema.Int64Attribute{}"
-				case KindBool:
-					elemSchema = "schema.BoolAttribute{}"
-				}
-			}
-			_ = elemSchema
 			b.WriteString(fmt.Sprintf("%s%q: schema.ListAttribute{\n", tabs, tfName))
-			writeAttributeFlags(b, prop, tabs)
+			writeAttributeFlags(b, prop, computed, tabs)
 			b.WriteString(fmt.Sprintf("%s\tElementType: types.StringType,\n", tabs))
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
 		}
 
 	case typ.Kind == KindUnion:
-		// Non-enum union → treat as dynamic/string for now
+		// Non-enum union → treat as string for now
 		b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, tfName))
-		writeAttributeFlags(b, prop, tabs)
+		writeAttributeFlags(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	default:
 		// KindAny, unknown → dynamic attribute
 		b.WriteString(fmt.Sprintf("%s%q: schema.DynamicAttribute{\n", tabs, tfName))
-		writeAttributeFlags(b, prop, tabs)
+		writeAttributeFlags(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 	}
 }
 
-func writeAttributeFlags(b *strings.Builder, prop *Property, tabs string) {
+// writeAttributeFlags emits the Required/Optional/Computed flags for an attribute.
+//
+// Rules:
+//   - Required flag set → Required: true
+//   - Computed (ReadOnly or all-children-ReadOnly) → Computed: true only
+//   - Otherwise → Optional: true (no Computed, since value doesn't come from server
+//     unless we know a default; Computed is added only when the property also appears
+//     in GET responses with server-populated data)
+func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs string) {
 	if prop.Description != "" {
-		// Escape quotes in description
 		desc := strings.ReplaceAll(prop.Description, `"`, `\"`)
 		if len(desc) > 200 {
 			desc = desc[:200] + "..."
@@ -182,47 +247,13 @@ func writeAttributeFlags(b *strings.Builder, prop *Property, tabs string) {
 	}
 	if prop.Flags.IsRequired() {
 		b.WriteString(fmt.Sprintf("%s\tRequired: true,\n", tabs))
-	} else if prop.Flags.IsReadOnly() {
+	} else if computed {
 		b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
 	} else {
 		b.WriteString(fmt.Sprintf("%s\tOptional: true,\n", tabs))
-		// ReadOnly in ARM response but settable = Optional+Computed
-		b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
 	}
 	if prop.Flags.IsWriteOnly() {
 		b.WriteString(fmt.Sprintf("%s\tSensitive: true,\n", tabs))
-	}
-}
-
-func writePropertyMap(b *strings.Builder, objType *Type, prefix string, indent int) {
-	if objType.Kind != KindObject {
-		return
-	}
-	tabs := strings.Repeat("\t", indent)
-	propNames := make([]string, 0, len(objType.Properties))
-	for name := range objType.Properties {
-		propNames = append(propNames, name)
-	}
-	sort.Strings(propNames)
-
-	for _, armName := range propNames {
-		prop := objType.Properties[armName]
-		if prop.Flags.IsSystemManaged() {
-			continue
-		}
-		tfName := naming.CamelToSnake(armName)
-		tfPath := tfName
-		armPath := armName
-		if prefix != "" {
-			tfPath = prefix + "." + tfName
-			armPath = prefix + "." + armName
-		}
-		b.WriteString(fmt.Sprintf("%s%q: %q,\n", tabs, tfPath, armPath))
-
-		// Recurse into objects
-		if prop.Type.Kind == KindObject {
-			writePropertyMap(b, prop.Type, armPath, indent)
-		}
 	}
 }
 

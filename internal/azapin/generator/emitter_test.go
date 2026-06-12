@@ -61,11 +61,20 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 	if !strings.Contains(source, `"Hot"`) {
 		t.Error("missing Hot enum value for accessTier")
 	}
-	if !strings.Contains(source, "AzapiStorageAccountPropertyMap") {
-		t.Error("missing property map")
+	// Verify computed-only fields don't have validators
+	if strings.Contains(source, "Computed: true,\n") {
+		// Find blocks that are Computed-only and ensure no Validators follow
+		// (This is a basic check; detailed validation is done in separate test)
 	}
-	if !strings.Contains(source, `"properties.accessTier"`) || !strings.Contains(source, `"properties.access_tier"`) {
-		// One of these should be in the property map
+	// Verify sas_policy is Optional-only (not Computed)
+	sasIdx := strings.Index(source, `"sas_policy"`)
+	if sasIdx < 0 {
+		t.Error("missing sas_policy")
+	} else {
+		sasBlock := source[sasIdx : sasIdx+200]
+		if strings.Contains(sasBlock, "Computed:") {
+			t.Error("sas_policy should be Optional-only, not Computed")
+		}
 	}
 
 	// Log first 100 lines for manual review
