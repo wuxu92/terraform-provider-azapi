@@ -1,9 +1,11 @@
 package validate
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generated"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
@@ -11,60 +13,72 @@ import (
 func TestStorageAccountSchemaAgainstBicep(t *testing.T) {
 	typesPath := filepath.Join("..", "..", "azure", "generated", "storage", "microsoft.storage", "2025-01-01", "types.json")
 
-	bodies, err := ParseBicepTypes(typesPath)
+	data, err := os.ReadFile(typesPath)
 	if err != nil {
 		t.Skipf("types.json not found: %v", err)
 	}
 
-	body, ok := bodies["Microsoft.Storage/storageAccounts@2025-01-01"]
-	if !ok {
-		t.Fatal("storage account body not found in types.json")
+	defs, err := generator.ParseTypesJSON(data)
+	if err != nil {
+		t.Fatalf("ParseTypesJSON: %v", err)
 	}
 
-	// Get the compiled schema from the generated package
+	generator.PostProcess(defs)
+
+	var body *generator.Type
+	for _, d := range defs {
+		if d.Name == "Microsoft.Storage/storageAccounts@2025-01-01" {
+			body = d.Body
+			break
+		}
+	}
+	if body == nil {
+		t.Fatal("storage account body not found")
+	}
+
+	// Get the compiled schema
 	s := generated.AzapiStorageAccountSchema()
+
+	// Verify the azapin tag is present
+	tag, ok := ExtractResourceTag(s.Description)
+	if !ok {
+		t.Error("no [azapin:...] tag in Description")
+	} else {
+		t.Logf("Tag: %s", tag)
+	}
 
 	// Validate
 	mismatches := SchemaAgainstBicep(s, body)
 
 	errors := 0
-	warnings := 0
 	for _, m := range mismatches {
-		switch m.Kind {
-		case MismatchExtraInSchema, MismatchTypeMismatch:
+		if m.Kind != MismatchMissingInSchema {
 			errors++
-		case MismatchMissingInSchema:
-			warnings++
 		}
 	}
 
-	if errors > 0 || warnings > 0 {
-		t.Logf("Validation results:\n%s", FormatMismatches(mismatches))
-	}
-
 	if errors > 0 {
-		t.Errorf("%d schema errors (extra attributes or type mismatches)", errors)
-	}
-
-	if errors == 0 && warnings == 0 {
-		t.Logf("Compiled schema validated against bicep types: 0 mismatches")
+		t.Errorf("%d schema errors:\n%s", errors, FormatMismatches(mismatches))
+	} else if len(mismatches) > 0 {
+		t.Logf("Warnings:\n%s", FormatMismatches(mismatches))
+	} else {
+		t.Log("Compiled schema validated: 0 mismatches")
 	}
 }
 
 func TestValidateDetectsMismatchesCompiled(t *testing.T) {
-	body := &BicepType{
-		Kind: BicepKindObject,
-		Properties: map[string]*BicepProperty{
-			"name":     {Name: "name", Type: &BicepType{Kind: BicepKindString}, Flags: 8}, // SystemManaged
-			"location": {Name: "location", Type: &BicepType{Kind: BicepKindString}, Flags: 1},
-			"sku": {Name: "sku", Type: &BicepType{Kind: BicepKindObject, Properties: map[string]*BicepProperty{
-				"name": {Name: "name", Type: &BicepType{Kind: BicepKindString}, Flags: 1},
-				"tier": {Name: "tier", Type: &BicepType{Kind: BicepKindString}},
+	body := &generator.Type{
+		Kind: generator.KindObject,
+		Properties: map[string]*generator.Property{
+			"name":     {Name: "name", Type: &generator.Type{Kind: generator.KindString}, Flags: generator.FlagSystemManaged},
+			"location": {Name: "location", Type: &generator.Type{Kind: generator.KindString}, Flags: generator.FlagRequired},
+			"sku": {Name: "sku", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+				"name": {Name: "name", Type: &generator.Type{Kind: generator.KindString}, Flags: generator.FlagRequired},
+				"tier": {Name: "tier", Type: &generator.Type{Kind: generator.KindString}},
 			}}},
 		},
 	}
 
-	// Schema missing "tier", has extra "phantom"
 	s := schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"location": schema.StringAttribute{Required: true},
@@ -96,4 +110,22 @@ func TestValidateDetectsMismatchesCompiled(t *testing.T) {
 		t.Errorf("expected 1 missing, got %d", missingCount)
 	}
 	t.Logf("Synthetic test:\n%s", FormatMismatches(mismatches))
+}
+
+func TestExtractResourceTag(t *testing.T) {
+	tests := []struct {
+		desc string
+		want string
+		ok   bool
+	}{
+		{"Manages a resource. [azapin:Microsoft.Storage/storageAccounts@2025-01-01]", "Microsoft.Storage/storageAccounts@2025-01-01", true},
+		{"No tag here", "", false},
+		{"[azapin:Microsoft.KeyVault/vaults@2023-07-01]", "Microsoft.KeyVault/vaults@2023-07-01", true},
+	}
+	for _, tt := range tests {
+		got, ok := ExtractResourceTag(tt.desc)
+		if ok != tt.ok || got != tt.want {
+			t.Errorf("ExtractResourceTag(%q) = (%q, %v), want (%q, %v)", tt.desc, got, ok, tt.want, tt.ok)
+		}
+	}
 }

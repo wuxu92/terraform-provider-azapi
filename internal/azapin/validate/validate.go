@@ -1,15 +1,15 @@
 // Package validate provides a compiled-schema validator that cross-references
-// generated Terraform schema objects against their source bicep type graphs.
-//
-// This runs as go test, after compilation — it's the authoritative check that
-// the generated schema.Schema objects correctly map to the ARM API payload.
+// generated Terraform schema.Schema objects against the bicep type graph.
+// It reuses generator.Type — no duplicate walker.
 package validate
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/naming"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
@@ -44,68 +44,36 @@ func (k MismatchKind) String() string {
 	}
 }
 
-// BicepType mirrors generator.Type but is decoupled from the generator package
-// to avoid import cycles. The test constructs these from parsed types.json.
-type BicepType struct {
-	Kind        BicepTypeKind
-	Name        string
-	Properties  map[string]*BicepProperty
-	ElementType *BicepType
-	Elements    []*BicepType
-}
+// AzapinTagRegex extracts the resource type+version from a schema Description.
+// Format: [azapin:Microsoft.Storage/storageAccounts@2025-01-01]
+var AzapinTagRegex = regexp.MustCompile(`\[azapin:([^\]]+)\]`)
 
-// BicepProperty mirrors generator.Property.
-type BicepProperty struct {
-	Name  string // ARM JSON name (camelCase)
-	Type  *BicepType
-	Flags int // bicep flags: 1=Required, 2=ReadOnly, 4=WriteOnly, 8=SystemManaged
-}
-
-// BicepTypeKind mirrors generator.TypeKind.
-type BicepTypeKind int
-
-const (
-	BicepKindString BicepTypeKind = iota
-	BicepKindStringLiteral
-	BicepKindInt
-	BicepKindBool
-	BicepKindObject
-	BicepKindArray
-	BicepKindUnion
-	BicepKindAny
-)
-
-func (p *BicepProperty) isSystemManaged() bool { return p.Flags&8 != 0 }
-
-func (t *BicepType) isEnum() bool {
-	if t.Kind != BicepKindUnion {
-		return false
+// ExtractResourceTag extracts the "ResourceType@Version" from a schema Description.
+func ExtractResourceTag(description string) (string, bool) {
+	m := AzapinTagRegex.FindStringSubmatch(description)
+	if len(m) < 2 {
+		return "", false
 	}
-	for _, elem := range t.Elements {
-		if elem.Kind != BicepKindStringLiteral && elem.Kind != BicepKindString {
-			return false
-		}
-	}
-	return true
+	return m[1], true
 }
 
 // SchemaAgainstBicep validates a compiled schema.Schema against a bicep type tree.
 // It walks both trees in parallel, matching snake_case Terraform attributes to
 // camelCase ARM properties via naming.CamelToSnake.
-func SchemaAgainstBicep(s schema.Schema, body *BicepType) []Mismatch {
-	if body == nil || body.Kind != BicepKindObject {
+func SchemaAgainstBicep(s schema.Schema, body *generator.Type) []Mismatch {
+	if body == nil || body.Kind != generator.KindObject {
 		return []Mismatch{{Kind: MismatchTypeMismatch, Detail: "bicep body is not an ObjectType"}}
 	}
 	return validateObject(s.Attributes, body, "")
 }
 
-func validateObject(tfAttrs map[string]schema.Attribute, bicepObj *BicepType, prefix string) []Mismatch {
+func validateObject(tfAttrs map[string]schema.Attribute, bicepObj *generator.Type, prefix string) []Mismatch {
 	var mismatches []Mismatch
 
 	// Build snake_case → bicep property map
-	bicepBySnake := make(map[string]*BicepProperty)
+	bicepBySnake := make(map[string]*generator.Property)
 	for armName, prop := range bicepObj.Properties {
-		if prop.isSystemManaged() {
+		if prop.Flags.IsSystemManaged() {
 			continue
 		}
 		snake := naming.CamelToSnake(armName)
@@ -146,7 +114,7 @@ func validateObject(tfAttrs map[string]schema.Attribute, bicepObj *BicepType, pr
 	return mismatches
 }
 
-func validateType(tfAttr schema.Attribute, bicepProp *BicepProperty, path string) []Mismatch {
+func validateType(tfAttr schema.Attribute, bicepProp *generator.Property, path string) []Mismatch {
 	var mismatches []Mismatch
 	bt := bicepProp.Type
 
@@ -155,58 +123,49 @@ func validateType(tfAttr schema.Attribute, bicepProp *BicepProperty, path string
 		if !isStringCompat(bt) {
 			mismatches = append(mismatches, typeMismatch(path, bicepProp, "StringAttribute", bt))
 		}
-
 	case schema.BoolAttribute:
-		if bt.Kind != BicepKindBool {
+		if bt.Kind != generator.KindBool {
 			mismatches = append(mismatches, typeMismatch(path, bicepProp, "BoolAttribute", bt))
 		}
-
 	case schema.Int64Attribute:
-		if bt.Kind != BicepKindInt {
+		if bt.Kind != generator.KindInt {
 			mismatches = append(mismatches, typeMismatch(path, bicepProp, "Int64Attribute", bt))
 		}
-
 	case schema.SingleNestedAttribute:
-		if bt.Kind != BicepKindObject {
+		if bt.Kind != generator.KindObject {
 			mismatches = append(mismatches, typeMismatch(path, bicepProp, "SingleNestedAttribute", bt))
 		} else {
 			mismatches = append(mismatches, validateObject(attr.Attributes, bt, path)...)
 		}
-
 	case schema.ListNestedAttribute:
-		if bt.Kind != BicepKindArray {
+		if bt.Kind != generator.KindArray {
 			mismatches = append(mismatches, typeMismatch(path, bicepProp, "ListNestedAttribute", bt))
-		} else if bt.ElementType != nil && bt.ElementType.Kind == BicepKindObject {
+		} else if bt.ElementType != nil && bt.ElementType.Kind == generator.KindObject {
 			mismatches = append(mismatches, validateObject(attr.NestedObject.Attributes, bt.ElementType, path+"[*]")...)
 		}
-
 	case schema.ListAttribute:
-		if bt.Kind != BicepKindArray {
+		if bt.Kind != generator.KindArray {
 			mismatches = append(mismatches, typeMismatch(path, bicepProp, "ListAttribute", bt))
 		}
-
 	case schema.DynamicAttribute:
 		// Dynamic accepts anything
-
-	default:
-		// Float32/64, Set, Map, etc. — skip for now
 	}
 
 	return mismatches
 }
 
-func isStringCompat(t *BicepType) bool {
+func isStringCompat(t *generator.Type) bool {
 	switch t.Kind {
-	case BicepKindString, BicepKindStringLiteral:
+	case generator.KindString, generator.KindStringLiteral:
 		return true
-	case BicepKindUnion:
-		return t.isEnum()
+	case generator.KindUnion:
+		return t.IsEnum()
 	default:
 		return false
 	}
 }
 
-func typeMismatch(path string, prop *BicepProperty, tfType string, bt *BicepType) Mismatch {
+func typeMismatch(path string, prop *generator.Property, tfType string, bt *generator.Type) Mismatch {
 	return Mismatch{
 		Path:   path,
 		ARM:    prop.Name,
@@ -215,26 +174,26 @@ func typeMismatch(path string, prop *BicepProperty, tfType string, bt *BicepType
 	}
 }
 
-func bicepDesc(t *BicepType) string {
+func bicepDesc(t *generator.Type) string {
 	switch t.Kind {
-	case BicepKindString:
+	case generator.KindString:
 		return "String"
-	case BicepKindStringLiteral:
+	case generator.KindStringLiteral:
 		return "StringLiteral"
-	case BicepKindBool:
+	case generator.KindBool:
 		return "Bool"
-	case BicepKindInt:
+	case generator.KindInt:
 		return "Int"
-	case BicepKindObject:
+	case generator.KindObject:
 		return "Object"
-	case BicepKindArray:
+	case generator.KindArray:
 		return "Array"
-	case BicepKindUnion:
-		if t.isEnum() {
+	case generator.KindUnion:
+		if t.IsEnum() {
 			return "Enum"
 		}
 		return "Union"
-	case BicepKindAny:
+	case generator.KindAny:
 		return "Any"
 	default:
 		return fmt.Sprintf("Unknown(%d)", t.Kind)
@@ -257,7 +216,7 @@ func sortedAttrKeys(m map[string]schema.Attribute) []string {
 	return keys
 }
 
-func sortedPropKeys(m map[string]*BicepProperty) []string {
+func sortedPropKeys(m map[string]*generator.Property) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

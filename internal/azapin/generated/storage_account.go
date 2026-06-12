@@ -14,7 +14,7 @@ import (
 // AzapiStorageAccountSchema returns the Terraform resource schema for Microsoft.Storage/storageAccounts@2025-01-01.
 func AzapiStorageAccountSchema() schema.Schema {
 	return schema.Schema{
-		Description: "Manages a Microsoft.Storage/storageAccounts resource.",
+		Description: "Manages a Microsoft.Storage/storageAccounts resource. [azapin:Microsoft.Storage/storageAccounts@2025-01-01]",
 		Attributes: map[string]schema.Attribute{
 			"extended_location": schema.SingleNestedAttribute{
 				Description: "Optional. Set the extended location of the resource. If not set, the storage account will be created in Azure main region. Otherwise it will be created in the specified extended location",
@@ -1381,4 +1381,8 @@ func AzapiStorageAccountSchema() schema.Schema {
 			},
 		},
 	}
+}
+
+func init() {
+	Register("azapi_storage_account", AzapiStorageAccountSchema)
 }

@@ -55,7 +55,7 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	b.WriteString(fmt.Sprintf("// %sSchema returns the Terraform resource schema for %s.\n", structName, def.Name))
 	b.WriteString(fmt.Sprintf("func %sSchema() schema.Schema {\n", structName))
 	b.WriteString("\treturn schema.Schema{\n")
-	b.WriteString(fmt.Sprintf("\t\tDescription: \"Manages a %s resource.\",\n", armType))
+	b.WriteString(fmt.Sprintf("\t\tDescription: \"Manages a %s resource. [azapin:%s]\",\n", armType, def.Name))
 	b.WriteString("\t\tAttributes: map[string]schema.Attribute{\n")
 
 	// Emit attributes for the body's properties
@@ -63,6 +63,11 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 
 	b.WriteString("\t\t},\n")
 	b.WriteString("\t}\n")
+	b.WriteString("}\n\n")
+
+	// Registration
+	b.WriteString(fmt.Sprintf("func init() {\n"))
+	b.WriteString(fmt.Sprintf("\tRegister(%q, %sSchema)\n", tfName, structName))
 	b.WriteString("}\n")
 
 	return b.String(), nil
