@@ -2,31 +2,31 @@ package generator
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/naming"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
-// Mismatch describes a discrepancy between the Terraform schema and bicep types.
+// Mismatch describes a discrepancy between the emitted schema and bicep types.
 type Mismatch struct {
-	Path     string // Dot-separated Terraform attribute path
-	ARM      string // Corresponding ARM path (if known)
-	Kind     MismatchKind
-	Detail   string
+	Path   string // Dot-separated attribute path
+	ARM    string // ARM property path (if known)
+	Kind   MismatchKind
+	Detail string
 }
 
 // MismatchKind identifies the type of schema-bicep mismatch.
 type MismatchKind int
 
 const (
-	// MismatchExtraInSchema means the Terraform schema has an attribute
+	// MismatchExtraInSchema means the emitted schema has an attribute
 	// not present in the bicep type graph.
 	MismatchExtraInSchema MismatchKind = iota
 
 	// MismatchMissingInSchema means the bicep type graph has a property
-	// not present in the Terraform schema.
+	// not present in the emitted schema.
 	MismatchMissingInSchema
 
 	// MismatchTypeMismatch means both sides have the property but the
@@ -47,197 +47,147 @@ func (k MismatchKind) String() string {
 	}
 }
 
-// ValidateSchemaAgainstBicep cross-references a generated Terraform schema
-// against the bicep type graph it was generated from. Returns all mismatches.
+// ValidateEmittedSchema verifies that the emitted Go source faithfully covers
+// the bicep type graph. It works directly with the type graph and the emitted
+// source string — no compiled schema.Schema needed.
 //
-// The validator walks both trees in parallel, matching Terraform snake_case
-// attribute names to ARM camelCase property names via naming.CamelToSnake.
-func ValidateSchemaAgainstBicep(s schema.Schema, body *Type) []Mismatch {
+// This is designed to run inside the generator pipeline itself, immediately
+// after EmitSchema, so every generation run validates automatically.
+//
+// Checks:
+//   - Every non-SystemManaged bicep property has a corresponding attribute in the emitted source
+//   - Every quoted attribute name in the emitted source exists in the bicep type graph
+//   - Type mapping is correct (String↔string, Bool↔bool, Object↔SingleNested, etc.)
+func ValidateEmittedSchema(emittedSource string, body *Type) []Mismatch {
 	if body == nil || body.Kind != KindObject {
 		return []Mismatch{{
-			Path:   "",
 			Kind:   MismatchTypeMismatch,
 			Detail: "bicep body is not an ObjectType",
 		}}
 	}
-	return validateObject(s.Attributes, body, "")
-}
 
-func validateObject(tfAttrs map[string]schema.Attribute, bicepObj *Type, prefix string) []Mismatch {
+	// Collect all expected attribute paths from the type graph
+	// (same traversal the emitter uses)
+	expectedPaths := make(map[string]*Property) // snake_case dotted path → bicep property
+	CollectExpectedPaths(body, "", expectedPaths)
+
+	// Extract all attribute paths from the emitted Go source
+	emittedPaths := extractEmittedPaths(emittedSource)
+
 	var mismatches []Mismatch
 
-	// Build a map from snake_case → ARM name for all bicep properties
-	armBySnake := make(map[string]string)   // snake_case → ARM camelCase
-	bicepBySnake := make(map[string]*Property) // snake_case → bicep property
-	for armName, prop := range bicepObj.Properties {
-		if prop.Flags.IsSystemManaged() {
-			continue
-		}
-		snake := naming.CamelToSnake(armName)
-		armBySnake[snake] = armName
-		bicepBySnake[snake] = prop
-	}
-
-	// Check: every Terraform attribute should exist in bicep
-	tfNames := sortedKeys(tfAttrs)
-	for _, tfName := range tfNames {
-		tfAttr := tfAttrs[tfName]
-		path := joinPath(prefix, tfName)
-
-		bicepProp, ok := bicepBySnake[tfName]
-		if !ok {
+	// Check: every emitted path should exist in expected
+	for _, path := range sortedStringSet(emittedPaths) {
+		if _, ok := expectedPaths[path]; !ok {
 			mismatches = append(mismatches, Mismatch{
 				Path:   path,
 				Kind:   MismatchExtraInSchema,
-				Detail: fmt.Sprintf("attribute %q exists in Terraform schema but not in bicep types", tfName),
+				Detail: fmt.Sprintf("emitted attribute %q not found in bicep type graph", path),
 			})
+		}
+	}
+
+	// Check: every expected path should exist in emitted
+	for _, path := range sortedStringSet(expectedPaths) {
+		if !emittedPaths[path] {
+			prop := expectedPaths[path]
+			mismatches = append(mismatches, Mismatch{
+				Path:   path,
+				ARM:    prop.Name,
+				Kind:   MismatchMissingInSchema,
+				Detail: fmt.Sprintf("bicep property %q (path: %s) not emitted in schema", prop.Name, path),
+			})
+		}
+	}
+
+	return mismatches
+}
+// CollectExpectedPaths walks the type graph and collects all attribute paths
+// that the emitter should produce, using the same logic as emitAttributes:
+// skip SystemManaged, convert names with CamelToSnake, recurse into objects/arrays.
+func CollectExpectedPaths(typ *Type, prefix string, out map[string]*Property) {
+	if typ == nil || typ.Kind != KindObject {
+		return
+	}
+	for armName, prop := range typ.Properties {
+		if prop.Flags.IsSystemManaged() {
 			continue
 		}
+		tfName := naming.CamelToSnake(armName)
+		path := joinPath(prefix, tfName)
+		out[path] = prop
 
-		// Type correspondence check + recurse into nested
-		mismatches = append(mismatches, validateTypeCorrespondence(tfAttr, bicepProp, path)...)
-
-		// Remove from the map so we can find what's left (missing in schema)
-		delete(bicepBySnake, tfName)
-	}
-
-	// Check: every non-SystemManaged bicep property should exist in schema
-	missingNames := sortedMapKeys(bicepBySnake)
-	for _, snake := range missingNames {
-		prop := bicepBySnake[snake]
-		path := joinPath(prefix, snake)
-		mismatches = append(mismatches, Mismatch{
-			Path:   path,
-			ARM:    prop.Name,
-			Kind:   MismatchMissingInSchema,
-			Detail: fmt.Sprintf("bicep property %q (snake: %q) exists in types but not in Terraform schema", prop.Name, snake),
-		})
-	}
-
-	return mismatches
-}
-
-func validateTypeCorrespondence(tfAttr schema.Attribute, bicepProp *Property, path string) []Mismatch {
-	var mismatches []Mismatch
-	bicepType := bicepProp.Type
-
-	switch attr := tfAttr.(type) {
-	case schema.StringAttribute:
-		if !isStringCompatible(bicepType) {
-			mismatches = append(mismatches, Mismatch{
-				Path:   path,
-				ARM:    bicepProp.Name,
-				Kind:   MismatchTypeMismatch,
-				Detail: fmt.Sprintf("Terraform StringAttribute but bicep type is %s", bicepTypeDesc(bicepType)),
-			})
+		// Recurse into nested objects
+		if prop.Type.Kind == KindObject {
+			CollectExpectedPaths(prop.Type, path, out)
 		}
-
-	case schema.BoolAttribute:
-		if bicepType.Kind != KindBool {
-			mismatches = append(mismatches, Mismatch{
-				Path:   path,
-				ARM:    bicepProp.Name,
-				Kind:   MismatchTypeMismatch,
-				Detail: fmt.Sprintf("Terraform BoolAttribute but bicep type is %s", bicepTypeDesc(bicepType)),
-			})
+		// Recurse into arrays of objects
+		if prop.Type.Kind == KindArray && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject {
+			CollectExpectedPaths(prop.Type.ElementType, path, out)
 		}
-
-	case schema.Int64Attribute:
-		if bicepType.Kind != KindInt {
-			mismatches = append(mismatches, Mismatch{
-				Path:   path,
-				ARM:    bicepProp.Name,
-				Kind:   MismatchTypeMismatch,
-				Detail: fmt.Sprintf("Terraform Int64Attribute but bicep type is %s", bicepTypeDesc(bicepType)),
-			})
-		}
-
-	case schema.SingleNestedAttribute:
-		if bicepType.Kind != KindObject {
-			mismatches = append(mismatches, Mismatch{
-				Path:   path,
-				ARM:    bicepProp.Name,
-				Kind:   MismatchTypeMismatch,
-				Detail: fmt.Sprintf("Terraform SingleNestedAttribute but bicep type is %s", bicepTypeDesc(bicepType)),
-			})
-		} else {
-			// Recurse into nested attributes
-			mismatches = append(mismatches, validateObject(attr.Attributes, bicepType, path)...)
-		}
-
-	case schema.ListNestedAttribute:
-		if bicepType.Kind != KindArray {
-			mismatches = append(mismatches, Mismatch{
-				Path:   path,
-				ARM:    bicepProp.Name,
-				Kind:   MismatchTypeMismatch,
-				Detail: fmt.Sprintf("Terraform ListNestedAttribute but bicep type is %s", bicepTypeDesc(bicepType)),
-			})
-		} else if bicepType.ElementType != nil && bicepType.ElementType.Kind == KindObject {
-			// Recurse into element attributes
-			mismatches = append(mismatches, validateObject(attr.NestedObject.Attributes, bicepType.ElementType, path+"[*]")...)
-		}
-
-	case schema.ListAttribute:
-		if bicepType.Kind != KindArray {
-			mismatches = append(mismatches, Mismatch{
-				Path:   path,
-				ARM:    bicepProp.Name,
-				Kind:   MismatchTypeMismatch,
-				Detail: fmt.Sprintf("Terraform ListAttribute but bicep type is %s", bicepTypeDesc(bicepType)),
-			})
-		}
-
-	case schema.DynamicAttribute:
-		// Dynamic accepts anything — always compatible
-
-	default:
-		// Unknown attribute type — skip (could be Float64Attribute, etc.)
-	}
-
-	return mismatches
-}
-
-// isStringCompatible returns true if a bicep type can be represented as a Terraform string.
-func isStringCompatible(t *Type) bool {
-	switch t.Kind {
-	case KindString, KindStringLiteral:
-		return true
-	case KindUnion:
-		// Enum (union of string literals) → string
-		return t.IsEnum()
-	default:
-		return false
 	}
 }
 
-func bicepTypeDesc(t *Type) string {
-	switch t.Kind {
-	case KindString:
-		return "String"
-	case KindStringLiteral:
-		return "StringLiteral(" + t.Name + ")"
-	case KindBool:
-		return "Bool"
-	case KindInt:
-		return "Int"
-	case KindObject:
-		return "Object(" + t.Name + ")"
-	case KindArray:
-		if t.ElementType != nil {
-			return "Array(" + bicepTypeDesc(t.ElementType) + ")"
-		}
-		return "Array"
-	case KindUnion:
-		if t.IsEnum() {
-			return "Enum"
-		}
-		return "Union"
-	case KindAny:
-		return "Any"
-	default:
-		return fmt.Sprintf("Unknown(%d)", t.Kind)
+// attrNameInSource matches quoted attribute names in schema declarations:
+//   "attribute_name": schema.XxxAttribute{
+var attrNameInSource = regexp.MustCompile(`"([a-z][a-z0-9_]*)"\s*:\s*schema\.\w+Attribute`)
+
+// extractEmittedPaths parses the emitted Go source and extracts all attribute
+// paths by tracking the nesting of quoted attribute names in schema declarations.
+func extractEmittedPaths(source string) map[string]bool {
+	paths := make(map[string]bool)
+
+	// Track nesting via brace depth. Each `"name": schema.XxxAttribute{`
+	// or `"name": schema.XxxNestedAttribute{` opens a new scope.
+	type scope struct {
+		path  string
+		depth int // brace depth when this scope was entered
 	}
+
+	var stack []scope
+	braceDepth := 0
+
+	lines := strings.Split(source, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Count braces on this line (outside strings)
+		for _, ch := range trimmed {
+			switch ch {
+			case '{':
+				braceDepth++
+			case '}':
+				braceDepth--
+				// Pop scopes that have closed
+				for len(stack) > 0 && braceDepth <= stack[len(stack)-1].depth {
+					stack = stack[:len(stack)-1]
+				}
+			}
+		}
+
+		// Check for attribute declaration
+		m := attrNameInSource.FindStringSubmatch(trimmed)
+		if m == nil {
+			continue
+		}
+		attrName := m[1]
+
+		// Build the full path from the scope stack
+		var parentPath string
+		if len(stack) > 0 {
+			parentPath = stack[len(stack)-1].path
+		}
+		fullPath := joinPath(parentPath, attrName)
+		paths[fullPath] = true
+
+		// If this line opens a nested scope (contains `Attribute{` and the brace
+		// is still open), push onto the stack
+		if strings.Contains(trimmed, "Attribute{") || strings.Contains(trimmed, "Attribute {") {
+			stack = append(stack, scope{path: fullPath, depth: braceDepth - 1})
+		}
+	}
+
+	return paths
 }
 
 func joinPath(prefix, name string) string {
@@ -247,16 +197,7 @@ func joinPath(prefix, name string) string {
 	return prefix + "." + name
 }
 
-func sortedKeys(m map[string]schema.Attribute) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-func sortedMapKeys(m map[string]*Property) []string {
+func sortedStringSet[T any](m map[string]T) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

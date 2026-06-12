@@ -3,9 +3,6 @@ package generator
 import (
 	"os"
 	"testing"
-
-	"github.com/Azure/terraform-provider-azapi/internal/azapin/naming"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
 func TestValidateStorageAccountSchema(t *testing.T) {
@@ -19,7 +16,6 @@ func TestValidateStorageAccountSchema(t *testing.T) {
 		t.Fatalf("ParseTypesJSON: %v", err)
 	}
 
-	// Apply post-processing (same as the PoC generator)
 	PostProcess(defs)
 
 	var sa *ResourceDefinition
@@ -33,112 +29,32 @@ func TestValidateStorageAccountSchema(t *testing.T) {
 		t.Fatal("storage account not found")
 	}
 
-	// Generate the schema
+	// Generate the schema source
 	source, err := EmitSchema(sa)
 	if err != nil {
 		t.Fatalf("EmitSchema: %v", err)
 	}
-	_ = source // we use the schema function directly below
 
-	// Build the schema by calling the emitter's logic, then validate
-	// We can't call the generated Go function directly (it's in another package),
-	// so we validate the type graph against itself — this ensures the emitter
-	// doesn't skip or add properties that aren't in the source.
-	mismatches := ValidateSchemaAgainstBicep(
-		buildSchemaFromDef(sa),
-		sa.Body,
-	)
+	// Validate: emitted source covers all bicep properties and vice versa
+	mismatches := ValidateEmittedSchema(source, sa.Body)
 
-	// Log all mismatches
 	if len(mismatches) > 0 {
 		t.Logf("Mismatches:\n%s", FormatMismatches(mismatches))
 
-		// Count by kind
-		extra := 0
-		missing := 0
-		typeMismatch := 0
+		errors := 0
 		for _, m := range mismatches {
-			switch m.Kind {
-			case MismatchExtraInSchema:
-				extra++
-			case MismatchMissingInSchema:
-				missing++
-			case MismatchTypeMismatch:
-				typeMismatch++
+			if m.Kind != MismatchMissingInSchema {
+				errors++
 			}
 		}
-
-		if extra > 0 {
-			t.Errorf("%d attributes in Terraform schema but not in bicep types", extra)
-		}
-		if typeMismatch > 0 {
-			t.Errorf("%d type mismatches between Terraform schema and bicep types", typeMismatch)
-		}
-		// Missing is a warning — some properties may be intentionally excluded
-		if missing > 0 {
-			t.Logf("WARNING: %d bicep properties not in Terraform schema (may be intentional)", missing)
+		if errors > 0 {
+			t.Errorf("%d schema errors (extra or type mismatch)", errors)
 		}
 	} else {
-		t.Log("Schema-bicep validation passed: no mismatches")
-	}
-}
-
-// buildSchemaFromDef reconstructs the schema.Schema by re-running EmitSchema
-// and parsing the result. Since we can't easily instantiate the generated schema
-// object, we use a simpler approach: walk the type graph and build the schema
-// attributes map directly, mirroring what the emitter does.
-func buildSchemaFromDef(def *ResourceDefinition) schema.Schema {
-	attrs := buildAttrsFromType(def.Body)
-	return schema.Schema{
-		Attributes: attrs,
-	}
-}
-
-func buildAttrsFromType(typ *Type) map[string]schema.Attribute {
-	if typ == nil || typ.Kind != KindObject {
-		return nil
-	}
-
-	attrs := make(map[string]schema.Attribute)
-	for armName, prop := range typ.Properties {
-		if prop.Flags.IsSystemManaged() {
-			continue
-		}
-		tfName := naming.CamelToSnake(armName)
-		attrs[tfName] = buildAttr(prop)
-	}
-	return attrs
-}
-
-func buildAttr(prop *Property) schema.Attribute {
-	typ := prop.Type
-
-	switch {
-	case typ.Kind == KindString:
-		return schema.StringAttribute{}
-	case typ.Kind == KindBool:
-		return schema.BoolAttribute{}
-	case typ.Kind == KindInt:
-		return schema.Int64Attribute{}
-	case typ.IsEnum():
-		return schema.StringAttribute{}
-	case typ.Kind == KindObject:
-		return schema.SingleNestedAttribute{
-			Attributes: buildAttrsFromType(typ),
-		}
-	case typ.Kind == KindArray:
-		if typ.ElementType != nil && typ.ElementType.Kind == KindObject {
-			return schema.ListNestedAttribute{
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: buildAttrsFromType(typ.ElementType),
-				},
-			}
-		}
-		return schema.ListAttribute{}
-	case typ.Kind == KindUnion:
-		return schema.StringAttribute{}
-	default:
-		return schema.DynamicAttribute{}
+		// Count validated paths
+		paths := make(map[string]*Property)
+		CollectExpectedPaths(sa.Body, "", paths)
+		t.Logf("Schema-bicep validation passed: %d properties validated, 0 mismatches", len(paths))
 	}
 }
 
@@ -149,32 +65,32 @@ func TestValidateDetectsMismatches(t *testing.T) {
 		Properties: map[string]*Property{
 			"name":     {Name: "name", Type: &Type{Kind: KindString}, Flags: FlagSystemManaged},
 			"location": {Name: "location", Type: &Type{Kind: KindString}, Flags: FlagRequired},
-			"sku":      {Name: "sku", Type: &Type{Kind: KindObject, Properties: map[string]*Property{
+			"sku": {Name: "sku", Type: &Type{Kind: KindObject, Properties: map[string]*Property{
 				"name": {Name: "name", Type: &Type{Kind: KindString}, Flags: FlagRequired},
 				"tier": {Name: "tier", Type: &Type{Kind: KindString}},
 			}}},
-			"tags": {Name: "tags", Type: &Type{Kind: KindObject, Properties: map[string]*Property{}}},
 		},
 	}
 
-	// Build a schema that has an extra attribute and misses one
-	tfSchema := schema.Schema{
-		Attributes: map[string]schema.Attribute{
-			"location": schema.StringAttribute{},
-			"sku": schema.SingleNestedAttribute{
-				Attributes: map[string]schema.Attribute{
-					"name": schema.StringAttribute{},
-					// "tier" is missing → should be reported
+	// Generate a schema source that has an extra attribute and misses "tier"
+	fakeSource := `
+		"location": schema.StringAttribute{
+			Required: true,
+		},
+		"sku": schema.SingleNestedAttribute{
+			Attributes: map[string]schema.Attribute{
+				"name": schema.StringAttribute{
+					Required: true,
 				},
 			},
-			"tags":    schema.SingleNestedAttribute{},
-			"phantom": schema.StringAttribute{}, // extra → should be reported
 		},
-	}
+		"phantom": schema.StringAttribute{
+			Optional: true,
+		},
+	`
 
-	mismatches := ValidateSchemaAgainstBicep(tfSchema, bicepBody)
+	mismatches := ValidateEmittedSchema(fakeSource, bicepBody)
 
-	// Should find: "phantom" extra in schema, "tier" missing in schema
 	var extraCount, missingCount int
 	for _, m := range mismatches {
 		switch m.Kind {

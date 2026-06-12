@@ -50,6 +50,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Validate: emitted schema covers all bicep properties and vice versa
+	mismatches := generator.ValidateEmittedSchema(source, sa.Body)
+	if len(mismatches) > 0 {
+		fmt.Fprintf(os.Stderr, "Schema validation failed:\n%s", generator.FormatMismatches(mismatches))
+		// Count errors (extra and type_mismatch are errors; missing is a warning)
+		errors := 0
+		for _, m := range mismatches {
+			if m.Kind != generator.MismatchMissingInSchema {
+				errors++
+			}
+		}
+		if errors > 0 {
+			os.Exit(1)
+		}
+	}
+
 	// Write to file
 	outDir := filepath.Join("internal", "azapin", "generated")
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
@@ -62,5 +78,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Generated %s (%d bytes)\n", outPath, len(source))
+	fmt.Printf("Generated %s (%d bytes, %d properties validated)\n", outPath, len(source), countExpectedPaths(sa.Body))
+}
+
+func countExpectedPaths(body *generator.Type) int {
+	paths := make(map[string]*generator.Property)
+	generator.CollectExpectedPaths(body, "", paths)
+	return len(paths)
 }
