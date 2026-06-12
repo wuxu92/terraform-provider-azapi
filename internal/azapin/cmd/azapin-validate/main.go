@@ -4,17 +4,18 @@
 //
 // Usage:
 //
-//	go run ./internal/azapin/cmd/azapin-validate                    # validate all
-//	go run ./internal/azapin/cmd/azapin-validate azapi_storage_account  # validate one
-//
+//	go run ./internal/azapin/cmd/azapin-validate/                       # validate all
+//	go run ./internal/azapin/cmd/azapin-validate/ -r azapi_storage_account  # validate one
 
 package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
@@ -25,26 +26,34 @@ import (
 )
 
 func main() {
+	res := flag.String("r", "", "resource name to validate (e.g. azapi_storage_account); omit to validate all")
+	flag.StringVar(res, "res", "", "resource name to validate (e.g. azapi_storage_account); omit to validate all")
+	flag.Parse()
+
 	// Determine which schemas to validate
 	targets := generated.Registry
-	if len(os.Args) > 1 {
-		name := os.Args[1]
-		fn, ok := generated.Registry[name]
+	if *res != "" {
+		fn, ok := generated.Registry[*res]
 		if !ok {
-			fmt.Fprintf(os.Stderr, "Unknown resource: %s\nAvailable:\n", name)
+			fmt.Fprintf(os.Stderr, "Unknown resource: %s\nAvailable:\n", *res)
 			for k := range generated.Registry {
 				fmt.Fprintf(os.Stderr, "  %s\n", k)
 			}
 			os.Exit(1)
 		}
-		targets = map[string]generated.SchemaFunc{name: fn}
+		targets = map[string]generated.SchemaFunc{*res: fn}
 	}
 
+	// Resolve the project root from this source file's location:
+	// this file is at internal/azapin/cmd/azapin-validate/main.go
+	// project root is 4 levels up
+	projectRoot := resolveProjectRoot()
+
 	// Load the index file for types.json path resolution
-	indexPath := filepath.Join("internal", "azure", "generated", "index.json")
+	indexPath := filepath.Join(projectRoot, "internal", "azure", "generated", "index.json")
 	indexData, err := os.ReadFile(indexPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading index.json: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error reading index.json at %s: %v\n", indexPath, err)
 		os.Exit(1)
 	}
 
@@ -71,7 +80,7 @@ func main() {
 		}
 
 		// Find the types.json path from the index
-		typesPath, err := resolveTypesPath(tag, index.Resources)
+		typesPath, err := resolveTypesPath(tag, index.Resources, projectRoot)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "SKIP %s: %v\n", name, err)
 			continue
@@ -140,27 +149,46 @@ func main() {
 	}
 }
 
+// resolveProjectRoot determines the project root directory from this source
+// file's location using runtime.Caller. This file lives at:
+//
+//	<project>/internal/azapin/cmd/azapin-validate/main.go
+//
+// So the project root is 4 directories up.
+func resolveProjectRoot() string {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Error: cannot determine source file location via runtime.Caller\n")
+		os.Exit(1)
+	}
+	// thisFile = .../internal/azapin/cmd/azapin-validate/main.go
+	// Go up 4 levels: azapin-validate → cmd → azapin → internal → project root
+	root := filepath.Dir(thisFile)
+	for i := 0; i < 4; i++ {
+		root = filepath.Dir(root)
+	}
+	return root
+}
+
 // resolveTypesPath finds the types.json file for a given "ResourceType@Version" tag.
-func resolveTypesPath(tag string, resources map[string]json.RawMessage) (string, error) {
+func resolveTypesPath(tag string, resources map[string]json.RawMessage, projectRoot string) (string, error) {
 	// Check if the tag exists directly in the index
 	if _, ok := resources[tag]; ok {
-		// Build the path: Microsoft.Storage/storageAccounts@2025-01-01
-		// → internal/azure/generated/storage/microsoft.storage/2025-01-01/types.json
-		return tagToTypesPath(tag)
+		return tagToTypesPath(tag, projectRoot)
 	}
 
 	// Try case-insensitive match
 	tagLower := strings.ToLower(tag)
 	for key := range resources {
 		if strings.ToLower(key) == tagLower {
-			return tagToTypesPath(key)
+			return tagToTypesPath(key, projectRoot)
 		}
 	}
 
 	return "", fmt.Errorf("resource %q not found in index.json", tag)
 }
 
-func tagToTypesPath(tag string) (string, error) {
+func tagToTypesPath(tag string, projectRoot string) (string, error) {
 	// Split: Microsoft.Storage/storageAccounts@2025-01-01
 	parts := strings.SplitN(tag, "@", 2)
 	if len(parts) != 2 {
@@ -180,6 +208,6 @@ func tagToTypesPath(tag string) (string, error) {
 	nsParts := strings.Split(namespace, ".")
 	service := nsParts[len(nsParts)-1] // storage
 
-	path := filepath.Join("internal", "azure", "generated", service, namespace, apiVersion, "types.json")
+	path := filepath.Join(projectRoot, "internal", "azure", "generated", service, namespace, apiVersion, "types.json")
 	return path, nil
 }
