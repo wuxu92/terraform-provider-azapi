@@ -79,15 +79,20 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	b.WriteString("\t\tAttributes: map[string]schema.Attribute{\n")
 
 	// Emit attributes for the body's properties
-	emitAttributes(&b, def.Body, 3)
+	emitAttributes(&b, def.Body, 3, false)
 
 	b.WriteString("\t\t},\n")
 	b.WriteString("\t}\n")
 	b.WriteString("}\n\n")
 
 	// Registration
-	b.WriteString(fmt.Sprintf("func init() {\n"))
-	b.WriteString(fmt.Sprintf("\tRegister(%q, %sSchema)\n", tfName, structName))
+	b.WriteString("func init() {\n")
+	b.WriteString("\tRegister(Descriptor{\n")
+	b.WriteString(fmt.Sprintf("\t\tName:       %q,\n", tfName))
+	b.WriteString(fmt.Sprintf("\t\tARMType:    %q,\n", armType))
+	b.WriteString(fmt.Sprintf("\t\tAPIVersion: %q,\n", def.APIVersion))
+	b.WriteString(fmt.Sprintf("\t\tSchema:     %sSchema,\n", structName))
+	b.WriteString("\t})\n")
 	b.WriteString("}\n")
 
 	return b.String(), nil
@@ -223,7 +228,10 @@ func effectiveComputed(prop *Property) bool {
 }
 
 // emitAttributes writes Terraform schema attributes for an ObjectType's properties.
-func emitAttributes(b *strings.Builder, objType *Type, indent int) {
+// inCollection is true when this object is (transitively) inside a ListNested
+// attribute — the framework forbids dynamic types nested in collections, so
+// KindAny degrades to a string there instead of a DynamicAttribute.
+func emitAttributes(b *strings.Builder, objType *Type, indent int, inCollection bool) {
 	if objType.Kind != KindObject {
 		return
 	}
@@ -245,11 +253,11 @@ func emitAttributes(b *strings.Builder, objType *Type, indent int) {
 		}
 
 		tfName := naming.CamelToSnake(armName)
-		emitAttribute(b, tfName, prop, tabs, indent)
+		emitAttribute(b, tfName, prop, tabs, indent, inCollection)
 	}
 }
 
-func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs string, indent int) {
+func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs string, indent int, inCollection bool) {
 	typ := prop.Type
 	computed := effectiveComputed(prop)
 
@@ -302,7 +310,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		writeAttributeFlags(b, prop, computed, tabs)
 		emitForceNew(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s\tAttributes: map[string]schema.Attribute{\n", tabs))
-		emitAttributes(b, typ, indent+2)
+		emitAttributes(b, typ, indent+2, inCollection)
 		b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
@@ -313,7 +321,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 			emitForceNew(b, prop, computed, tabs)
 			b.WriteString(fmt.Sprintf("%s\tNestedObject: schema.NestedAttributeObject{\n", tabs))
 			b.WriteString(fmt.Sprintf("%s\t\tAttributes: map[string]schema.Attribute{\n", tabs))
-			emitAttributes(b, typ.ElementType, indent+3)
+			emitAttributes(b, typ.ElementType, indent+3, true)
 			b.WriteString(fmt.Sprintf("%s\t\t},\n", tabs))
 			b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
@@ -333,10 +341,18 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	default:
-		// KindAny, unknown → dynamic attribute (no RequiresReplace modifier available)
-		b.WriteString(fmt.Sprintf("%s%q: schema.DynamicAttribute{\n", tabs, tfName))
-		writeAttributeFlags(b, prop, computed, tabs)
-		b.WriteString(fmt.Sprintf("%s},\n", tabs))
+		// KindAny / unknown. The framework forbids dynamic types nested inside a
+		// collection, so inside a ListNested element it degrades to a string;
+		// elsewhere it is a DynamicAttribute (accepts any shape).
+		if inCollection {
+			b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, tfName))
+			writeAttributeFlags(b, prop, computed, tabs)
+			b.WriteString(fmt.Sprintf("%s},\n", tabs))
+		} else {
+			b.WriteString(fmt.Sprintf("%s%q: schema.DynamicAttribute{\n", tabs, tfName))
+			writeAttributeFlags(b, prop, computed, tabs)
+			b.WriteString(fmt.Sprintf("%s},\n", tabs))
+		}
 	}
 }
 
@@ -394,8 +410,9 @@ func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs
 	} else if computed {
 		b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
 	} else if prop.DefaultValue != "" {
-		// Known default → Optional with Default, no Computed needed
+		// Default requires Computed in the framework (Optional+Computed+Default).
 		b.WriteString(fmt.Sprintf("%s\tOptional: true,\n", tabs))
+		b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
 		emitDefault(b, prop, tabs)
 	} else {
 		b.WriteString(fmt.Sprintf("%s\tOptional: true,\n", tabs))

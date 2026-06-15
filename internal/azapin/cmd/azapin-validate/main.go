@@ -33,7 +33,7 @@ func main() {
 	// Determine which schemas to validate
 	targets := generated.Registry
 	if *res != "" {
-		fn, ok := generated.Registry[*res]
+		d, ok := generated.Registry[*res]
 		if !ok {
 			fmt.Fprintf(os.Stderr, "Unknown resource: %s\nAvailable:\n", *res)
 			for k := range generated.Registry {
@@ -41,7 +41,7 @@ func main() {
 			}
 			os.Exit(1)
 		}
-		targets = map[string]generated.SchemaFunc{*res: fn}
+		targets = map[string]generated.Descriptor{*res: d}
 	}
 
 	// Resolve the project root from this source file's location:
@@ -69,15 +69,11 @@ func main() {
 	totalWarnings := 0
 	validated := 0
 
-	for name, fn := range targets {
-		s := fn()
+	for name, d := range targets {
+		s := d.Schema()
 
-		// Extract resource tag from Description
-		tag, ok := validate.ExtractResourceTag(s.Description)
-		if !ok {
-			fmt.Fprintf(os.Stderr, "SKIP %s: no [azapin:...] tag in Description\n", name)
-			continue
-		}
+		// Resource tag comes straight from the descriptor.
+		tag := d.ARMType + "@" + d.APIVersion
 
 		// Find the types.json path from the index
 		typesPath, err := resolveTypesPath(tag, index.Resources, projectRoot)

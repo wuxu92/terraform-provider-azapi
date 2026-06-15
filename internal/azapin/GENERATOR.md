@@ -74,8 +74,9 @@ Many ARM property descriptions mention default values even when the OpenAPI/bice
 - `"disabled by default"` → bool default `false`
 
 When a valid default is extracted and type-checked against the property type:
-- The property is emitted as `Optional: true` with a `Default` plan modifier (no `Computed`)
-- Terraform shows the default value in plan output instead of "(known after apply)"
+- The property is emitted as `Optional: true, Computed: true` with a `Default`. The
+  framework requires `Computed` whenever a `Default` is set (it surfaces the default
+  as a known-after-apply value rather than `(known after apply)`).
 - Implementations: `azapinschema.StaticBool`, `azapinschema.StaticString`, `azapinschema.StaticInt64` in `internal/azapin/schema/defaults.go`
 
 Validation rules for extracted defaults:
@@ -84,7 +85,7 @@ Validation rules for extracted defaults:
 - Int defaults must be numeric
 - "null" and "undefined" are rejected
 
-Example: `supportsHttpsTrafficOnly` description says "The default value is true since API version 2019-04-01" → emitted as `Optional: true, Default: azapinschema.StaticBool(true)`.
+Example: `supportsHttpsTrafficOnly` description says "The default value is true since API version 2019-04-01" → emitted as `Optional: true, Computed: true, Default: azapinschema.StaticBool(true)`.
 
 ### Single-Optional-Child Promotion
 
@@ -222,6 +223,13 @@ longer fails the whole document's unmarshal (previously ~28% of `types.json` fil
 errored out entirely). Discriminated bodies currently emit a `DynamicAttribute`;
 a root body that resolves to a discriminated/non-object type is skipped (the
 resource falls back to `azapi_resource`). Covered by `TestParseDiscriminatedObjectType`.
+
+**Dynamic inside collections.** The framework forbids a dynamic type nested inside
+a collection (`ListNestedAttribute`). A `KindAny` property (recursion sentinel or
+discriminated/unknown type) therefore emits a `DynamicAttribute` only at the top
+level or inside a `SingleNestedAttribute`; inside a `ListNested` element it degrades
+to a `StringAttribute` instead. The generated schema is checked by
+`schema.Schema.ValidateImplementation` in the resource layer's tests.
 
 ## Scope Selection
 

@@ -121,6 +121,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"access_tier": schema.StringAttribute{
 						Description: "Required for storage accounts where kind = BlobStorage. The access tier is used for billing. The 'Premium' access tier is the default value for premium block blobs storage account type and it cannot b...",
 						Optional: true,
+						Computed: true,
 						Default: azapinschema.StaticString("Hot"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
@@ -138,16 +139,19 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"allow_blob_public_access": schema.BoolAttribute{
 						Description: "Allow or disallow public access to all blobs or containers in the storage account. The default interpretation is false for this property.",
 						Optional: true,
+						Computed: true,
 						Default: azapinschema.StaticBool(false),
 					},
 					"allow_cross_tenant_replication": schema.BoolAttribute{
 						Description: "Allow or disallow cross AAD tenant object replication. Set this property to true for new or existing accounts only if object replication policies will involve storage accounts in different AAD tenants...",
 						Optional: true,
+						Computed: true,
 						Default: azapinschema.StaticBool(false),
 					},
 					"allow_shared_key_access": schema.BoolAttribute{
 						Description: "Indicates whether the storage account permits requests to be authorized with the account access key via Shared Key. If false, then all requests, including shared access signatures, must be authorized ...",
 						Optional: true,
+						Computed: true,
 						Default: azapinschema.StaticBool(true),
 					},
 					"allowed_copy_scope": schema.StringAttribute{
@@ -317,6 +321,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 							"use_sub_domain_name": schema.BoolAttribute{
 								Description: "Indicates whether indirect CName validation is enabled. Default value is false. This should only be set on updates.",
 								Optional: true,
+								Computed: true,
 								Default: azapinschema.StaticBool(false),
 							},
 						},
@@ -324,11 +329,13 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"default_to_o_auth_authentication": schema.BoolAttribute{
 						Description: "A boolean flag which indicates whether the default authentication is OAuth or not. The default interpretation is false for this property.",
 						Optional: true,
+						Computed: true,
 						Default: azapinschema.StaticBool(false),
 					},
 					"dns_endpoint_type": schema.StringAttribute{
 						Description: "Allows you to specify the type of endpoint. Set this to AzureDNSZone to create a large number of accounts in a single subscription, which creates accounts in an Azure DNS Zone and the endpoint URL wil...",
 						Optional: true,
+						Computed: true,
 						Default: azapinschema.StaticString("Standard"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
@@ -426,6 +433,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 							"require_infrastructure_encryption": schema.BoolAttribute{
 								Description: "A boolean indicating whether or not the service applies a secondary layer of encryption with platform managed keys for data at rest.",
 								Optional: true,
+								Computed: true,
 								Default: azapinschema.StaticBool(false),
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.RequiresReplace(),
@@ -444,11 +452,13 @@ func AzapiStorageAccountSchema() schema.Schema {
 											"enabled": schema.BoolAttribute{
 												Description: "A boolean indicating whether or not the service encrypts the data as it is stored. Encryption at rest is enabled by default today and cannot be disabled.",
 												Optional: true,
+												Computed: true,
 												Default: azapinschema.StaticBool(true),
 											},
 											"key_type": schema.StringAttribute{
 												Description: "Encryption key type to be used for the encryption service. 'Account' key type implies that an account-scoped encryption key will be used. 'Service' key type implies that a default service key is used.",
 												Optional: true,
+												Computed: true,
 												Default: azapinschema.StaticString("Service"),
 												Validators: []validator.String{
 													stringvalidator.OneOf(
@@ -474,11 +484,13 @@ func AzapiStorageAccountSchema() schema.Schema {
 											"enabled": schema.BoolAttribute{
 												Description: "A boolean indicating whether or not the service encrypts the data as it is stored. Encryption at rest is enabled by default today and cannot be disabled.",
 												Optional: true,
+												Computed: true,
 												Default: azapinschema.StaticBool(true),
 											},
 											"key_type": schema.StringAttribute{
 												Description: "Encryption key type to be used for the encryption service. 'Account' key type implies that an account-scoped encryption key will be used. 'Service' key type implies that a default service key is used.",
 												Optional: true,
+												Computed: true,
 												Default: azapinschema.StaticString("Service"),
 												Validators: []validator.String{
 													stringvalidator.OneOf(
@@ -504,11 +516,13 @@ func AzapiStorageAccountSchema() schema.Schema {
 											"enabled": schema.BoolAttribute{
 												Description: "A boolean indicating whether or not the service encrypts the data as it is stored. Encryption at rest is enabled by default today and cannot be disabled.",
 												Optional: true,
+												Computed: true,
 												Default: azapinschema.StaticBool(true),
 											},
 											"key_type": schema.StringAttribute{
 												Description: "Encryption key type to be used for the encryption service. 'Account' key type implies that an account-scoped encryption key will be used. 'Service' key type implies that a default service key is used.",
 												Optional: true,
+												Computed: true,
 												Default: azapinschema.StaticString("Service"),
 												Validators: []validator.String{
 													stringvalidator.OneOf(
@@ -534,11 +548,13 @@ func AzapiStorageAccountSchema() schema.Schema {
 											"enabled": schema.BoolAttribute{
 												Description: "A boolean indicating whether or not the service encrypts the data as it is stored. Encryption at rest is enabled by default today and cannot be disabled.",
 												Optional: true,
+												Computed: true,
 												Default: azapinschema.StaticBool(true),
 											},
 											"key_type": schema.StringAttribute{
 												Description: "Encryption key type to be used for the encryption service. 'Account' key type implies that an account-scoped encryption key will be used. 'Service' key type implies that a default service key is used.",
 												Optional: true,
+												Computed: true,
 												Default: azapinschema.StaticString("Service"),
 												Validators: []validator.String{
 													stringvalidator.OneOf(
@@ -605,6 +621,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 							"enabled": schema.BoolAttribute{
 								Description: "A boolean flag which enables account-level immutability. All the containers under such an account have object-level immutability enabled by default.",
 								Optional: true,
+								Computed: true,
 								Default: azapinschema.StaticBool(true),
 							},
 							"immutability_policy": schema.SingleNestedAttribute{
@@ -711,6 +728,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"minimum_tls_version": schema.StringAttribute{
 						Description: "Set the minimum TLS version to be permitted on requests to storage. The default interpretation is TLS 1.0 for this property.",
 						Optional: true,
+						Computed: true,
 						Default: azapinschema.StaticString("TLS1_2"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
@@ -729,6 +747,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 							"bypass": schema.StringAttribute{
 								Description: "Specifies whether traffic is bypassed for Logging/Metrics/AzureServices. Possible values are any combination of Logging|Metrics|AzureServices (For example, \\\"Logging, Metrics\\\"), or None to bypass non...",
 								Optional: true,
+								Computed: true,
 								Default: azapinschema.StaticString("AzureServices"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
@@ -755,7 +774,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Computed: true,
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
-										"action": schema.DynamicAttribute{
+										"action": schema.StringAttribute{
 											Description: "The action of IP ACL rule.",
 											Optional: true,
 											Computed: true,
@@ -773,7 +792,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Computed: true,
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
-										"action": schema.DynamicAttribute{
+										"action": schema.StringAttribute{
 											Description: "The action of IP ACL rule.",
 											Optional: true,
 											Computed: true,
@@ -810,7 +829,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Computed: true,
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
-										"action": schema.DynamicAttribute{
+										"action": schema.StringAttribute{
 											Description: "The action of virtual network rule.",
 											Optional: true,
 											Computed: true,
@@ -1087,6 +1106,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"public_network_access": schema.StringAttribute{
 						Description: "Allow, disallow, or let Network Security Perimeter configuration to evaluate public network access to Storage Account. Value is optional but if passed in, must be 'Enabled', 'Disabled' or 'SecuredByPe...",
 						Optional: true,
+						Computed: true,
 						Default: azapinschema.StaticString("Enabled"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
@@ -1104,16 +1124,19 @@ func AzapiStorageAccountSchema() schema.Schema {
 							"publish_internet_endpoints": schema.BoolAttribute{
 								Description: "A boolean flag which indicates whether internet routing storage endpoints are to be published",
 								Optional: true,
+								Computed: true,
 								Default: azapinschema.StaticBool(false),
 							},
 							"publish_microsoft_endpoints": schema.BoolAttribute{
 								Description: "A boolean flag which indicates whether microsoft routing storage endpoints are to be published",
 								Optional: true,
+								Computed: true,
 								Default: azapinschema.StaticBool(false),
 							},
 							"routing_choice": schema.StringAttribute{
 								Description: "Routing Choice defines the kind of network routing opted by the user.",
 								Optional: true,
+								Computed: true,
 								Default: azapinschema.StaticString("MicrosoftRouting"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
@@ -1364,6 +1387,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"supports_https_traffic_only": schema.BoolAttribute{
 						Description: "Allows https traffic only to storage service if sets to true. The default value is true since API version 2019-04-01.",
 						Optional: true,
+						Computed: true,
 						Default: azapinschema.StaticBool(true),
 					},
 				},
@@ -1418,5 +1442,10 @@ func AzapiStorageAccountSchema() schema.Schema {
 }
 
 func init() {
-	Register("azapi_storage_account", AzapiStorageAccountSchema)
+	Register(Descriptor{
+		Name:       "azapi_storage_account",
+		ARMType:    "Microsoft.Storage/storageAccounts",
+		APIVersion: "2025-01-01",
+		Schema:     AzapiStorageAccountSchema,
+	})
 }

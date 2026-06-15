@@ -339,6 +339,25 @@ unified flow entirely.
 5. **Provider registration** of the full `generated.Registry`; acceptance test a
    handful of representative resources.
 
+### v1 status (implemented)
+
+- **Mapper** — `internal/azapin/mapper`: `Expand`, `Flatten`, `FlattenInto`, driven
+  by the bicep type graph; round-trip tested on storage_account (`mapper_test.go`).
+- **Base** — `internal/azapin/resource/base.go`: implements `Resource`,
+  `ResourceWithConfigure/ModifyPlan/ValidateConfig/ImportState`; composed schema
+  (envelope + body) validated by `Schema.ValidateImplementation` in tests; unified
+  `put`/`Read`/`Delete`; runtime body loader reads the authoritative types.json from
+  `azure.StaticFiles` (`loader.go`).
+- **Hooks** — `hooks.go`: `Before/After` per op + `ValidateConfig`/`ModifyPlan`
+  overrides; storage overlay (`overlay_storage_account.go`) implements the SKU
+  zone-migration ForceNew via `azwise.CheckForceNew`.
+- **Generated descriptor** — `generated.Descriptor{Name, ARMType, APIVersion, Schema}`
+  registered via each generated file's `init()`.
+- **Provider** — `Resources()` appends `azapinresource.New(name)` for every
+  `generated.Registry` entry.
+- Not yet exercised against live ARM (acceptance tests need credentials); unit and
+  schema-validation coverage in place.
+
 ## Open Questions
 
 1. **Generic state I/O.** Implement expand/flatten over `tftypes.Value`

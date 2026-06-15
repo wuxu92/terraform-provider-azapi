@@ -12,6 +12,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/entrauth/aztfauth"
+	"github.com/Azure/terraform-provider-azapi/internal/azapin/generated"
+	azapinresource "github.com/Azure/terraform-provider-azapi/internal/azapin/resource"
 	"github.com/Azure/terraform-provider-azapi/internal/azure"
 	"github.com/Azure/terraform-provider-azapi/internal/azure/location"
 	"github.com/Azure/terraform-provider-azapi/internal/azure/tags"
@@ -777,7 +779,7 @@ func (p Provider) DataSources(ctx context.Context) []func() datasource.DataSourc
 }
 
 func (p Provider) Resources(ctx context.Context) []func() resource.Resource {
-	return []func() resource.Resource{
+	resources := []func() resource.Resource{
 		func() resource.Resource {
 			return &services.AzapiResource{}
 		},
@@ -791,6 +793,15 @@ func (p Provider) Resources(ctx context.Context) []func() resource.Resource {
 			return &services.DataPlaneResource{}
 		},
 	}
+	// azapin static resources (generated from bicep types). Each generated
+	// descriptor becomes a typed resource backed by the shared base.
+	for name := range generated.Registry {
+		name := name
+		resources = append(resources, func() resource.Resource {
+			return azapinresource.New(name)
+		})
+	}
+	return resources
 }
 
 func (p Provider) EphemeralResources(ctx context.Context) []func() ephemeral.EphemeralResource {
