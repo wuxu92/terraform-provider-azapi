@@ -255,6 +255,39 @@ func (b *BaseKnowledge) GetComputedFields() []string      { return b.ComputedFie
 func (b *BaseKnowledge) GetDefaultValues() []DefaultValue { return b.DefaultValues }
 func (b *BaseKnowledge) GetRequiredFields() []string      { return b.RequiredFields }
 
+// SchemaKnowledge exposes the structured rules that the azapin static-schema
+// generator consumes to enhance the generated Terraform schema (ForceNew,
+// validation, sensitive). BaseKnowledge satisfies it, so every embedding
+// knowledge type provides it automatically; obtain it with a type assertion
+// on the value returned by Get.
+type SchemaKnowledge interface {
+	// GetForceNewPaths returns the declarative ForceNew property paths. Conditional
+	// ForceNew logic (e.g. SKU zone migration) stays in CheckForceNew and is not
+	// expressible as a schema-level plan modifier.
+	GetForceNewPaths() []string
+	GetSensitiveFields() []string
+	GetStringRules() []StringRule
+	GetIntRules() []IntRule
+	GetFloatRules() []FloatRule
+}
+
+// GetForceNewPaths returns the property paths of the declarative ForceNew rules.
+func (b *BaseKnowledge) GetForceNewPaths() []string {
+	if len(b.ForceNew) == 0 {
+		return nil
+	}
+	paths := make([]string, len(b.ForceNew))
+	for i, r := range b.ForceNew {
+		paths[i] = r.PropertyPath
+	}
+	return paths
+}
+
+func (b *BaseKnowledge) GetSensitiveFields() []string { return b.SensitiveFields }
+func (b *BaseKnowledge) GetStringRules() []StringRule { return b.StringRules }
+func (b *BaseKnowledge) GetIntRules() []IntRule       { return b.IntRules }
+func (b *BaseKnowledge) GetFloatRules() []FloatRule   { return b.FloatRules }
+
 func (b *BaseKnowledge) GetDefaultFields() []string {
 	if len(b.DefaultValues) == 0 {
 		return nil

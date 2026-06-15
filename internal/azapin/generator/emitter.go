@@ -42,7 +42,27 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	if needs.stringValidator {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator\"\n")
 	}
-	b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/schema/validator\"\n")
+	if needs.planmodifier {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier\"\n")
+	}
+	if needs.pmString {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier\"\n")
+	}
+	if needs.pmBool {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier\"\n")
+	}
+	if needs.pmInt64 {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier\"\n")
+	}
+	if needs.pmObject {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier\"\n")
+	}
+	if needs.pmList {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier\"\n")
+	}
+	if needs.stringValidator || needs.int64Validator {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/schema/validator\"\n")
+	}
 	if needs.types {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/types\"\n")
 	}
@@ -79,6 +99,12 @@ type importNeeds struct {
 	stringValidator bool
 	types           bool // for types.StringType in ListAttribute
 	defaults        bool // for azapinschema.Static*
+	planmodifier    bool // for planmodifier.X plan-modifier slices
+	pmString        bool // stringplanmodifier
+	pmBool          bool // boolplanmodifier
+	pmInt64         bool // int64planmodifier
+	pmObject        bool // objectplanmodifier
+	pmList          bool // listplanmodifier
 }
 
 func scanImportNeeds(typ *Type) importNeeds {
@@ -95,6 +121,7 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 		if prop.Flags.IsSystemManaged() {
 			continue
 		}
+		computed := effectiveComputed(prop)
 		if prop.DefaultValue != "" {
 			needs.defaults = true
 		}
@@ -103,15 +130,35 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 			case ValidatorArmResourceID, ValidatorRegex:
 				needs.regexp = true
 				needs.stringValidator = true
+			case ValidatorStringOneOf, ValidatorStringLength:
+				needs.stringValidator = true
 			case ValidatorIntRange:
 				needs.int64Validator = true
 			}
 		}
-		if prop.Type.IsEnum() && !effectiveComputed(prop) {
+		if prop.Type.IsEnum() && !computed {
 			needs.stringValidator = true
 		}
 		if prop.Type.Kind == KindArray && (prop.Type.ElementType == nil || prop.Type.ElementType.Kind != KindObject) {
 			needs.types = true
+		}
+		// ForceNew plan modifiers
+		if prop.ForceNew && !computed {
+			if pkg, _ := forceNewModifier(prop); pkg != "" {
+				needs.planmodifier = true
+				switch pkg {
+				case "stringplanmodifier":
+					needs.pmString = true
+				case "boolplanmodifier":
+					needs.pmBool = true
+				case "int64planmodifier":
+					needs.pmInt64 = true
+				case "objectplanmodifier":
+					needs.pmObject = true
+				case "listplanmodifier":
+					needs.pmList = true
+				}
+			}
 		}
 		if prop.Type.Kind == KindObject {
 			scanImportNeedsRecurse(prop.Type, needs)
@@ -159,6 +206,9 @@ func isFullyComputed(typ *Type) bool {
 // (a) Its own flag says ReadOnly, OR
 // (b) It's an object/array whose ALL leaf descendants are ReadOnly.
 func effectiveComputed(prop *Property) bool {
+	if prop.ForceComputed {
+		return true // azwise: explicitly read-only in AzureRM
+	}
 	if prop.Flags.IsReadOnly() {
 		return true
 	}
@@ -210,11 +260,13 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		if !computed {
 			emitDescriptionStringValidators(b, prop, tabs)
 		}
+		emitForceNew(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	case typ.Kind == KindBool:
 		b.WriteString(fmt.Sprintf("%s%q: schema.BoolAttribute{\n", tabs, tfName))
 		writeAttributeFlags(b, prop, computed, tabs)
+		emitForceNew(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	case typ.Kind == KindInt:
@@ -223,6 +275,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		if !computed {
 			emitDescriptionInt64Validators(b, prop, tabs)
 		}
+		emitForceNew(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	case typ.IsEnum():
@@ -241,11 +294,13 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 				b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 			}
 		}
+		emitForceNew(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	case typ.Kind == KindObject:
 		b.WriteString(fmt.Sprintf("%s%q: schema.SingleNestedAttribute{\n", tabs, tfName))
 		writeAttributeFlags(b, prop, computed, tabs)
+		emitForceNew(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s\tAttributes: map[string]schema.Attribute{\n", tabs))
 		emitAttributes(b, typ, indent+2)
 		b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
@@ -255,6 +310,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		if typ.ElementType != nil && typ.ElementType.Kind == KindObject {
 			b.WriteString(fmt.Sprintf("%s%q: schema.ListNestedAttribute{\n", tabs, tfName))
 			writeAttributeFlags(b, prop, computed, tabs)
+			emitForceNew(b, prop, computed, tabs)
 			b.WriteString(fmt.Sprintf("%s\tNestedObject: schema.NestedAttributeObject{\n", tabs))
 			b.WriteString(fmt.Sprintf("%s\t\tAttributes: map[string]schema.Attribute{\n", tabs))
 			emitAttributes(b, typ.ElementType, indent+3)
@@ -264,6 +320,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		} else {
 			b.WriteString(fmt.Sprintf("%s%q: schema.ListAttribute{\n", tabs, tfName))
 			writeAttributeFlags(b, prop, computed, tabs)
+			emitForceNew(b, prop, computed, tabs)
 			b.WriteString(fmt.Sprintf("%s\tElementType: %s,\n", tabs, listElementType(typ.ElementType)))
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
 		}
@@ -272,14 +329,49 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		// Non-enum union → treat as string for now
 		b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, tfName))
 		writeAttributeFlags(b, prop, computed, tabs)
+		emitForceNew(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
 	default:
-		// KindAny, unknown → dynamic attribute
+		// KindAny, unknown → dynamic attribute (no RequiresReplace modifier available)
 		b.WriteString(fmt.Sprintf("%s%q: schema.DynamicAttribute{\n", tabs, tfName))
 		writeAttributeFlags(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 	}
+}
+
+// emitForceNew writes a type-appropriate RequiresReplace plan modifier when the
+// property is azwise-flagged ForceNew and settable. Computed-only attributes get
+// no modifier (the user can't change them).
+func emitForceNew(b *strings.Builder, prop *Property, computed bool, tabs string) {
+	if !prop.ForceNew || computed {
+		return
+	}
+	pkg, typ := forceNewModifier(prop)
+	if pkg == "" {
+		return
+	}
+	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.%s{\n", tabs, typ))
+	b.WriteString(fmt.Sprintf("%s\t\t%s.RequiresReplace(),\n", tabs, pkg))
+	b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+}
+
+// forceNewModifier returns the plan-modifier package and framework type for a
+// property's effective attribute kind. Empty package = no modifier available.
+func forceNewModifier(prop *Property) (pkg, typ string) {
+	switch {
+	case prop.Type.Kind == KindString, prop.Type.IsEnum(), prop.Type.Kind == KindUnion:
+		return "stringplanmodifier", "String"
+	case prop.Type.Kind == KindBool:
+		return "boolplanmodifier", "Bool"
+	case prop.Type.Kind == KindInt:
+		return "int64planmodifier", "Int64"
+	case prop.Type.Kind == KindObject:
+		return "objectplanmodifier", "Object"
+	case prop.Type.Kind == KindArray:
+		return "listplanmodifier", "List"
+	}
+	return "", ""
 }
 
 // writeAttributeFlags emits the Required/Optional/Computed flags for an attribute.
@@ -309,7 +401,7 @@ func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs
 		b.WriteString(fmt.Sprintf("%s\tOptional: true,\n", tabs))
 		b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
 	}
-	if prop.Flags.IsWriteOnly() {
+	if prop.Flags.IsWriteOnly() || prop.Sensitive {
 		b.WriteString(fmt.Sprintf("%s\tSensitive: true,\n", tabs))
 	}
 }
@@ -365,6 +457,25 @@ func emitDescriptionStringValidators(b *strings.Builder, prop *Property, tabs st
 				items = append(items, fmt.Sprintf(
 					"%s\t\tstringvalidator.RegexMatches(\n%s\t\t\tregexp.MustCompile(`%s`),\n%s\t\t\t%q,\n%s\t\t)",
 					tabs, tabs, v.Pattern, tabs, v.Message, tabs))
+			}
+		case ValidatorStringOneOf:
+			if len(v.Allowed) > 0 {
+				var sb strings.Builder
+				sb.WriteString(fmt.Sprintf("%s\t\tstringvalidator.OneOf(\n", tabs))
+				for _, av := range v.Allowed {
+					sb.WriteString(fmt.Sprintf("%s\t\t\t%q,\n", tabs, av))
+				}
+				sb.WriteString(fmt.Sprintf("%s\t\t)", tabs))
+				items = append(items, sb.String())
+			}
+		case ValidatorStringLength:
+			switch {
+			case v.Min != nil && v.Max != nil:
+				items = append(items, fmt.Sprintf("%s\t\tstringvalidator.LengthBetween(%d, %d)", tabs, *v.Min, *v.Max))
+			case v.Min != nil:
+				items = append(items, fmt.Sprintf("%s\t\tstringvalidator.LengthAtLeast(%d)", tabs, *v.Min))
+			case v.Max != nil:
+				items = append(items, fmt.Sprintf("%s\t\tstringvalidator.LengthAtMost(%d)", tabs, *v.Max))
 			}
 		}
 	}

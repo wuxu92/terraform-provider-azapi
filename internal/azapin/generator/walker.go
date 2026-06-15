@@ -50,30 +50,38 @@ type Type struct {
 
 // Property represents one property within an ObjectType.
 type Property struct {
-	Name         string       // ARM JSON name (camelCase)
-	Type         *Type        // Resolved type
+	Name         string // ARM JSON name (camelCase)
+	Type         *Type  // Resolved type
 	Flags        PropertyFlag
 	Description  string
-	DefaultValue string              // Extracted from description, empty if none detected
-	Validators   []DescriptionValidator // Extracted from description
+	DefaultValue string                 // Extracted from description or azwise, empty if none
+	Validators   []DescriptionValidator // Extracted from description or azwise
+	// azwise-derived overlay (set by ApplyAzwise; empty/false otherwise)
+	ForceNew      bool // emit a RequiresReplace plan modifier
+	Sensitive     bool // emit Sensitive: true
+	ForceComputed bool // force Computed-only (azwise ComputedFields)
 }
 
-// DescriptionValidator is a validation rule extracted from a property description.
+// DescriptionValidator is a validation rule extracted from a property description
+// or from azwise knowledge.
 type DescriptionValidator struct {
 	Kind    ValidatorKind
-	Pattern string // For regex/format validators
-	Min     *int64 // For numeric range validators
-	Max     *int64 // For numeric range validators
-	Message string // Human-readable description
+	Pattern string   // For regex/format validators
+	Min     *int64   // For numeric range / length validators
+	Max     *int64   // For numeric range / length validators
+	Allowed []string // For OneOf validators
+	Message string   // Human-readable description
 }
 
-// ValidatorKind identifies the type of description-extracted validator.
+// ValidatorKind identifies the type of validator.
 type ValidatorKind int
 
 const (
 	ValidatorArmResourceID ValidatorKind = iota // ARM resource ID format
 	ValidatorRegex                              // Regex pattern
 	ValidatorIntRange                           // Numeric min/max
+	ValidatorStringOneOf                        // String enum (azwise AllowedValues)
+	ValidatorStringLength                       // String length min/max (azwise)
 )
 
 // IsEnum returns true if this type is a union of string literals (enum).

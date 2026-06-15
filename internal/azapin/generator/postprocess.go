@@ -13,12 +13,15 @@ import (
 //   - Extract default values from property descriptions
 //   - Extract validators from property descriptions (ARM ID, datetime, numeric ranges)
 //   - Promote single-optional-child block properties to Required
+//   - Overlay azwise knowledge (ForceNew, computed, sensitive, verified defaults,
+//     validation) — applied last so curated AzureRM knowledge wins over heuristics
 func PostProcess(defs []*ResourceDefinition) {
 	for _, def := range defs {
 		if def.Body != nil {
 			extractDefaults(def.Body)
 			extractDescriptionValidators(def.Body)
 			promoteSingleOptional(def.Body)
+			ApplyAzwise(def)
 		}
 	}
 }

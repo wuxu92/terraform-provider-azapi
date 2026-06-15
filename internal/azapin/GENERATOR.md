@@ -96,6 +96,38 @@ Rationale: a block with only one settable property serves no purpose when that p
 
 Example: `Placement` has one property `zonePlacementPolicy` (Optional in bicep). After promotion, `zone_placement_policy` becomes Required within the `placement` block. Other examples: `CorsRules.corsRules`, `Multichannel.enabled`, `DualStackEndpointPreference.publishIpv6Endpoint`.
 
+### Azwise Knowledge Overlay
+
+**Rule 9b: Overlay curated AzureRM knowledge (azwise)**
+
+After the heuristic post-processing steps, `ApplyAzwise(def)` overlays the
+hand-verified AzureRM-derived knowledge from `internal/azure/azwise` onto the type
+graph. azwise rules are authoritative and take precedence over the bicep-flag and
+description-mined heuristics. It is a no-op when no knowledge is registered for the
+resource type. Property paths are ARM dot paths (`properties.accessTier`,
+`sku.name`); paths that don't resolve in the body (e.g. ListKeys-only sensitive
+fields) are skipped.
+
+| azwise data | schema effect |
+|---|---|
+| `ForceNew` paths | `prop.ForceNew` → type-specific `RequiresReplace()` plan modifier (settable attributes only) |
+| `ComputedFields` | `prop.ForceComputed` → forces `Computed: true` (overrides Rule 3 safe default) |
+| `SensitiveFields` | `prop.Sensitive` → `Sensitive: true` |
+| `DefaultValues` (non-nil) | `prop.DefaultValue` → `Default(...)` (overrides description-mined default) |
+| `StringRules` (path-scoped) | `OneOf` (non-enum only), `LengthBetween/AtLeast/AtMost`, `RegexMatches` |
+| `IntRules` | `int64validator.Between/AtLeast/AtMost` |
+
+The declarative `ForceNew` list becomes schema-level `RequiresReplace`; **conditional**
+ForceNew logic (e.g. storage SKU zone migration) is NOT expressible as a plan
+modifier and stays in `azwise.CheckForceNew`, consulted by the resource's
+`ModifyPlan` (see RESOURCE.md). The overlay only adds flags/modifiers/validators —
+it never adds or removes properties, so the schema↔bicep validator still passes.
+
+Storage account example: 10 `RequiresReplace` modifiers (`is_hns_enabled` →
+`boolplanmodifier`, `sku.tier` → `stringplanmodifier`, `extended_location` →
+`objectplanmodifier`), plus verified enum defaults (`minimum_tls_version` = `TLS1_2`,
+`access_tier` = `Hot`).
+
 ## Validators
 
 **Rule 10: No validators on Computed-only fields**
