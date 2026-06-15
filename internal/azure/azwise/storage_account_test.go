@@ -282,10 +282,13 @@ func TestStorageValidate(t *testing.T) {
 		}
 	}
 
-	// Missing sensitive_body should produce sensitive field diagnostic
+	// A sensitive field set in body without sensitive_body should be flagged.
 	diags = k.Validate("", map[string]interface{}{
 		"sku":  map[string]interface{}{"name": "Standard_LRS"},
 		"kind": "StorageV2",
+		"properties": map[string]interface{}{
+			"primaryAccessKey": "secret",
+		},
 	}, false)
 	if len(diags) != 1 {
 		t.Errorf("expected 1 diagnostic (sensitive), got %d:", len(diags))
@@ -295,6 +298,18 @@ func TestStorageValidate(t *testing.T) {
 	}
 	if len(diags) == 1 && diags[0].Summary() != "Sensitive properties should use sensitive_body" {
 		t.Errorf("unexpected summary: %s", diags[0].Summary())
+	}
+
+	// No sensitive field in body → no sensitive diagnostic.
+	diags = k.Validate("", map[string]interface{}{
+		"sku":  map[string]interface{}{"name": "Standard_LRS"},
+		"kind": "StorageV2",
+	}, false)
+	if len(diags) != 0 {
+		t.Errorf("expected 0 diagnostics when no sensitive field in body, got %d:", len(diags))
+		for _, d := range diags {
+			t.Errorf("  %s: %s", d.Summary(), d.Detail())
+		}
 	}
 
 	// Missing required fields should produce required-fields diagnostic

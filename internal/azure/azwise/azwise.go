@@ -448,11 +448,19 @@ func (b *BaseKnowledge) Validate(name string, body map[string]interface{}, hasSe
 	}
 
 	if body != nil && !hasSensitiveBody && len(b.SensitiveFields) > 0 {
-		diags.AddError(
-			"Sensitive properties should use sensitive_body",
-			fmt.Sprintf("Known sensitive fields (%s) should be moved from body to sensitive_body.",
-				strings.Join(b.SensitiveFields, ", ")),
-		)
+		var found []string
+		for _, field := range b.SensitiveFields {
+			if extractNestedValue(body, field) != nil {
+				found = append(found, field)
+			}
+		}
+		if len(found) > 0 {
+			diags.AddError(
+				"Sensitive properties should use sensitive_body",
+				fmt.Sprintf("Known sensitive fields (%s) are set in body and should be moved to sensitive_body.",
+					strings.Join(found, ", ")),
+			)
+		}
 	}
 
 	if body != nil && len(b.ComputedFields) > 0 {

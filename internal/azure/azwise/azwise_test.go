@@ -463,17 +463,28 @@ func TestBaseKnowledgeValidate(t *testing.T) {
 			1,
 		},
 		{
-			"sensitive field error when no sensitive_body",
+			"sensitive field error when present and no sensitive_body",
 			"",
-			map[string]interface{}{},
+			map[string]interface{}{
+				"properties": map[string]interface{}{"secret": "x"},
+			},
 			false,
 			1,
 		},
 		{
-			"no sensitive error with sensitive_body",
+			"no sensitive error when field present but sensitive_body set",
+			"",
+			map[string]interface{}{
+				"properties": map[string]interface{}{"secret": "x"},
+			},
+			true,
+			0,
+		},
+		{
+			"no sensitive error when field absent from body",
 			"",
 			map[string]interface{}{},
-			true,
+			false,
 			0,
 		},
 		{
@@ -488,10 +499,10 @@ func TestBaseKnowledgeValidate(t *testing.T) {
 			"AB",
 			map[string]interface{}{
 				"sku":        map[string]interface{}{"name": "Basic"},
-				"properties": map[string]interface{}{"count": float64(99)},
+				"properties": map[string]interface{}{"count": float64(99), "secret": "x"},
 			},
 			false,
-			3, // name + properties (grouped) + sensitive
+			3, // name + properties (grouped) + sensitive (present in body)
 		},
 	}
 	for _, tc := range tests {
