@@ -154,29 +154,6 @@ func isFullyComputed(typ *Type) bool {
 	return true
 }
 
-// hasAnySettable returns true if an ObjectType has at least one settable
-// (non-ReadOnly, non-SystemManaged) leaf property.
-func hasAnySettable(typ *Type) bool {
-	if typ.Kind != KindObject {
-		return false
-	}
-	for _, prop := range typ.Properties {
-		if prop.Flags.IsSystemManaged() {
-			continue
-		}
-		if !prop.Flags.IsReadOnly() {
-			if prop.Type.Kind == KindObject {
-				if hasAnySettable(prop.Type) {
-					return true
-				}
-				continue
-			}
-			return true
-		}
-	}
-	return false
-}
-
 // effectiveComputed determines whether a property should be Computed.
 // A property is computed if:
 // (a) Its own flag says ReadOnly, OR
@@ -287,7 +264,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		} else {
 			b.WriteString(fmt.Sprintf("%s%q: schema.ListAttribute{\n", tabs, tfName))
 			writeAttributeFlags(b, prop, computed, tabs)
-			b.WriteString(fmt.Sprintf("%s\tElementType: types.StringType,\n", tabs))
+			b.WriteString(fmt.Sprintf("%s\tElementType: %s,\n", tabs, listElementType(typ.ElementType)))
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
 		}
 
@@ -337,7 +314,20 @@ func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs
 	}
 }
 
-// emitDefault writes a Default plan modifier for the property's type.
+// listElementType returns the Terraform element type expression for a non-object
+// array element. Defaults to types.StringType for unknown/union element kinds.
+func listElementType(elem *Type) string {
+	if elem != nil {
+		switch elem.Kind {
+		case KindBool:
+			return "types.BoolType"
+		case KindInt:
+			return "types.Int64Type"
+		}
+	}
+	return "types.StringType"
+}
+
 // emitDefault writes a Default plan modifier for the property's type.
 func emitDefault(b *strings.Builder, prop *Property, tabs string) {
 	switch prop.Type.Kind {

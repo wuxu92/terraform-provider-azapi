@@ -112,15 +112,22 @@ type ResourceDefinition struct {
 
 // rawEntry is a JSON entry in types.json.
 type rawEntry struct {
-	Type     string                     `json:"$type"`
-	Name     string                     `json:"name,omitempty"`
-	Value    string                     `json:"value,omitempty"`
-	Body     *rawRef                    `json:"body,omitempty"`
-	Properties map[string]*rawProperty  `json:"properties,omitempty"`
-	ItemType *rawRef                    `json:"itemType,omitempty"`
-	Elements []rawRef                   `json:"elements,omitempty"`
-	MinValue *int64                     `json:"minValue,omitempty"`
-	MaxValue *int64                     `json:"maxValue,omitempty"`
+	Type       string                  `json:"$type"`
+	Name       string                  `json:"name,omitempty"`
+	Value      string                  `json:"value,omitempty"`
+	Body       *rawRef                 `json:"body,omitempty"`
+	Properties map[string]*rawProperty `json:"properties,omitempty"`
+	ItemType   *rawRef                 `json:"itemType,omitempty"`
+	// Elements is json.RawMessage because its shape is type-dependent:
+	// UnionType uses an array ([]rawRef); DiscriminatedObjectType uses an
+	// object (map[string]rawRef). Decoding it lazily in resolve() avoids
+	// failing the entire document's unmarshal on the shape mismatch.
+	Elements json.RawMessage `json:"elements,omitempty"`
+	// BaseProperties is the shared property set of a DiscriminatedObjectType.
+	BaseProperties map[string]*rawProperty `json:"baseProperties,omitempty"`
+	Discriminator  string                  `json:"discriminator,omitempty"`
+	MinValue       *int64                  `json:"minValue,omitempty"`
+	MaxValue       *int64                  `json:"maxValue,omitempty"`
 }
 
 type rawRef struct {
@@ -140,7 +147,7 @@ func ParseTypesJSON(data []byte) ([]*ResourceDefinition, error) {
 		return nil, fmt.Errorf("unmarshal types.json: %w", err)
 	}
 
-	w := &walker{entries: entries, cache: make(map[int]*Type)}
+	w := &walker{entries: entries, cache: make(map[int]*Type), inProgress: make(map[int]bool)}
 
 	var defs []*ResourceDefinition
 	for _, entry := range entries {
@@ -170,28 +177,37 @@ func ParseTypesJSON(data []byte) ([]*ResourceDefinition, error) {
 	return defs, nil
 }
 
-// walker resolves $ref indices into Type nodes with cycle detection.
+// walker resolves $ref indices into Type nodes. It breaks reference cycles
+// (self-referential ARM types like the ErrorEntity/ErrorDetail pattern) by
+// tracking in-progress indices: a back-edge to a node still being built is
+// replaced with a KindAny sentinel, keeping the produced graph a DAG so that
+// downstream consumers (emitter, postprocess, validators) terminate.
 type walker struct {
-	entries []rawEntry
-	cache   map[int]*Type
+	entries    []rawEntry
+	cache      map[int]*Type
+	inProgress map[int]bool
 }
 
-const maxDepth = 20
+const maxDepth = 50
 
 func (w *walker) resolve(idx int, depth int) *Type {
-	if depth > maxDepth {
-		return &Type{Kind: KindAny, Name: "any"}
-	}
 	if idx < 0 || idx >= len(w.entries) {
 		return nil
 	}
 	if t, ok := w.cache[idx]; ok {
-		return t
+		return t // fully resolved node — safe to share (DAG)
 	}
-
+	if w.inProgress[idx] {
+		// Back-edge: this node is an ancestor still being built. Returning the
+		// partial node here would create a cycle; emit a sentinel instead.
+		return &Type{Kind: KindAny, Name: "recursive"}
+	}
+	if depth > maxDepth {
+		return &Type{Kind: KindAny, Name: "any"}
+	}
 	entry := w.entries[idx]
-
-	// Pre-create to break cycles
+	w.inProgress[idx] = true
+	defer delete(w.inProgress, idx)
 	var t *Type
 	switch entry.Type {
 	case "StringType":
@@ -206,7 +222,6 @@ func (w *walker) resolve(idx int, depth int) *Type {
 		t = &Type{Kind: KindAny}
 	case "ObjectType":
 		t = &Type{Kind: KindObject, Name: entry.Name, Properties: make(map[string]*Property)}
-		w.cache[idx] = t // cache early for cycles
 		for name, prop := range entry.Properties {
 			propIdx, err := parseRef(&prop.Type)
 			if err != nil {
@@ -223,37 +238,33 @@ func (w *walker) resolve(idx int, depth int) *Type {
 				Description: prop.Description,
 			}
 		}
-		return t
 	case "ArrayType":
 		t = &Type{Kind: KindArray}
-		w.cache[idx] = t
 		if entry.ItemType != nil {
-			itemIdx, err := parseRef(entry.ItemType)
-			if err == nil {
+			if itemIdx, err := parseRef(entry.ItemType); err == nil {
 				t.ElementType = w.resolve(itemIdx, depth+1)
 			}
 		}
-		return t
 	case "UnionType":
 		t = &Type{Kind: KindUnion}
-		w.cache[idx] = t
-		for _, elem := range entry.Elements {
-			elemIdx, err := parseRef(&elem)
+		var elems []rawRef
+		if len(entry.Elements) > 0 {
+			_ = json.Unmarshal(entry.Elements, &elems)
+		}
+		for i := range elems {
+			elemIdx, err := parseRef(&elems[i])
 			if err != nil {
 				continue
 			}
-			resolved := w.resolve(elemIdx, depth+1)
-			if resolved != nil {
+			if resolved := w.resolve(elemIdx, depth+1); resolved != nil {
 				t.Elements = append(t.Elements, resolved)
 			}
 		}
-		return t
 	default:
-		// ResourceType, ResourceFunctionType, DiscriminatedObjectType, etc.
-		// For discriminated objects, treat as Any for now
+		// DiscriminatedObjectType, ResourceType, ResourceFunctionType, etc.
+		// Polymorphic/discriminated bodies are emitted as a dynamic attribute.
 		t = &Type{Kind: KindAny, Name: entry.Name}
 	}
-
 	w.cache[idx] = t
 	return t
 }

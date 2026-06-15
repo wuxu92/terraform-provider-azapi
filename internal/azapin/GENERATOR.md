@@ -165,11 +165,31 @@ This avoids duplicating ~215 property mappings per resource (storage account has
 | BooleanType | `types.BoolType` | `schema.BoolAttribute` |
 | ObjectType | `types.ObjectType` | `schema.SingleNestedAttribute` |
 | ArrayType(ObjectType) | `types.ListType` | `schema.ListNestedAttribute` |
-| ArrayType(primitive) | `types.ListType` | `schema.ListAttribute` with `ElementType` |
+| ArrayType(primitive) | `types.ListType` | `schema.ListAttribute` with `ElementType` (`types.StringType`/`Int64Type`/`BoolType` per element kind) |
 | UnionType(StringLiterals) | `types.StringType` | `schema.StringAttribute` + `stringvalidator.OneOf` |
 | UnionType(mixed) | `types.StringType` | `schema.StringAttribute` (fallback) |
 | AnyType | `types.DynamicType` | `schema.DynamicAttribute` |
 | DiscriminatedObjectType | `types.DynamicType` | `schema.DynamicAttribute` (future: flattened) |
+
+## Recursion and Discriminated Types
+
+**Reference cycles.** Many ARM types are self-referential — the canonical case is
+the `ErrorEntity`/`ErrorDetail` pattern (`details: ErrorDetail[]`). The walker
+resolves `$ref` indices into a shared-pointer graph; to keep that graph a DAG it
+tracks in-progress indices and replaces any back-edge (a reference to a node still
+being built) with a `KindAny` sentinel. The recursive sub-tree therefore degrades
+to a dynamic/string attribute instead of expanding forever. Without this, every
+graph consumer (emitter, post-processing, validators) would recurse infinitely and
+stack-overflow. Covered by `TestParseSelfReferentialType`.
+
+**Discriminated objects.** A `DiscriminatedObjectType` stores its variants in an
+`elements` field shaped as a JSON **object** (discriminator value → type), unlike
+`UnionType` whose `elements` is an **array**. The parser keeps `elements` as
+`json.RawMessage` and decodes it lazily per `$type`, so a discriminated type no
+longer fails the whole document's unmarshal (previously ~28% of `types.json` files
+errored out entirely). Discriminated bodies currently emit a `DynamicAttribute`;
+a root body that resolves to a discriminated/non-object type is skipped (the
+resource falls back to `azapi_resource`). Covered by `TestParseDiscriminatedObjectType`.
 
 ## Scope Selection
 

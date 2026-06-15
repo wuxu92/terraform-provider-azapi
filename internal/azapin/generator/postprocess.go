@@ -8,8 +8,6 @@ import (
 
 // PostProcess applies semantic rules to a parsed type graph that can't be
 // derived from bicep flags alone. Call after ParseTypesJSON.
-// PostProcess applies semantic rules to a parsed type graph that can't be
-// derived from bicep flags alone. Call after ParseTypesJSON.
 //
 // Rules applied:
 //   - Extract default values from property descriptions
