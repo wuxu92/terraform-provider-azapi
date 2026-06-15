@@ -9,7 +9,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	azapinschema "github.com/Azure/terraform-provider-azapi/internal/azapin/schema"
@@ -25,6 +27,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
 					objectplanmodifier.RequiresReplace(),
 				},
 				Attributes: map[string]schema.Attribute{
@@ -32,6 +35,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Description: "The name of the extended location.",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"type": schema.StringAttribute{
 						Description: "The type of the extended location.",
@@ -42,6 +48,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 								"EdgeZone",
 							),
 						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -49,14 +58,23 @@ func AzapiStorageAccountSchema() schema.Schema {
 				Description: "The identity of the resource.",
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
 				Attributes: map[string]schema.Attribute{
 					"principal_id": schema.StringAttribute{
 						Description: "The principal ID of resource identity.",
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"tenant_id": schema.StringAttribute{
 						Description: "The tenant ID of resource.",
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"type": schema.StringAttribute{
 						Description: "The identity type.",
@@ -74,6 +92,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Description: "Gets or sets a list of key value pairs that describe the set of User Assigned identities that will be used with this storage account. The key is the ARM resource identifier of the identity. Only 1 Use...",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 						},
 					},
@@ -100,6 +121,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 				Description: "Optional. Gets or sets the zonal placement details for the storage account.",
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
 				Attributes: map[string]schema.Attribute{
 					"zone_placement_policy": schema.StringAttribute{
 						Description: "The availability zone pinning policy for the storage account.",
@@ -117,6 +141,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 				Description: "The parameters used to create the storage account.",
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
 				Attributes: map[string]schema.Attribute{
 					"access_tier": schema.StringAttribute{
 						Description: "Required for storage accounts where kind = BlobStorage. The access tier is used for billing. The 'Premium' access tier is the default value for premium block blobs storage account type and it cannot b...",
@@ -135,6 +162,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"account_migration_in_progress": schema.BoolAttribute{
 						Description: "If customer initiated account migration is in progress, the value will be true else it will be null.",
 						Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"allow_blob_public_access": schema.BoolAttribute{
 						Description: "Allow or disallow public access to all blobs or containers in the storage account. The default interpretation is false for this property.",
@@ -164,16 +194,25 @@ func AzapiStorageAccountSchema() schema.Schema {
 								"AAD",
 							),
 						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"azure_files_identity_based_authentication": schema.SingleNestedAttribute{
 						Description: "Provides the identity based authentication settings for Azure Files.",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"active_directory_properties": schema.SingleNestedAttribute{
 								Description: "Additional information about the directory service. Required if directoryServiceOptions is AD (AD DS authentication). Optional for directoryServiceOptions AADDS (Entra DS authentication) and AADKERB (...",
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"account_type": schema.StringAttribute{
 										Description: "Specifies the Active Directory account type for Azure Storage. If directoryServiceOptions is set to AD (AD DS authentication), this property is optional. If provided, samAccountName should also be pro...",
@@ -185,41 +224,65 @@ func AzapiStorageAccountSchema() schema.Schema {
 												"Computer",
 											),
 										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"azure_storage_sid": schema.StringAttribute{
 										Description: "Specifies the security identifier (SID) for Azure Storage. If directoryServiceOptions is set to AD (AD DS authentication), this property is required. Otherwise, it can be omitted.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"domain_guid": schema.StringAttribute{
 										Description: "Specifies the domain GUID. If directoryServiceOptions is set to AD (AD DS authentication), this property is required. If directoryServiceOptions is set to AADDS (Entra DS authentication), this propert...",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"domain_name": schema.StringAttribute{
 										Description: "Specifies the primary domain that the AD DNS server is authoritative for. This property is required if directoryServiceOptions is set to AD (AD DS authentication). If directoryServiceOptions is set to...",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"domain_sid": schema.StringAttribute{
 										Description: "Specifies the security identifier (SID) of the AD domain. If directoryServiceOptions is set to AD (AD DS authentication), this property is required. Otherwise, it can be omitted.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"forest_name": schema.StringAttribute{
 										Description: "Specifies the Active Directory forest to get. If directoryServiceOptions is set to AD (AD DS authentication), this property is required. Otherwise, it can be omitted.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"net_bios_domain_name": schema.StringAttribute{
 										Description: "Specifies the NetBIOS domain name. If directoryServiceOptions is set to AD (AD DS authentication), this property is required. Otherwise, it can be omitted.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"sam_account_name": schema.StringAttribute{
 										Description: "Specifies the Active Directory SAMAccountName for Azure Storage. If directoryServiceOptions is set to AD (AD DS authentication), this property is optional. If provided, accountType should also be prov...",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -234,6 +297,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 										"StorageFileDataSmbShareContributor",
 										"StorageFileDataSmbShareElevatedContributor",
 									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
 								},
 							},
 							"directory_service_options": schema.StringAttribute{
@@ -252,6 +318,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Description: "Required for Managed Identities access using OAuth over SMB.",
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"is_smb_o_auth_enabled": schema.BoolAttribute{
 										Description: "Specifies if managed identities can access SMB shares using OAuth. The default interpretation is false for this property.",
@@ -264,14 +333,23 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"blob_restore_status": schema.SingleNestedAttribute{
 						Description: "Blob restore status",
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"failure_reason": schema.StringAttribute{
 								Description: "Failure reason when blob restore is failed.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"parameters": schema.SingleNestedAttribute{
 								Description: "Blob restore request parameters.",
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"blob_ranges": schema.ListNestedAttribute{
 										Description: "Blob ranges to restore.",
@@ -298,21 +376,33 @@ func AzapiStorageAccountSchema() schema.Schema {
 							"restore_id": schema.StringAttribute{
 								Description: "Id for tracking blob restore request.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"status": schema.StringAttribute{
 								Description: "The status of blob restore progress. Possible values are: - InProgress: Indicates that blob restore is ongoing. - Complete: Indicates that blob restore has been completed successfully. - Failed: Indic...",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
 					"creation_time": schema.StringAttribute{
 						Description: "Gets the creation date and time of the storage account in UTC.",
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"custom_domain": schema.SingleNestedAttribute{
 						Description: "User domain assigned to the storage account. Name is the CNAME source. Only one custom domain is supported per storage account at this time. To clear the existing custom domain, use an empty string fo...",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"name": schema.StringAttribute{
 								Description: "Gets or sets the custom domain name assigned to the storage account. Name is the CNAME source.",
@@ -351,6 +441,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Description: "Maintains information about the Internet protocol opted by the user.",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"publish_ipv6_endpoint": schema.BoolAttribute{
 								Description: "A boolean flag which indicates whether IPv6 storage endpoints are to be published.",
@@ -362,26 +455,41 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Description: "Enables extended group support with local users feature, if set to true",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"encryption": schema.SingleNestedAttribute{
 						Description: "Encryption settings to be used for server-side encryption for the storage account.",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"identity": schema.SingleNestedAttribute{
 								Description: "The identity to be used with service-side encryption at rest.",
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"federated_identity_client_id": schema.StringAttribute{
 										Description: "ClientId of the multi-tenant application to be used in conjunction with the user-assigned identity for cross-tenant customer-managed-keys server-side encryption on the storage account.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"user_assigned_identity": schema.StringAttribute{
 										Description: "Resource identifier of the UserAssigned identity to be associated with server-side encryption on the storage account.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -395,38 +503,62 @@ func AzapiStorageAccountSchema() schema.Schema {
 										"Microsoft.Keyvault",
 									),
 								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"keyvaultproperties": schema.SingleNestedAttribute{
 								Description: "Properties provided by key vault.",
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"current_versioned_key_expiration_timestamp": schema.StringAttribute{
 										Description: "This is a read only property that represents the expiration time of the current version of the customer managed key used for encryption.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"current_versioned_key_identifier": schema.StringAttribute{
 										Description: "The object identifier of the current versioned Key Vault Key in use.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"keyname": schema.StringAttribute{
 										Description: "The name of KeyVault key.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"keyvaulturi": schema.StringAttribute{
 										Description: "The Uri of KeyVault.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"keyversion": schema.StringAttribute{
 										Description: "The version of KeyVault key.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"last_key_rotation_timestamp": schema.StringAttribute{
 										Description: "Timestamp of last rotation of the Key Vault Key.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -443,11 +575,17 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Description: "List of services which support encryption.",
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"blob": schema.SingleNestedAttribute{
 										Description: "The encryption function of the blob storage service.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.Object{
+											objectplanmodifier.UseStateForUnknown(),
+										},
 										Attributes: map[string]schema.Attribute{
 											"enabled": schema.BoolAttribute{
 												Description: "A boolean indicating whether or not the service encrypts the data as it is stored. Encryption at rest is enabled by default today and cannot be disabled.",
@@ -473,6 +611,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 											"last_enabled_time": schema.StringAttribute{
 												Description: "Gets a rough estimate of the date/time when the encryption was last enabled by the user. Data is encrypted at rest by default today and cannot be disabled.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 										},
 									},
@@ -480,6 +621,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 										Description: "The encryption function of the file storage service.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.Object{
+											objectplanmodifier.UseStateForUnknown(),
+										},
 										Attributes: map[string]schema.Attribute{
 											"enabled": schema.BoolAttribute{
 												Description: "A boolean indicating whether or not the service encrypts the data as it is stored. Encryption at rest is enabled by default today and cannot be disabled.",
@@ -505,6 +649,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 											"last_enabled_time": schema.StringAttribute{
 												Description: "Gets a rough estimate of the date/time when the encryption was last enabled by the user. Data is encrypted at rest by default today and cannot be disabled.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 										},
 									},
@@ -512,6 +659,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 										Description: "The encryption function of the queue storage service.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.Object{
+											objectplanmodifier.UseStateForUnknown(),
+										},
 										Attributes: map[string]schema.Attribute{
 											"enabled": schema.BoolAttribute{
 												Description: "A boolean indicating whether or not the service encrypts the data as it is stored. Encryption at rest is enabled by default today and cannot be disabled.",
@@ -537,6 +687,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 											"last_enabled_time": schema.StringAttribute{
 												Description: "Gets a rough estimate of the date/time when the encryption was last enabled by the user. Data is encrypted at rest by default today and cannot be disabled.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 										},
 									},
@@ -544,6 +697,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 										Description: "The encryption function of the table storage service.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.Object{
+											objectplanmodifier.UseStateForUnknown(),
+										},
 										Attributes: map[string]schema.Attribute{
 											"enabled": schema.BoolAttribute{
 												Description: "A boolean indicating whether or not the service encrypts the data as it is stored. Encryption at rest is enabled by default today and cannot be disabled.",
@@ -569,6 +725,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 											"last_enabled_time": schema.StringAttribute{
 												Description: "Gets a rough estimate of the date/time when the encryption was last enabled by the user. Data is encrypted at rest by default today and cannot be disabled.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 										},
 									},
@@ -579,34 +738,58 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"failover_in_progress": schema.BoolAttribute{
 						Description: "If the failover is in progress, the value will be true, otherwise, it will be null.",
 						Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"geo_replication_stats": schema.SingleNestedAttribute{
 						Description: "Geo Replication Stats",
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"can_failover": schema.BoolAttribute{
 								Description: "A boolean flag which indicates whether or not account failover is supported for the account.",
 								Computed: true,
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"can_planned_failover": schema.BoolAttribute{
 								Description: "A boolean flag which indicates whether or not planned account failover is supported for the account.",
 								Computed: true,
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"last_sync_time": schema.StringAttribute{
 								Description: "All primary writes preceding this UTC date/time value are guaranteed to be available for read operations. Primary writes following this point in time may or may not be available for reads. Element may...",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"post_failover_redundancy": schema.StringAttribute{
 								Description: "The redundancy type of the account after an account failover is performed.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"post_planned_failover_redundancy": schema.StringAttribute{
 								Description: "The redundancy type of the account after a planned account failover is performed.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"status": schema.StringAttribute{
 								Description: "The status of the secondary location. Possible values are: - Live: Indicates that the secondary location is active and operational. - Bootstrap: Indicates initial synchronization from the primary loca...",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -615,6 +798,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Optional: true,
 						Computed: true,
 						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
 							objectplanmodifier.RequiresReplace(),
 						},
 						Attributes: map[string]schema.Attribute{
@@ -628,16 +812,25 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Description: "Specifies the default account-level immutability policy which is inherited and applied to objects that do not possess an explicit immutability policy at the object level. The object-level immutability...",
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"allow_protected_append_writes": schema.BoolAttribute{
 										Description: "This property can only be changed for disabled and unlocked time-based retention policies. When enabled, new blocks can be written to an append blob while maintaining immutability protection and compl...",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"immutability_period_since_creation_in_days": schema.Int64Attribute{
 										Description: "The immutability period for the blobs in the container since the policy creation, in days.",
 										Optional: true,
 										Computed: true,
+										PlanModifiers: []planmodifier.Int64{
+											int64planmodifier.UseStateForUnknown(),
+										},
 									},
 									"state": schema.StringAttribute{
 										Description: "The ImmutabilityPolicy state defines the mode of the policy. Disabled state disables the policy, Unlocked state allows increase and decrease of immutability retention time and also allows toggling all...",
@@ -650,6 +843,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 												"Disabled",
 											),
 										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -660,6 +856,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Optional: true,
 						Computed: true,
 						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
 							boolplanmodifier.RequiresReplace(),
 						},
 					},
@@ -667,12 +864,16 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Description: "Enables local users feature, if set to true",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"is_nfs_v3_enabled": schema.BoolAttribute{
 						Description: "NFS 3.0 protocol support enabled if set to true.",
 						Optional: true,
 						Computed: true,
 						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
 							boolplanmodifier.RequiresReplace(),
 						},
 					},
@@ -680,22 +881,37 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Description: "Enables Secure File Transfer Protocol, if set to true",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"is_sku_conversion_blocked": schema.BoolAttribute{
 						Description: "This property will be set to true or false on an event of ongoing migration. Default value is null.",
 						Computed: true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"key_creation_time": schema.SingleNestedAttribute{
 						Description: "Storage account keys creation time.",
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"key1": schema.StringAttribute{
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"key2": schema.StringAttribute{
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -703,6 +919,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Description: "KeyPolicy assigned to the storage account.",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"key_expiration_period_in_days": schema.Int64Attribute{
 								Description: "The key expiration period in days.",
@@ -720,10 +939,16 @@ func AzapiStorageAccountSchema() schema.Schema {
 								"Enabled",
 							),
 						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"last_geo_failover_time": schema.StringAttribute{
 						Description: "Gets the timestamp of the most recent instance of a failover to the secondary location. Only the most recent timestamp is retained. This element is not returned if there has never been a failover inst...",
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"minimum_tls_version": schema.StringAttribute{
 						Description: "Set the minimum TLS version to be permitted on requests to storage. The default interpretation is TLS 1.0 for this property.",
@@ -743,6 +968,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Description: "Network rule set",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"bypass": schema.StringAttribute{
 								Description: "Specifies whether traffic is bypassed for Logging/Metrics/AzureServices. Possible values are any combination of Logging|Metrics|AzureServices (For example, \\\"Logging, Metrics\\\"), or None to bypass non...",
@@ -772,6 +1000,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Description: "Sets the IP ACL rules",
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
 										"action": schema.StringAttribute{
@@ -790,6 +1021,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Description: "Sets the IPv6 ACL rules.",
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
 										"action": schema.StringAttribute{
@@ -808,17 +1042,26 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Description: "Sets the resource access rules",
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
 										"resource_id": schema.StringAttribute{
 											Description: "Resource Id",
 											Optional: true,
 											Computed: true,
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 										"tenant_id": schema.StringAttribute{
 											Description: "Tenant Id",
 											Optional: true,
 											Computed: true,
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 									},
 								},
@@ -827,6 +1070,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Description: "Sets the virtual network rules",
 								Optional: true,
 								Computed: true,
+								PlanModifiers: []planmodifier.List{
+									listplanmodifier.UseStateForUnknown(),
+								},
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
 										"action": schema.StringAttribute{
@@ -857,6 +1103,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 													"NetworkSourceDeleted",
 												),
 											},
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 									},
 								},
@@ -866,183 +1115,309 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"primary_endpoints": schema.SingleNestedAttribute{
 						Description: "Gets the URLs that are used to perform a retrieval of a public blob, queue, or table object. Note that Standard_ZRS and Premium_LRS accounts only return the blob endpoint.",
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"blob": schema.StringAttribute{
 								Description: "Gets the blob endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"dfs": schema.StringAttribute{
 								Description: "Gets the dfs endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"file": schema.StringAttribute{
 								Description: "Gets the file endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"internet_endpoints": schema.SingleNestedAttribute{
 								Description: "Gets the internet routing storage endpoints",
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"blob": schema.StringAttribute{
 										Description: "Gets the blob endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"dfs": schema.StringAttribute{
 										Description: "Gets the dfs endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"file": schema.StringAttribute{
 										Description: "Gets the file endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"web": schema.StringAttribute{
 										Description: "Gets the web endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
 							"ipv6_endpoints": schema.SingleNestedAttribute{
 								Description: "Gets the IPv6 storage endpoints.",
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"blob": schema.StringAttribute{
 										Description: "Gets the blob endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"dfs": schema.StringAttribute{
 										Description: "Gets the dfs endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"file": schema.StringAttribute{
 										Description: "Gets the file endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"internet_endpoints": schema.SingleNestedAttribute{
 										Description: "Gets the internet routing storage endpoints",
 										Computed: true,
+										PlanModifiers: []planmodifier.Object{
+											objectplanmodifier.UseStateForUnknown(),
+										},
 										Attributes: map[string]schema.Attribute{
 											"blob": schema.StringAttribute{
 												Description: "Gets the blob endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"dfs": schema.StringAttribute{
 												Description: "Gets the dfs endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"file": schema.StringAttribute{
 												Description: "Gets the file endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"web": schema.StringAttribute{
 												Description: "Gets the web endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 										},
 									},
 									"microsoft_endpoints": schema.SingleNestedAttribute{
 										Description: "Gets the microsoft routing storage endpoints.",
 										Computed: true,
+										PlanModifiers: []planmodifier.Object{
+											objectplanmodifier.UseStateForUnknown(),
+										},
 										Attributes: map[string]schema.Attribute{
 											"blob": schema.StringAttribute{
 												Description: "Gets the blob endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"dfs": schema.StringAttribute{
 												Description: "Gets the dfs endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"file": schema.StringAttribute{
 												Description: "Gets the file endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"queue": schema.StringAttribute{
 												Description: "Gets the queue endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"table": schema.StringAttribute{
 												Description: "Gets the table endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"web": schema.StringAttribute{
 												Description: "Gets the web endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 										},
 									},
 									"queue": schema.StringAttribute{
 										Description: "Gets the queue endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"table": schema.StringAttribute{
 										Description: "Gets the table endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"web": schema.StringAttribute{
 										Description: "Gets the web endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
 							"microsoft_endpoints": schema.SingleNestedAttribute{
 								Description: "Gets the microsoft routing storage endpoints.",
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"blob": schema.StringAttribute{
 										Description: "Gets the blob endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"dfs": schema.StringAttribute{
 										Description: "Gets the dfs endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"file": schema.StringAttribute{
 										Description: "Gets the file endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"queue": schema.StringAttribute{
 										Description: "Gets the queue endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"table": schema.StringAttribute{
 										Description: "Gets the table endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"web": schema.StringAttribute{
 										Description: "Gets the web endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
 							"queue": schema.StringAttribute{
 								Description: "Gets the queue endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"table": schema.StringAttribute{
 								Description: "Gets the table endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"web": schema.StringAttribute{
 								Description: "Gets the web endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
 					"primary_location": schema.StringAttribute{
 						Description: "Gets the location of the primary data center for the storage account.",
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"private_endpoint_connections": schema.ListNestedAttribute{
 						Description: "List of private endpoint connection associated with the specified storage account",
 						Computed: true,
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.UseStateForUnknown(),
+						},
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
 								"id": schema.StringAttribute{
 									Description: "Fully qualified resource ID for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}",
 									Computed: true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+									},
 								},
 								"name": schema.StringAttribute{
 									Description: "The name of the resource",
 									Computed: true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+									},
 								},
 								"properties": schema.SingleNestedAttribute{
 									Description: "Resource properties.",
@@ -1051,10 +1426,16 @@ func AzapiStorageAccountSchema() schema.Schema {
 										"private_endpoint": schema.SingleNestedAttribute{
 											Description: "The resource of private end point.",
 											Computed: true,
+											PlanModifiers: []planmodifier.Object{
+												objectplanmodifier.UseStateForUnknown(),
+											},
 											Attributes: map[string]schema.Attribute{
 												"id": schema.StringAttribute{
 													Description: "The ARM identifier for Private Endpoint",
 													Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 											},
 										},
@@ -1066,11 +1447,17 @@ func AzapiStorageAccountSchema() schema.Schema {
 													Description: "A message indicating if changes on the service provider require any updates on the consumer.",
 													Optional: true,
 													Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"description": schema.StringAttribute{
 													Description: "The reason for approval/rejection of the connection.",
 													Optional: true,
 													Computed: true,
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 												"status": schema.StringAttribute{
 													Description: "Indicates whether the connection has been Approved/Rejected/Removed by the owner of the service.",
@@ -1083,18 +1470,27 @@ func AzapiStorageAccountSchema() schema.Schema {
 															"Rejected",
 														),
 													},
+													PlanModifiers: []planmodifier.String{
+														stringplanmodifier.UseStateForUnknown(),
+													},
 												},
 											},
 										},
 										"provisioning_state": schema.StringAttribute{
 											Description: "The provisioning state of the private endpoint connection resource.",
 											Computed: true,
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
 										},
 									},
 								},
 								"type": schema.StringAttribute{
 									Description: "The type of the resource. E.g. \\\"Microsoft.Compute/virtualMachines\\\" or \\\"Microsoft.Storage/storageAccounts\\\"",
 									Computed: true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+									},
 								},
 							},
 						},
@@ -1102,6 +1498,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"provisioning_state": schema.StringAttribute{
 						Description: "Gets the status of the storage account at the time the operation was called.",
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"public_network_access": schema.StringAttribute{
 						Description: "Allow, disallow, or let Network Security Perimeter configuration to evaluate public network access to Storage Account. Value is optional but if passed in, must be 'Enabled', 'Disabled' or 'SecuredByPe...",
@@ -1120,6 +1519,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Description: "Maintains information about the network routing choice opted by the user for data transfer",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"publish_internet_endpoints": schema.BoolAttribute{
 								Description: "A boolean flag which indicates whether internet routing storage endpoints are to be published",
@@ -1151,6 +1553,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Description: "SasPolicy assigned to the storage account.",
 						Optional: true,
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"expiration_action": schema.StringAttribute{
 								Description: "The SAS Expiration Action defines the action to be performed when sasPolicy.sasExpirationPeriod is violated. The 'Log' action can be used for audit purposes and the 'Block' action can be used to block...",
@@ -1171,194 +1576,329 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"secondary_endpoints": schema.SingleNestedAttribute{
 						Description: "Gets the URLs that are used to perform a retrieval of a public blob, queue, or table object from the secondary location of the storage account. Only available if the SKU name is Standard_RAGRS.",
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"blob": schema.StringAttribute{
 								Description: "Gets the blob endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"dfs": schema.StringAttribute{
 								Description: "Gets the dfs endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"file": schema.StringAttribute{
 								Description: "Gets the file endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"internet_endpoints": schema.SingleNestedAttribute{
 								Description: "Gets the internet routing storage endpoints",
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"blob": schema.StringAttribute{
 										Description: "Gets the blob endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"dfs": schema.StringAttribute{
 										Description: "Gets the dfs endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"file": schema.StringAttribute{
 										Description: "Gets the file endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"web": schema.StringAttribute{
 										Description: "Gets the web endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
 							"ipv6_endpoints": schema.SingleNestedAttribute{
 								Description: "Gets the IPv6 storage endpoints.",
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"blob": schema.StringAttribute{
 										Description: "Gets the blob endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"dfs": schema.StringAttribute{
 										Description: "Gets the dfs endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"file": schema.StringAttribute{
 										Description: "Gets the file endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"internet_endpoints": schema.SingleNestedAttribute{
 										Description: "Gets the internet routing storage endpoints",
 										Computed: true,
+										PlanModifiers: []planmodifier.Object{
+											objectplanmodifier.UseStateForUnknown(),
+										},
 										Attributes: map[string]schema.Attribute{
 											"blob": schema.StringAttribute{
 												Description: "Gets the blob endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"dfs": schema.StringAttribute{
 												Description: "Gets the dfs endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"file": schema.StringAttribute{
 												Description: "Gets the file endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"web": schema.StringAttribute{
 												Description: "Gets the web endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 										},
 									},
 									"microsoft_endpoints": schema.SingleNestedAttribute{
 										Description: "Gets the microsoft routing storage endpoints.",
 										Computed: true,
+										PlanModifiers: []planmodifier.Object{
+											objectplanmodifier.UseStateForUnknown(),
+										},
 										Attributes: map[string]schema.Attribute{
 											"blob": schema.StringAttribute{
 												Description: "Gets the blob endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"dfs": schema.StringAttribute{
 												Description: "Gets the dfs endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"file": schema.StringAttribute{
 												Description: "Gets the file endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"queue": schema.StringAttribute{
 												Description: "Gets the queue endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"table": schema.StringAttribute{
 												Description: "Gets the table endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 											"web": schema.StringAttribute{
 												Description: "Gets the web endpoint.",
 												Computed: true,
+												PlanModifiers: []planmodifier.String{
+													stringplanmodifier.UseStateForUnknown(),
+												},
 											},
 										},
 									},
 									"queue": schema.StringAttribute{
 										Description: "Gets the queue endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"table": schema.StringAttribute{
 										Description: "Gets the table endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"web": schema.StringAttribute{
 										Description: "Gets the web endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
 							"microsoft_endpoints": schema.SingleNestedAttribute{
 								Description: "Gets the microsoft routing storage endpoints.",
 								Computed: true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
 								Attributes: map[string]schema.Attribute{
 									"blob": schema.StringAttribute{
 										Description: "Gets the blob endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"dfs": schema.StringAttribute{
 										Description: "Gets the dfs endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"file": schema.StringAttribute{
 										Description: "Gets the file endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"queue": schema.StringAttribute{
 										Description: "Gets the queue endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"table": schema.StringAttribute{
 										Description: "Gets the table endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 									"web": schema.StringAttribute{
 										Description: "Gets the web endpoint.",
 										Computed: true,
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
 							"queue": schema.StringAttribute{
 								Description: "Gets the queue endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"table": schema.StringAttribute{
 								Description: "Gets the table endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"web": schema.StringAttribute{
 								Description: "Gets the web endpoint.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
 					"secondary_location": schema.StringAttribute{
 						Description: "Gets the location of the geo-replicated secondary for the storage account. Only available if the accountType is Standard_GRS or Standard_RAGRS.",
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"status_of_primary": schema.StringAttribute{
 						Description: "Gets the status indicating whether the primary location of the storage account is available or unavailable.",
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"status_of_secondary": schema.StringAttribute{
 						Description: "Gets the status indicating whether the secondary location of the storage account is available or unavailable. Only available if the SKU name is Standard_GRS or Standard_RAGRS.",
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"storage_account_sku_conversion_status": schema.SingleNestedAttribute{
 						Description: "This property is readOnly and is set by server during asynchronous storage account sku conversion operations.",
 						Computed: true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
 						Attributes: map[string]schema.Attribute{
 							"end_time": schema.StringAttribute{
 								Description: "This property represents the sku conversion end time.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"sku_conversion_status": schema.StringAttribute{
 								Description: "This property indicates the current sku conversion status.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"start_time": schema.StringAttribute{
 								Description: "This property represents the sku conversion start time.",
 								Computed: true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"target_sku_name": schema.StringAttribute{
 								Description: "This property represents the target sku name to which the account sku is being converted asynchronously.",
@@ -1421,6 +1961,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 					"tier": schema.StringAttribute{
 						Description: "The SKU tier. This is based on the SKU name.",
 						Computed: true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -1428,6 +1971,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 				Description: "Gets or sets a list of key value pairs that describe the resource. These tags can be used for viewing and grouping this resource (across resource groups). A maximum of 15 tags can be provided for a re...",
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
 				Attributes: map[string]schema.Attribute{
 				},
 			},
@@ -1435,6 +1981,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 				Description: "Optional. Gets or sets the pinned logical availability zone for the storage account.",
 				Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.UseStateForUnknown(),
+				},
 				ElementType: types.StringType,
 			},
 		},

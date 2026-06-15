@@ -213,6 +213,43 @@ func nullOf(ctx context.Context, at attr.Type) attr.Value {
 	return v
 }
 
+// ResolveUnknowns recursively replaces any remaining unknown value with the null
+// of its type. Apply results must be fully known: Optional+Computed attributes the
+// user did not set and the ARM response did not populate stay unknown after
+// FlattenInto; nulling them satisfies the framework while leaving known values and
+// known siblings intact.
+func ResolveUnknowns(ctx context.Context, v attr.Value) attr.Value {
+	if v == nil {
+		return v
+	}
+	if v.IsUnknown() {
+		return nullOf(ctx, v.Type(ctx))
+	}
+	if v.IsNull() {
+		return v
+	}
+	switch t := v.(type) {
+	case types.Object:
+		attrs := t.Attributes()
+		nv := make(map[string]attr.Value, len(attrs))
+		for k, av := range attrs {
+			nv[k] = ResolveUnknowns(ctx, av)
+		}
+		obj, _ := types.ObjectValue(t.AttributeTypes(ctx), nv)
+		return obj
+	case types.List:
+		elems := t.Elements()
+		ne := make([]attr.Value, len(elems))
+		for i, e := range elems {
+			ne[i] = ResolveUnknowns(ctx, e)
+		}
+		lv, _ := types.ListValue(t.ElementType(ctx), ne)
+		return lv
+	default:
+		return v
+	}
+}
+
 // FlattenInto refreshes the body attributes of an existing object (plan for
 // create, prior state for read/update) from an ARM JSON response, preserving the
 // envelope (name, parent_id, id, timeouts) and any body attribute the response

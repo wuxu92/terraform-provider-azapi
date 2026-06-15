@@ -147,8 +147,11 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 		if prop.Type.Kind == KindArray && (prop.Type.ElementType == nil || prop.Type.ElementType.Kind != KindObject) {
 			needs.types = true
 		}
-		// ForceNew plan modifiers
-		if prop.ForceNew && !computed {
+		// Plan modifiers: UseStateForUnknown for computed (no default), and/or
+		// RequiresReplace for ForceNew settable attributes.
+		useState := !prop.Flags.IsRequired() && prop.DefaultValue == ""
+		forceNew := prop.ForceNew && !computed
+		if useState || forceNew {
 			if pkg, _ := forceNewModifier(prop); pkg != "" {
 				needs.planmodifier = true
 				switch pkg {
@@ -356,19 +359,30 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 	}
 }
 
-// emitForceNew writes a type-appropriate RequiresReplace plan modifier when the
-// property is azwise-flagged ForceNew and settable. Computed-only attributes get
-// no modifier (the user can't change them).
+// emitForceNew writes per-attribute plan modifiers:
+//   - UseStateForUnknown for computed attributes without a Default, so their
+//     server-populated value persists across plans instead of re-planning as
+//     "(known after apply)" (which causes a perpetual diff).
 func emitForceNew(b *strings.Builder, prop *Property, computed bool, tabs string) {
-	if !prop.ForceNew || computed {
+	// Computed is emitted for every non-Required attribute without a Default
+	// (read-only and Optional+Computed alike); all of them need UseStateForUnknown
+	// to persist their value across plans.
+	useState := !prop.Flags.IsRequired() && prop.DefaultValue == ""
+	forceNew := prop.ForceNew && !computed
+	if !useState && !forceNew {
 		return
 	}
 	pkg, typ := forceNewModifier(prop)
 	if pkg == "" {
-		return
+		return // type has no plan-modifier package (e.g. dynamic)
 	}
 	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.%s{\n", tabs, typ))
-	b.WriteString(fmt.Sprintf("%s\t\t%s.RequiresReplace(),\n", tabs, pkg))
+	if useState {
+		b.WriteString(fmt.Sprintf("%s\t\t%s.UseStateForUnknown(),\n", tabs, pkg))
+	}
+	if forceNew {
+		b.WriteString(fmt.Sprintf("%s\t\t%s.RequiresReplace(),\n", tabs, pkg))
+	}
 	b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 }
 

@@ -284,6 +284,9 @@ func (b *Base) put(ctx context.Context, planObj types.Object, isNew bool, to tim
 	if diags.Append(sdiags...); diags.HasError() {
 		return
 	}
+	// Apply results must be fully known — resolve any Optional+Computed unknowns
+	// the response didn't populate to null.
+	stateObj = mapper.ResolveUnknowns(ctx, stateObj).(types.Object)
 	diags.Append(setState(ctx, state, stateObj)...)
 }
 
