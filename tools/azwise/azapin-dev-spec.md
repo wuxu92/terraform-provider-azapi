@@ -384,7 +384,8 @@ sequenceDiagram
     ARM-->>B: response JSON
     B->>H: AfterCreate(CrudCtx{Response})
     B->>M: FlattenInto(response, plan) → state object
-    B->>B: set id; mapper.ResolveUnknowns(state)
+    B->>B: set id (computed)
+    B->>M: ResolveUnknowns(state)
     B-->>TF: fully-known state
 ```
 
