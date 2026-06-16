@@ -109,6 +109,45 @@ and plan experience.
 
 ---
 
+## Per-resource business logic (the strategic differentiator)
+
+What makes AzureRM resources *valuable* isn't the typed schema — it's the
+hand-written, per-resource intelligence layered on the API. azapin gives every
+resource type a place to put that logic. `azapi_resource` structurally can't: it is
+one generic engine with no per-resource extension point.
+
+The static resource exposes typed **customization seams** (`internal/azapin/resource`):
+
+- **Hooks** (data-driven): `BeforeCreate` / `AfterCreate` / `BeforeUpdate` /
+  `AfterUpdate` / `BeforeRead` / `AfterRead` / `BeforeDelete`, plus `ValidateConfig`
+  and `ModifyPlan`, registered per resource name. A hook can tweak the request body,
+  post-process state, add cross-field validation, or call extra APIs.
+- **Method override** (escape hatch): embed `*Base` and override any framework
+  method for wholesale-custom behavior.
+| Capability | `azapi_resource` | azapin |
+|---|---|---|
+| Per-resource extension point | none (one generic engine) | Hooks + method override |
+| Cross-field validation | only generic body-vs-schema | arbitrary Go (e.g. "Premium tier ⇒ BlockBlobStorage kind") |
+| Conditional ForceNew | not expressible | shipped — SKU zone migration |
+| Field-dependent defaults / normalization | none | arbitrary (location/ID casing, derived values) |
+| **Multi-API orchestration in one resource** | impossible — one PUT to one API | a hook can call extra APIs |
+| ARM quirk / eventual-consistency workarounds | user works around them in HCL | encapsulated in the resource |
+**Why multi-API orchestration matters.** AzureRM's `azurerm_storage_account` bundles
+`blob_properties` / `share_properties` / `queue_properties` — which are actually
+*separate* ARM APIs (`BlobServices` / `FileServices` / `QueueServices.SetServiceProperties`).
+That's why azwise deliberately excludes them from the storage account body. With an
+azapin `AfterCreate` / `AfterUpdate` hook, a single `azapi_storage_account` can make
+those extra calls and expose them as nested attributes — bundling several APIs into
+one convenient resource, exactly as AzureRM does. `azapi_resource` cannot.
+
+**Cost framing (for leaders).** This is **opt-in and incremental**: the generated
+schema + azwise overlay handle the long tail with *zero* custom code; you write a
+hook only where a resource genuinely needs one. So you pay AzureRM's per-resource
+logic cost only on the resources that warrant it — on top of mechanically generated
+schemas — which is far cheaper than hand-authoring every resource from scratch.
+
+---
+
 ## Under the hood (what powers the "intelligence")
 
 - **Generated from Azure's bicep type graph** — the same type data the provider
