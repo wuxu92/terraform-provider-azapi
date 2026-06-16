@@ -3,8 +3,10 @@
 **Audience:** teammates and leadership.
 **One-liner:** azapin turns a single freeform `azapi_resource` (raw ARM JSON) into a
 typed, per-resource Terraform resource generated from Azure's own schema — with
-autocomplete, real validation, correct diffs, and AzureRM-grade operational
-knowledge — while `azapi_resource` stays the day-zero escape hatch.
+native-schema autocomplete and per-attribute validation, correct diffs, and
+AzureRM-grade operational knowledge — while `azapi_resource` stays the day-zero
+escape hatch. (`azapi_resource` already validates its `body` against the same ARM
+types at plan time; azapin makes that a first-class typed schema.)
 
 Both ship in the **same provider**, share the same authentication and backend, and
 are meant to **coexist**.
@@ -61,7 +63,7 @@ and plan experience.
 | Resource shape | one `body = { … }` blob | typed named attributes (`sku`, `properties`, …) |
 | Property names | raw ARM **camelCase** (`accessTier`) | **snake_case** (`access_tier`) |
 | Editor autocomplete | none (`body` is opaque) | full — every attribute is in the schema |
-| Plan-time type checking | none | yes (wrong type / typo caught at `plan`) |
+| Plan-time type checking | yes, but against the dynamic `body` (`schemaValidate`, default on) — no editor/schema awareness | yes — native typed schema; wrong type/typo caught by tooling *and* `plan` |
 | Reading computed outputs | `response_export_values` + `.output.properties.primaryEndpoints.blob` | direct ref: `properties.primary_endpoints.blob` |
 
 ## Plan & diff quality
@@ -74,12 +76,19 @@ and plan experience.
 
 ## Validation (catches errors before apply)
 
+> Both validate against the embedded ARM/bicep types **at plan time**.
+> `azapi_resource` does this via `schemaValidate` in `ValidateConfig` — **on by
+> default** (`schema_validation_enabled = true`), traversing the dynamic `body`.
+> azapin expresses the same constraints as a **native typed schema**, so the
+> diagnostics, autocomplete, and `terraform validate` schema-awareness come for free.
+
 | Feature | `azapi_resource` | azapin |
 |---|---|---|
-| Enum validation | optional runtime (`schema_validation_enabled`) | schema-level `OneOf` (e.g. `access_tier ∈ {Hot,Cool,Cold,Premium,Smart}`) |
-| Numeric ranges / string length / regex | none | generated from spec + descriptions |
-| ARM resource-ID format | none | regex validator on ID-shaped fields |
-| Required-field checks | runtime, generic | per-attribute `Required` in schema |
+| Plan-time validation vs ARM schema | **yes** — `schemaValidate` vs embedded bicep (default on; toggle `schema_validation_enabled`) | **yes** — native schema validators + the same bicep-derived rules |
+| Where errors point | into `body` JSON paths (e.g. `body.properties.accessTier`) | the specific typed attribute |
+| Editor autocomplete / schema awareness | no — `body` is a dynamic blob to tooling | yes — every attribute is in the provider schema |
+| Enum / range / length / regex surfaced *in the schema* | no (checked at plan via traversal, not declared in schema) | yes — `OneOf`, ranges, length, regex on the attribute |
+| Required-field checks | yes (body traversal) | per-attribute `Required` in schema |
 
 ## Lifecycle correctness (AzureRM-grade behavior)
 

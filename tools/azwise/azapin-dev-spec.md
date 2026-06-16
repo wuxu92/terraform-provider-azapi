@@ -31,13 +31,17 @@ Two subsystems:
 
 ### 1.2 Business problem
 
-`azapi_resource` is the universal, day-zero way to manage any Azure resource, but
-its `body = { … }` is freeform JSON: no autocomplete, no plan-time type checking,
-opaque diffs, and no lifecycle intelligence (ForceNew, computed handling, defaults).
-Teams that want an **AzureRM-like authoring experience** must either wait for
-AzureRM to add the resource or hand-write provider code. azapin closes that gap by
-generating those typed resources mechanically from Azure's own schema, with azwise
-supplying the human-curated nuances a raw spec can't express.
+`azapi_resource` is the universal, day-zero way to manage any Azure resource. It
+already validates the dynamic `body` against the embedded ARM/bicep types at plan
+time (`schemaValidate`, on by default via `schema_validation_enabled`), but the body
+is still a freeform blob to tooling: no autocomplete or schema awareness, errors land
+on JSON paths rather than typed attributes, diffs are opaque, and there is no
+lifecycle intelligence (ForceNew, computed handling, real defaults). Teams that want
+an **AzureRM-like authoring experience** — a native typed schema with per-attribute
+validation, editor support, and correct lifecycle — must otherwise wait for AzureRM
+to add the resource or hand-write provider code. azapin closes that gap by generating
+those typed resources mechanically from Azure's own schema, with azwise supplying the
+human-curated nuances a raw spec can't express.
 
 ### 1.3 Target audience
 
