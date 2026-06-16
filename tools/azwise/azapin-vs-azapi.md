@@ -68,11 +68,17 @@ and plan experience.
 
 ## Plan & diff quality
 
+> Both render **per-property** diffs. `body` is a structured dynamic object, so
+> Terraform recurses into it and shows nested changes
+> (`~ minimumTlsVersion = "TLS1_2" -> "TLS1_5"`), just like a typed nested attribute.
+> The differences below are about *which* properties appear and how they're named —
+> not granularity.
+
 | Feature | `azapi_resource` | azapin |
 |---|---|---|
-| Plan diff granularity | whole `body` shown as one change | per-attribute diff (`access_tier: "Hot" → "Cool"`) |
-| Computed values | mostly `(known after apply)` blob | server values round-trip into state; **no perpetual diff** (UseStateForUnknown) |
-| Defaults visible at plan | no — you must set everything | **yes** — verified defaults shown in plan (`minimum_tls_version = "TLS1_2"`, `public_network_access = "Enabled"`, `supports_https_traffic_only = true`, …) |
+| Diff rendering | per-property, nested under `body`, ARM **camelCase** | per-property, top-level typed attributes, **snake_case** |
+| Computed / read-only values | not part of the resource; surfaced via `response_export_values` → `.output` (and only the paths you export) | first-class **typed Computed attributes** — visible in state, referenceable directly; round-trip without perpetual diff (UseStateForUnknown) |
+| Defaults visible at plan | no — only what you write is planned (no default injection) | **yes** — verified defaults shown at plan (`minimum_tls_version = "TLS1_2"`, `public_network_access = "Enabled"`, `supports_https_traffic_only = true`, …) |
 
 ## Validation (catches errors before apply)
 
@@ -94,9 +100,9 @@ and plan experience.
 
 | Feature | `azapi_resource` | azapin |
 |---|---|---|
-| ForceNew | generic "body changed → replace" | **per-attribute `RequiresReplace`** (only the right fields force replace) |
-| Conditional ForceNew | not expressible | **yes** — e.g. SKU **zone migration** (`Standard_LRS → Standard_ZRS`) forces replace; in-tier change doesn't |
-| Read-only fields | user must know not to set them | marked `Computed`; stripped from the request automatically |
+| ForceNew (which change forces replace) | not modeled per-property — body changes do an in-place PUT; an immutable property is only caught when ARM rejects the update at apply (our branch adds whole-`body` replace via azwise when a ForceNew property changes) | **per-attribute `RequiresReplace`** — the plan shows exactly which attribute forces replacement, before apply |
+| Conditional ForceNew | not expressible as a plan modifier | **yes** — e.g. SKU **zone migration** (`Standard_LRS → Standard_ZRS`) forces replace; in-tier change doesn't |
+| Read-only fields | user must know which ARM fields are read-only and not set them | marked `Computed`; stripped from the request automatically |
 | Sensitive fields | manual `sensitive_body` | marked `Sensitive: true` in schema |
 | Operation timeouts | generic defaults | per-resource defaults (create/read/update/delete) |
 | Import | generic | typed import → state |
