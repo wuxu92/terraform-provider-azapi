@@ -1,4 +1,4 @@
-# azapin — Development Specification
+# azapin (azapi-native/next) — Development Specification
 
 Status: Draft (PoC proven end-to-end against live Azure; productionization in progress)
 Owners: azapi provider team
@@ -30,6 +30,14 @@ Two subsystems:
   framework, CLI).
 
 ### 1.2 Business problem
+
+AzureRM remains important, but feature delivery is constrained by finite review
+bandwidth and by a provider stack that depends on Pandora and the HashiCorp SDK,
+where upstream swagger or SDK churn can stall new-resource work or maintenance.
+azapin is one response to that constraint: improve the azapi user experience,
+reuse Azure's own published type data directly, and make migration from AzureRM to
+azapi materially easier for customers who want typed resources without waiting for
+full AzureRM coverage.
 
 `azapi_resource` is the universal, day-zero way to manage any Azure resource. It
 already validates the dynamic `body` against the embedded ARM/bicep types at plan
