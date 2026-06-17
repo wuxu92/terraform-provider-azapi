@@ -41,13 +41,16 @@ full AzureRM coverage.
 
 `azapi_resource` is the universal, day-zero way to manage any Azure resource. It
 already validates the dynamic `body` against the embedded ARM/bicep types at plan
-time (`schemaValidate`, on by default via `schema_validation_enabled`), but the body
-is still a freeform blob to tooling: no autocomplete or schema awareness, and errors
-land on JSON paths rather than typed attributes. Computed/read-only values aren't
-part of the resource (you reach them via `response_export_values` → `.output`), no
-defaults are injected, and there is no per-attribute lifecycle modeling (ForceNew,
-computed handling, real defaults). Teams that want an **AzureRM-like authoring
-experience** — a native typed schema with per-attribute validation, editor support,
+time (`schemaValidate`, on by default via `schema_validation_enabled`). In VS Code,
+the Azure Terraform extension/LSP already adds body completion, hover, and
+diagnostics for azapi resources. But that help lives in an external editor
+integration, not in the provider schema itself: core Terraform still sees one
+dynamic `body`, errors land on JSON paths rather than typed attributes,
+computed/read-only values aren't part of the resource (you reach them via
+`response_export_values` → `.output`), defaults are not injected, and there is no
+per-attribute lifecycle modeling (ForceNew, computed handling, real defaults).
+Teams that want an **AzureRM-like authoring experience** — a native typed schema
+with per-attribute validation, editor support that comes from the provider itself,
 first-class computed attributes, and correct lifecycle — must otherwise wait for
 AzureRM to add the resource or hand-write provider code. azapin closes that gap by
 generating those typed resources mechanically from Azure's own schema, with azwise

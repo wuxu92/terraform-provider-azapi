@@ -62,8 +62,8 @@ and plan experience.
 |---|---|---|
 | Resource shape | one `body = { … }` blob | typed named attributes (`sku`, `properties`, …) |
 | Property names | raw ARM **camelCase** (`accessTier`) | **snake_case** (`access_tier`) |
-| Editor autocomplete | none (`body` is opaque) | full — every attribute is in the schema |
-| Plan-time type checking | yes, but against the dynamic `body` (`schemaValidate`, default on) — no editor/schema awareness | yes — native typed schema; wrong type/typo caught by tooling *and* `plan` |
+| Editor autocomplete | yes in VS Code via the Azure Terraform extension/LSP for `body`, but not from the provider schema itself | full, native — every attribute is in the provider schema |
+| Plan-time type checking | yes — dynamic `body` validation in the provider (`schemaValidate`, default on); VS Code extension/LSP adds editor assistance | yes — native typed schema; wrong type/typo caught by tooling *and* `plan` |
 | Reading computed outputs | `response_export_values` + `.output.properties.primaryEndpoints.blob` | direct ref: `properties.primary_endpoints.blob` |
 
 ## Plan & diff quality
@@ -86,13 +86,15 @@ and plan experience.
 > `azapi_resource` does this via `schemaValidate` in `ValidateConfig` — **on by
 > default** (`schema_validation_enabled = true`), traversing the dynamic `body`.
 > azapin expresses the same constraints as a **native typed schema**, so the
-> diagnostics, autocomplete, and `terraform validate` schema-awareness come for free.
+> diagnostics, autocomplete, and `terraform validate` schema-awareness come from
+> the provider schema itself rather than depending on the external VS Code
+> extension/LSP used for `azapi_resource` body authoring.
 
 | Feature | `azapi_resource` | azapin |
 |---|---|---|
 | Plan-time validation vs ARM schema | **yes** — `schemaValidate` vs embedded bicep (default on; toggle `schema_validation_enabled`) | **yes** — native schema validators + the same bicep-derived rules |
 | Where errors point | into `body` JSON paths (e.g. `body.properties.accessTier`) | the specific typed attribute |
-| Editor autocomplete / schema awareness | no — `body` is a dynamic blob to tooling | yes — every attribute is in the provider schema |
+| Editor autocomplete / schema awareness | yes in VS Code via the Azure Terraform extension/LSP, but not native provider schema | yes — every attribute is in the provider schema |
 | Enum / range / length / regex surfaced *in the schema* | no (checked at plan via traversal, not declared in schema) | yes — `OneOf`, ranges, length, regex on the attribute |
 | Required-field checks | yes (body traversal) | per-attribute `Required` in schema |
 
