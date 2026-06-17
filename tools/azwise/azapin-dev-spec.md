@@ -34,7 +34,7 @@ Two subsystems:
 AzureRM remains important, but feature delivery is constrained by finite review
 bandwidth and by a provider stack that depends on Pandora and the HashiCorp SDK,
 where upstream swagger or SDK churn can stall new-resource work or maintenance.
-azapin is one response to that constraint: improve the azapi user experience,
+azapin is one response to that constraint — improve the azapi user experience,
 reuse Azure's own published type data directly, and make migration from AzureRM to
 azapi materially easier for customers who want typed resources without waiting for
 full AzureRM coverage.
@@ -42,13 +42,14 @@ full AzureRM coverage.
 `azapi_resource` is the universal, day-zero way to manage any Azure resource. It
 already validates the dynamic `body` against the embedded ARM/bicep types at plan
 time (`schemaValidate`, on by default via `schema_validation_enabled`). In VS Code,
-the Azure Terraform extension/LSP already adds body completion, hover, and
-diagnostics for azapi resources. But that help lives in an external editor
-integration, not in the provider schema itself: core Terraform still sees one
-dynamic `body`, errors land on JSON paths rather than typed attributes,
-computed/read-only values aren't part of the resource (you reach them via
-`response_export_values` → `.output`), defaults are not injected, and there is no
-per-attribute lifecycle modeling (ForceNew, computed handling, real defaults).
+the Azure Terraform extension/LSP adds body completion, hover, and diagnostics for
+azapi resources. But that help lives in an external editor integration, not in the
+provider schema itself: core Terraform still sees one dynamic `body`, errors land
+on JSON paths rather than typed attributes, computed/read-only values are not part
+of the resource (you reach them via `response_export_values` → `.output`), defaults
+are not injected, and there is no per-attribute lifecycle modeling (ForceNew,
+computed handling, real defaults).
+
 Teams that want an **AzureRM-like authoring experience** — a native typed schema
 with per-attribute validation, editor support that comes from the provider itself,
 first-class computed attributes, and correct lifecycle — must otherwise wait for
@@ -99,8 +100,8 @@ User stories with acceptance criteria. **MUST/SHOULD/MAY** per RFC 2119.
   snake_case (`sku`, `properties.access_tier`, …). **MUST**
 - `terraform validate` rejects unknown attributes and wrong types before apply. **MUST**
 - Enum attributes reject out-of-set values via schema validators. **MUST**
-- The resource MUST create the identical ARM resource a `azapi_resource` with the
-  equivalent `body` would.
+- The resource MUST create the identical ARM resource that an `azapi_resource` with
+  the equivalent `body` would create.
 
 ### 2.2 Practitioner — clean plans
 
@@ -131,10 +132,10 @@ User stories with acceptance criteria. **MUST/SHOULD/MAY** per RFC 2119.
 
 **Acceptance**
 - `terraform import azapi_storage_account.x <armId>` MUST hydrate typed state from a
-  GET. **MUST**
+  GET.
 - Computed values MUST be referenceable directly
   (`azapi_storage_account.x.properties.primary_endpoints.blob`) without
-  `response_export_values`. **MUST**
+  `response_export_values`.
 
 ### 2.5 Maintainer — add a resource
 
@@ -142,11 +143,11 @@ User stories with acceptance criteria. **MUST/SHOULD/MAY** per RFC 2119.
 
 **Acceptance**
 - Running the generator for an ARM type produces a compiling `*.go` schema file that
-  passes `Schema.ValidateImplementation`. **MUST**
+  passes `Schema.ValidateImplementation`.
 - The generated schema MUST cover exactly the bicep body properties (validated by
-  the schema↔bicep cross-validator: no extra, no missing of type-mismatched). **MUST**
+  the schema↔bicep cross-validator: no extra, no missing, no type-mismatched).
 - The resource auto-registers (via `init()` → `generated.Registry`) and the provider
-  exposes it with no further wiring. **MUST**
+  exposes it with no further wiring.
 
 ### 2.6 Maintainer — customize a resource
 
@@ -154,9 +155,9 @@ User stories with acceptance criteria. **MUST/SHOULD/MAY** per RFC 2119.
 
 **Acceptance**
 - A hand-written overlay MAY register `Hooks` (Before/After per op, ModifyPlan,
-  ValidateConfig) keyed by resource name. **MUST be supported**
+  ValidateConfig) keyed by resource name.
 - A resource MAY override a base method via Go embedding when hooks are
-  insufficient. **MUST be supported**
+  insufficient.
 
 ### 2.7 Maintainer — curate knowledge (azwise)
 
@@ -286,8 +287,10 @@ type ResourceKnowledge interface {
     GetApiVersions() []string
     Validate(name string, body map[string]any, hasSensitiveBody bool) diag.Diagnostics
     CheckForceNew(oldBody, newBody map[string]any) bool
-    TimeoutDefault(op string, fallback time.Duration) time.Duration
-    GetComputedFields() []string
+    TimeoutDefault(operation string, fallback time.Duration) time.Duration
+    IsSoftDelete() bool
+    GetComputedFields() []string // read-only (server-computed) paths
+    GetDefaultFields() []string  // paths with server-side defaults
     GetDefaultValues() []DefaultValue
     GetRequiredFields() []string
 }
@@ -451,7 +454,7 @@ sequenceDiagram
   for genuinely settable secrets, SHOULD be moved to `sensitive_body` semantics; the
   validator MUST only flag fields actually present in the body (no false positives).
 - No credentials are stored; auth reuses the provider's `ARM_*` env-based clients.
-- Generated code is `// DO NOT EDIT`; no runtime `eval` of spec data.
+- Generated files carry a `// DO NOT EDIT` header; no runtime `eval` of spec data.
 
 **Performance**
 - The bicep body graph is parsed once per `ARMType@APIVersion` and **cached**
@@ -476,7 +479,7 @@ sequenceDiagram
 | Edge case | Handling |
 |---|---|
 | Recursive ARM types (`ErrorDetail.details[]`) | walker breaks cycles → `KindAny` sentinel; no stack overflow |
-| Discriminated/polymorphic bodies | parsed without failing the doc; emit `DynamicAttribute`; root-level → resource skipped (use `azapi_resource`) |
+| Discriminated/polymorphic bodies | parsed without failing the walk; emit `DynamicAttribute`; root-level → resource skipped (use `azapi_resource`) |
 | Dynamic type inside a list | framework forbids it → degrade to `StringAttribute` inside `ListNested` |
 | `Default` requires `Computed` | emit `Optional + Computed + Default` |
 | Optional+Computed perpetual diff | `UseStateForUnknown` on every Computed (non-default) attribute |
@@ -513,8 +516,8 @@ sequenceDiagram
    - `resource` — `Schema.ValidateImplementation`; interface assertions; hook
      registration; cached body loader.
    - `azwise` — Validate/ForceNew/timeouts/sensitive semantics.
-2. **Generation smoke** (offline): generate every latest-stable type; assert
-   **0 parse failures, 0 panics** (current: 1,564 emit OK, 28 polymorphic skips).
+2. **Generation smoke** (offline): generate schemas for every latest-stable type;
+   assert **0 parse failures, 0 panics** (current: 1,564 emit OK, 28 polymorphic skips).
 3. **Schema validity gate**: every shipped generated resource MUST pass
    `Schema.ValidateImplementation` in a resource-layer test.
 4. **Acceptance** (Ginkgo, gated on `TF_ACC` + `ARM_SUBSCRIPTION_ID`): one BDD suite
