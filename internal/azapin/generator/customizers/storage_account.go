@@ -9,8 +9,8 @@ import "github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
 //     attached to the envelope name attribute.
 //   - network_acls.ip_rules[].value must be a public IPv4 address or CIDR range,
 //     a semantic rule ported from AzureRM that a plain regex/enum can't express;
-//     it references the StorageAccountIPRule validator co-located with the
-//     generated schema.
+//     it references the StorageAccountIPRule validator in the storage service's
+//     validators package (generated/storage/validators).
 func customizeStorageAccount(def *generator.ResourceDefinition) {
 	def.Envelope.Name.Validators = []generator.DescriptionValidator{
 		generator.LengthValidator(3, 24),

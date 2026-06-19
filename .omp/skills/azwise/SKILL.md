@@ -98,10 +98,11 @@ validator with logic beyond that — e.g. AzureRM's `StorageAccountIpRule` (rege
 cannot be a declarative rule. Port it into an **azapin customizer validator**
 instead of dropping it:
 
-- Implement a `validator.String` (or the matching typed validator) co-located with
-  the generated schema in `internal/azapin/generated/`, one validator per file
-  (`validator_storage_account_ip_rule.go`), package `generated`, with an exported
-  constructor — mirroring the AzureRM logic and citing the source.
+- Implement a `validator.String` (or the matching typed validator) in the service's
+  validators package, `internal/azapin/generated/<service>/validators/<rule>.go`
+  (package `validators`, e.g. `generated/storage/validators/ip_rules.go`), one
+  validator per file with an exported constructor — mirroring the AzureRM logic and
+  citing the source.
 - Reference it from the resource customizer in
   `internal/azapin/generator/customizers/<resource>.go` via
   `generator.CustomValidator("StorageAccountIPRule()")` on the ARM property path

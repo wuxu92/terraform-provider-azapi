@@ -34,7 +34,7 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 	}
 
 	// Basic sanity checks on generated source
-	if !strings.Contains(source, "package generated") {
+	if !strings.Contains(source, "package storage") {
 		t.Error("missing package declaration")
 	}
 	if !strings.Contains(source, "AzapiStorageAccountSchema()") {
@@ -63,7 +63,7 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 	}
 	// Verify computed-only fields don't have validators
 	// (Detailed validation done separately; basic check here)
-	
+
 	// Verify fully-computed blocks (like ipv6_endpoints inside primaryEndpoints)
 	// are Computed-only, not Optional+Computed
 	ipv6Idx := strings.Index(source, `"ipv6_endpoints"`)

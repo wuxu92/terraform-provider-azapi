@@ -46,6 +46,18 @@ func ResourceName(armType string) string {
 	return "azapi_" + service + "_" + resourceName
 }
 
+// ServiceName returns the service folder/package name for an ARM resource type:
+// the namespace's service segment, lowercased. "Microsoft.Storage/storageAccounts"
+// -> "storage", "Dynatrace.Observability/monitors" -> "dynatrace". Generated
+// resources are grouped by service (generated/<service>/...).
+func ServiceName(armType string) string {
+	namespace := armType
+	if i := strings.Index(armType, "/"); i >= 0 {
+		namespace = armType[:i]
+	}
+	return extractService(namespace)
+}
+
 // CamelToSnake converts a camelCase or PascalCase string to snake_case.
 // Handles acronyms: "isHnsEnabled" → "is_hns_enabled", "IPRules" → "ip_rules".
 func CamelToSnake(s string) string {

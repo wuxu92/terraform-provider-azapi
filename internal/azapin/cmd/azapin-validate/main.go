@@ -22,8 +22,10 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator/customizers"
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/validate"
 
-	// Import generated package to trigger init() registrations
+	// generated provides the Registry/Descriptor types; the all aggregator's blank
+	// import runs each service package's init() to populate generated.Registry.
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generated"
+	_ "github.com/Azure/terraform-provider-azapi/internal/azapin/generated/all"
 )
 
 func main() {

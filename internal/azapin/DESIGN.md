@@ -34,7 +34,7 @@
 | `internal/azapin/generator/emitter.go` | Renders type graph → Go source with Terraform schema, conditional imports |
 | `internal/azapin/naming` | ARM type → Terraform resource name + property name conversion |
 | `internal/azapin/schema` | Runtime utilities: `StaticBool`, `StaticString`, `StaticInt64` default implementations |
-| `internal/azapin/generated/` | Output: generated resource files (one per ARM type) |
+| `internal/azapin/generated/` | Registry (`Registry`, `Descriptor`, `Register`); per-service sub-packages `generated/<service>/` hold the generated schemas + `validators/`; `generated/all` aggregates them |
 | `internal/azapin/overrides/` | Manual overlay files (ForceNew, custom validation, etc.) |
 
 ### Generation Pipeline

@@ -72,13 +72,12 @@ func main() {
 		}
 	}
 
-	// Write to file
-	outDir := filepath.Join("internal", "azapin", "generated")
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
+	// Write to file (path includes the service folder, e.g. storage/storage_account_gen.go).
+	outPath := filepath.Join("internal", "azapin", "generated", generator.FileName(sa))
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating output dir: %v\n", err)
 		os.Exit(1)
 	}
-	outPath := filepath.Join(outDir, generator.FileName(sa))
 	if err := os.WriteFile(outPath, []byte(source), 0o644); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing %s: %v\n", outPath, err)
 		os.Exit(1)

@@ -6,7 +6,9 @@ generated static schemas. It precedes any implementation. It builds on:
 - **DESIGN.md** — generator architecture and resource naming
 - **GENERATOR.md** — schema emission rules (flags, defaults, validators, naming)
 
-The generated schema (`generated.AzapiStorageAccountSchema()` etc.) describes the
+The generated schema (e.g. `generated/storage`'s `AzapiStorageAccountSchema()`,
+reachable layout-agnostically as `generated.Registry["azapi_storage_account"].Schema()`)
+describes the
 **ARM request body** as typed Terraform attributes. This document describes the
 runtime that turns those schemas into working resources: a shared base that
 implements CRUD against ARM, plus per-resource customization seams.

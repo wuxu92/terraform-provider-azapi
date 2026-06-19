@@ -80,11 +80,12 @@ check), UUID/JSON/CIDR checks, or multi-step logic. Do NOT drop these: try your
 best to transfer them into an **azapin customizer validator** so AzAPI users get
 the same guardrail, baked into the generated schema.
 
-1. Write the validator as a `validator.String` (or the matching typed validator)
-   **co-located with the generated schema** in `internal/azapin/generated/`, one
-   validator per file named `validator_<resource>_<rule>.go`, package `generated`,
-   with an exported constructor (e.g. `func StorageAccountIPRule() validator.String`).
-   Mirror the AzureRM logic exactly and cite the source file/line in a comment.
+1. Write the validator as a `validator.String` (or the matching typed validator) in
+   the service's validators package,
+   `internal/azapin/generated/<service>/validators/<rule>.go` (package `validators`),
+   one validator per file with an exported constructor (e.g.
+   `func StorageAccountIPRule() validator.String`). Mirror the AzureRM logic exactly
+   and cite the source file/line in a comment.
 2. Attach it in the resource's customizer
    (`internal/azapin/generator/customizers/<resource>.go`) with
    `generator.CustomValidator("StorageAccountIPRule()")`, targeting the ARM property

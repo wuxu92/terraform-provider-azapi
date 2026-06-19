@@ -33,6 +33,7 @@ import (
 
 	"github.com/Azure/terraform-provider-azapi/internal/acceptance"
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generated"
+	_ "github.com/Azure/terraform-provider-azapi/internal/azapin/generated/all"
 	"github.com/Azure/terraform-provider-azapi/internal/azure/location"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"

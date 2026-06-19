@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/entrauth/aztfauth"
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generated"
+	_ "github.com/Azure/terraform-provider-azapi/internal/azapin/generated/all"
 	azapinresource "github.com/Azure/terraform-provider-azapi/internal/azapin/resource"
 	"github.com/Azure/terraform-provider-azapi/internal/azure"
 	"github.com/Azure/terraform-provider-azapi/internal/azure/location"

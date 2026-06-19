@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generated"
+	_ "github.com/Azure/terraform-provider-azapi/internal/azapin/generated/all"
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -34,7 +35,7 @@ func loadStorageBody(t *testing.T) *generator.Type {
 func TestRoundTripStorageAccount(t *testing.T) {
 	ctx := context.Background()
 	body := loadStorageBody(t)
-	objType := generated.AzapiStorageAccountSchema().Type().(basetypes.ObjectType)
+	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
 
 	// A representative ARM GET response (subset of fields across types).
 	arm := map[string]interface{}{
@@ -123,7 +124,7 @@ func TestRoundTripStorageAccount(t *testing.T) {
 func TestExpandSkipsNullAndUnknown(t *testing.T) {
 	ctx := context.Background()
 	body := loadStorageBody(t)
-	objType := generated.AzapiStorageAccountSchema().Type().(basetypes.ObjectType)
+	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
 
 	// Minimal ARM body — only required-ish fields.
 	arm := map[string]interface{}{

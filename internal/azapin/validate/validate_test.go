@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generated"
+	_ "github.com/Azure/terraform-provider-azapi/internal/azapin/generated/all"
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
@@ -37,7 +38,7 @@ func TestStorageAccountSchemaAgainstBicep(t *testing.T) {
 	}
 
 	// Get the compiled schema
-	s := generated.AzapiStorageAccountSchema()
+	s := generated.Registry["azapi_storage_account"].Schema()
 
 	// Verify the azapin tag is present
 	tag, ok := ExtractResourceTag(s.Description)

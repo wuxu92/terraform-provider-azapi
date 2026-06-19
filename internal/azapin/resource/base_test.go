@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	// Populate generated.Registry so New("azapi_storage_account") resolves.
+	_ "github.com/Azure/terraform-provider-azapi/internal/azapin/generated/all"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
