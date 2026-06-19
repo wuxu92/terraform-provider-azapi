@@ -76,7 +76,9 @@ supplying the human-curated nuances a raw spec can't express.
 3. Overlay azwise knowledge to deliver ForceNew, verified defaults, validation, and
    sensitive/computed correctness.
 4. Coexist with `azapi_resource`; identical auth, client, and backend.
-5. Per-resource customization seams (hooks + method override).
+5. Per-resource customization seams: generation-time schema **customizers**
+   (validators/defaults/ForceNew baked into the generated schema), runtime hooks,
+   and method override.
 
 **Non-goals**
 1. Replacing `azapi_resource` (it remains the day-zero / preview / escape hatch).
@@ -154,6 +156,10 @@ User stories with acceptance criteria. **MUST/SHOULD/MAY** per RFC 2119.
 > As a maintainer, I want to add resource-specific logic without forking the base.
 
 **Acceptance**
+- A maintainer MAY register a generation-time **customizer** (keyed by ARM type in
+  `internal/azapin/generator/customizers`) that mutates the parsed type graph so
+  validators/defaults/ForceNew are baked into the generated schema and never
+  mutated at runtime. **SHOULD** be preferred for schema-shape rules.
 - A hand-written overlay MAY register `Hooks` (Before/After per op, ModifyPlan,
   ValidateConfig) keyed by resource name.
 - A resource MAY override a base method via Go embedding when hooks are
@@ -223,10 +229,10 @@ Build-time (not in the plugin process):
 internal/azure/generated/*/types.json  (embedded source of truth)
         │
         ▼  internal/azapin/generator
-  ParseTypesJSON ─► PostProcess(+ApplyAzwise from azwise) ─► EmitSchema
+  ParseTypesJSON ─► PostProcess(+ApplyAzwise from azwise, +envelope) ─► customizers.Apply ─► EmitSchema
         │                                                       │
         ▼ ValidateEmittedSchema (source-string)                 ▼
-  internal/azapin/generated/<resource>.go  ──compiled──►  runtime Registry
+  internal/azapin/generated/<service>/<resource>_gen.go  ──compiled──►  runtime Registry
         ▲
   internal/azapin/validate (compiled-schema cross-check, run as test/CLI)
 ```
@@ -238,10 +244,12 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 | `internal/azure/azwise` | Knowledge registry + interface; `Validate`, `CheckForceNew`, `StripComputedFields`, `TimeoutDefault`, `SchemaKnowledge` accessors |
 | `internal/azapin/naming` | ARM type → TF resource name; camelCase ↔ snake_case |
 | `internal/azapin/generator` | `types.json` walker, post-processing, azwise overlay, schema emitter, source-string validator |
-| `internal/azapin/schema` | Runtime static-default impls + plan-modifier vendoring anchors |
+| `internal/azapin/generator/customizers` | Generation-time per-ARM-type schema customizers (`Register`/`Apply`) — bake validators/defaults/ForceNew into the schema |
+| `internal/azapin/armtypes` | ARM resource type string constants |
+| `internal/azapin/schema` | Runtime static-default impls (`Static*`), shared generic validators (`UUID`, `AzureResourceID`), plan-modifier anchors |
 | `internal/azapin/mapper` | Generic state ↔ ARM JSON (`Expand`/`Flatten`/`FlattenInto`/`ResolveUnknowns`) |
 | `internal/azapin/resource` | Generic `Base` resource, hooks, body loader, overlays |
-| `internal/azapin/generated` | Generated resource files + `Descriptor` registry |
+| `internal/azapin/generated` | Registry (`Descriptor`/`Register`/`Registry`); per-service sub-packages `generated/<service>/` (schemas) + `generated/<service>/validators/`; `generated/all` blank-imports every service to populate the registry |
 | `internal/azapin/validate` | Compiled-schema ↔ bicep cross-validator |
 | `internal/azapin/acceptance` | Ginkgo BDD acceptance framework |
 | `internal/azapin/cmd/azapin-validate` | Standalone validation CLI |
@@ -269,7 +277,7 @@ type Property struct {
     Flags        PropertyFlag // Required | ReadOnly | WriteOnly | SystemManaged (bicep bits)
     Description  string
     DefaultValue string                 // description-mined or azwise-verified
-    Validators   []DescriptionValidator // ARM-ID / regex / range / OneOf / length
+    Validators   []DescriptionValidator // ARM-ID / regex / range / OneOf / length / custom / shared
     ForceNew      bool        // azwise overlay → RequiresReplace
     Sensitive     bool        // azwise overlay → Sensitive: true
     ForceComputed bool        // azwise overlay → Computed-only
@@ -309,12 +317,14 @@ type SchemaKnowledge interface { // consumed by the generator
 ```go
 // internal/azapin/generated
 type Descriptor struct {
-    Name       string // "azapi_storage_account"
-    ARMType    string // "Microsoft.Storage/storageAccounts"
-    APIVersion string // "2025-01-01"
-    Schema     func() schema.Schema
+    Name           string // "azapi_storage_account"
+    ARMType        string // "Microsoft.Storage/storageAccounts"
+    APIVersion     string // "2025-01-01"
+    Schema         func() schema.Schema // generated body + operational envelope
+    WritableScopes int                  // bicep scope bitmask (metadata)
+    ParentAttr     string               // generated parent-reference attr, e.g. "resource_group_id"
 }
-var Registry = map[string]Descriptor{} // populated by each generated init()
+var Registry = map[string]Descriptor{} // each generated init() calls Register; generated/all blank-imports every service package to populate it
 
 // internal/azapin/resource
 type Base struct { desc Descriptor; hooks *Hooks; provider *clients.Client }
@@ -334,15 +344,18 @@ type CrudCtx struct {
 
 ### 4.2 Composed schema
 
-The generated schema covers the ARM **body** (`location`, `tags`, `sku`, `kind`,
-`identity`, `properties`, …). The base wraps it with the envelope:
+The operational envelope (`name`, the parent reference, `id`) is **generated into
+the schema** at generation time — the generator synthesizes it from the ARM type
+and writable scope, so the shipped schema is final and never mutated at runtime.
+The runtime base adds only the `timeouts` block (it needs a `context.Context` the
+static schema function can't hold):
 
 ```
-final schema = generated body attributes
-             + name      (Required, RequiresReplace)
-             + parent_id (Required, RequiresReplace)
-             + id        (Computed,  UseStateForUnknown)
-             + timeouts  (block: create/read/update/delete)
+final schema = generated body attributes (location, tags, sku, kind, identity, properties, …)
+             + name          (Required, RequiresReplace, optional name validator)
+             + <parent>_id   (Required, RequiresReplace; resource-specific, e.g. resource_group_id; in Descriptor.ParentAttr)
+             + id            (Computed,  UseStateForUnknown)
+             + timeouts      (runtime-added block: create/read/update/delete)
 ```
 
 ### 4.3 Generation pipeline (build-time sequence)
@@ -353,6 +366,7 @@ sequenceDiagram
     participant W as Walker
     participant P as PostProcess
     participant A as azwise
+    participant C as customizers
     participant E as Emitter
     participant V as ValidateEmitted
     participant FS as generated/*.go
@@ -364,12 +378,15 @@ sequenceDiagram
     P->>P: promote single-optional child → Required
     P->>A: ApplyAzwise(def) → Get(armType,version)
     A-->>P: ForceNew/Computed/Sensitive/Defaults/Rules
+    P->>P: seed operational envelope (name + parent reference) from scope
     P-->>CLI: enriched DAG
+    CLI->>C: customizers.Apply(defs)
+    C-->>CLI: per-ARM-type validators/defaults baked into graph + envelope
     CLI->>E: EmitSchema(def)
-    E-->>CLI: Go source (flags, validators, plan modifiers, init())
+    E-->>CLI: Go source (package <service>, flags, validators, plan modifiers, init())
     CLI->>V: ValidateEmittedSchema(source, body)
     V-->>CLI: 0 mismatches (else fail)
-    CLI->>FS: write storage_account_gen.go
+    CLI->>FS: write generated/storage/storage_account_gen.go
 ```
 
 ### 4.4 Create / Update (runtime sequence)
@@ -386,7 +403,7 @@ sequenceDiagram
 
     TF->>B: ModifyPlan (RequiresReplace from schema + hook SKU-zone via azwise.CheckForceNew)
     TF->>B: Create(plan)
-    B->>B: parse.NewResourceID(name, parent_id, type@version)
+    B->>B: parse.NewResourceID(name, <parent>_id (Descriptor.ParentAttr), type@version)
     B->>AW: TimeoutDefault("create")
     B->>M: Expand(plan, bodyGraph) → ARM JSON
     B->>AW: StripComputedFields(body)
@@ -438,8 +455,9 @@ sequenceDiagram
 - **Author** (practitioner): write `resource "azapi_storage_account"` with typed
   attributes → `plan`/`apply` → outputs via direct attribute refs.
 - **Add a resource** (maintainer): run generator → file auto-registers → ship.
-- **Customize** (maintainer): add `RegisterHooks("azapi_x", &Hooks{…})` overlay,
-  or embed `*Base` and override a method.
+- **Customize** (maintainer): register a generation-time customizer (bakes
+  validators/defaults/ForceNew into the schema), and/or a runtime `Hooks` overlay
+  (`RegisterHooks("azapi_x", &Hooks{…})`), or embed `*Base` to override a method.
 - **Curate knowledge** (maintainer): edit/add an azwise `BaseKnowledge` entry →
   regenerate → overlay flows into the schema.
 
@@ -460,8 +478,8 @@ sequenceDiagram
 - The bicep body graph is parsed once per `ARMType@APIVersion` and **cached**
   (`loader.go`) for the plugin process lifetime.
 - The provider binary already embeds the bicep types (~334 MB); generated Go adds
-  marginal size. Per-resource generated files SHOULD be sub-packaged to bound
-  compile time as coverage grows.
+  marginal size. Generated resources are sub-packaged by service
+  (`generated/<service>/`) to bound compile time as coverage grows.
 
 **Reliability / correctness**
 - The generated schema MUST pass `Schema.ValidateImplementation`.
@@ -471,7 +489,7 @@ sequenceDiagram
 
 **Accessibility / DX** (no UI; "accessibility" = maintainer/practitioner ergonomics)
 - Each generated attribute carries the ARM description.
-- Docs (`DESIGN.md`/`GENERATOR.md`/`RESOURCE.md`) MUST stay current with the 17
+- Docs (`DESIGN.md`/`GENERATOR.md`/`RESOURCE.md`) MUST stay current with the
   generator rules and the resource lifecycle.
 
 ### 5.2 Edge cases & required handling
@@ -484,7 +502,7 @@ sequenceDiagram
 | `Default` requires `Computed` | emit `Optional + Computed + Default` |
 | Optional+Computed perpetual diff | `UseStateForUnknown` on every Computed (non-default) attribute |
 | Read-only field marked ForceNew | dropped (a Computed field can't `RequiresReplace`) |
-| Shared type node + per-path overlay | **known limitation**: ForceNew/overlay on one alias (e.g. `encryption.services.queue.key_type`) applies to all siblings (blob/file/table); fix = path-aware emission |
+| Shared type node + per-path overlay | bicep dedups structurally identical types; a customizer can un-share an **array** element via `IsolateArrayElement` (e.g. `ipRules` vs `ipv6Rules`). Object-node sharing (e.g. `encryption.services.*.key_type`) remains a **known limitation** for azwise overlays; fix = path-aware emission |
 | additionalProperties maps (`tags` content, user-assigned identities) | not modeled as typed sub-attributes (empty nested object) — **known limitation** |
 | ARM omits an Optional+Computed field on GET | `FlattenInto` keeps prior value; `ResolveUnknowns` nulls leftover unknowns |
 | Name collisions across ARM types | build-time collision detection (9/3,246); resolved via namespace prefix |
@@ -511,7 +529,7 @@ sequenceDiagram
      `TestParseDiscriminatedObjectType`), post-processing, azwise overlay
      (`TestApplyAzwiseStorageAccount`), emitter.
    - `mapper` — round-trip Expand/Flatten on storage; null/unknown handling.
-   - `validate` — compiled `AzapiStorageAccountSchema()` ↔ bicep (0 mismatches);
+   - `validate` — compiled schema (`generated.Registry[...].Schema()`) ↔ bicep (0 mismatches);
      synthetic mismatch detection.
    - `resource` — `Schema.ValidateImplementation`; interface assertions; hook
      registration; cached body loader.
@@ -555,7 +573,7 @@ A generated resource is shippable when:
 - [ ] Generated docs (registry docs) from attribute descriptions.
 
 **Phase 2 — scale generation**
-- [ ] `go generate` target producing the top-N resources into sub-packages.
+- [ ] `go generate` target producing the top-N resources (per-service sub-package layout already in place).
 - [ ] Per-resource schema-validity + bicep-cross-check in CI.
 - [ ] Naming override table for the 9 collisions; finalize naming policy.
 - [ ] Compile-time/binary-size budget; sub-packaging strategy.
@@ -596,7 +614,7 @@ go build -o "$(go env GOPATH)/bin/terraform-provider-azapi" .
 
 ## Appendix A — Generator rule reference
 
-See `internal/azapin/GENERATOR.md` for the authoritative 17 rules (flag derivation,
+See `internal/azapin/GENERATOR.md` for the authoritative generator rules (flag derivation,
 block-level computed inference, defaults, single-optional promotion, azwise overlay,
 validators, naming, runtime mapping, scope selection) plus the recursion/
 discriminated-type and dynamic-in-collection handling.
