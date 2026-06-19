@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"go/format"
 	"sort"
 	"strings"
 
@@ -25,6 +26,26 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 
 	// Pre-scan to determine which imports are needed
 	needs := scanImportNeeds(def.Body)
+
+	// The operational envelope (name / parent / id) is synthesized here, not in
+	// the bicep body, so fold its import needs in: name and parent are Required
+	// + RequiresReplace, id is Computed + UseStateForUnknown (all stringplanmod),
+	// plus any validators a customizer attached to the envelope attributes.
+	needs.planmodifier = true
+	needs.pmString = true
+	for _, a := range []EnvelopeAttr{def.Envelope.Name, def.Envelope.Parent} {
+		for _, v := range a.Validators {
+			switch v.Kind {
+			case ValidatorArmResourceID, ValidatorRegex:
+				needs.regexp = true
+				needs.stringValidator = true
+			case ValidatorStringOneOf, ValidatorStringLength:
+				needs.stringValidator = true
+			case ValidatorIntRange:
+				needs.int64Validator = true
+			}
+		}
+	}
 
 	var b strings.Builder
 
@@ -81,6 +102,11 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	// Emit attributes for the body's properties
 	emitAttributes(&b, def.Body, 3, false)
 
+	// Envelope attributes (name / parent reference / id) wrap the body. They are
+	// baked in at the same indent so the runtime serves the generated schema
+	// verbatim (only the ctx-bound timeouts block is added at runtime).
+	emitEnvelope(&b, def.Envelope, "\t\t\t")
+
 	b.WriteString("\t\t},\n")
 	b.WriteString("\t}\n")
 	b.WriteString("}\n\n")
@@ -92,10 +118,33 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	b.WriteString(fmt.Sprintf("\t\tARMType:    %q,\n", armType))
 	b.WriteString(fmt.Sprintf("\t\tAPIVersion: %q,\n", def.APIVersion))
 	b.WriteString(fmt.Sprintf("\t\tSchema:     %sSchema,\n", structName))
+	if def.WritableScopes != 0 {
+		b.WriteString(fmt.Sprintf("\t\tWritableScopes: %d,\n", def.WritableScopes))
+	}
+	b.WriteString(fmt.Sprintf("\t\tParentAttr: %q,\n", def.Envelope.Parent.Name))
 	b.WriteString("\t})\n")
 	b.WriteString("}\n")
 
-	return b.String(), nil
+	formatted, err := format.Source([]byte(b.String()))
+	if err != nil {
+		return "", fmt.Errorf("gofmt emitted schema for %s: %w", def.Name, err)
+	}
+	return string(formatted), nil
+}
+
+// FileName returns the conventional file name for a generated resource: the
+// Terraform resource name without the "azapi_" prefix, suffixed with "_gen.go".
+// The "_gen" marker (together with the in-file "Code generated ... DO NOT EDIT."
+// header) signals to readers and tooling that the file is machine-generated and
+// must not be edited by hand. e.g. "Microsoft.Storage/storageAccounts" ->
+// "storage_account_gen.go".
+func FileName(def *ResourceDefinition) string {
+	armType := def.Name
+	if at := strings.Index(armType, "@"); at >= 0 {
+		armType = armType[:at]
+	}
+	tfName := strings.TrimPrefix(naming.ResourceName(armType), "azapi_")
+	return tfName + "_gen.go"
 }
 
 type importNeeds struct {
@@ -470,14 +519,22 @@ func emitDefault(b *strings.Builder, prop *Property, tabs string) {
 	}
 }
 
-// emitDescriptionStringValidators emits validators extracted from property descriptions.
+// emitDescriptionStringValidators emits validators extracted from a property's
+// description or azwise knowledge.
 func emitDescriptionStringValidators(b *strings.Builder, prop *Property, tabs string) {
-	if len(prop.Validators) == 0 {
+	emitStringValidators(b, prop.Validators, tabs)
+}
+
+// emitStringValidators writes a `Validators: []validator.String{...}` block for
+// the given validators. Shared by body string/enum attributes and the
+// operational-envelope attributes (name / parent reference).
+func emitStringValidators(b *strings.Builder, validators []DescriptionValidator, tabs string) {
+	if len(validators) == 0 {
 		return
 	}
 
 	var items []string
-	for _, v := range prop.Validators {
+	for _, v := range validators {
 		switch v.Kind {
 		case ValidatorArmResourceID:
 			items = append(items, fmt.Sprintf(
@@ -518,6 +575,36 @@ func emitDescriptionStringValidators(b *strings.Builder, prop *Property, tabs st
 		}
 		b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 	}
+}
+
+// emitEnvelope writes the operational-envelope attributes (name, the parent
+// reference, id) into the generated schema. They are not part of the bicep body
+// graph — they map to the ARM resource ID — so the generator synthesizes them
+// from def.Envelope (seeded in PostProcess, overridable by a customizer plugin),
+// baking the per-resource parent name and any name/parent validators into the
+// shipped schema.
+func emitEnvelope(b *strings.Builder, env Envelope, tabs string) {
+	emitEnvelopeStringAttr(b, env.Name, tabs)
+	emitEnvelopeStringAttr(b, env.Parent, tabs)
+	// id is uniform: computed, with UseStateForUnknown so the server-assigned ID
+	// persists across plans.
+	b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, "id"))
+	b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
+	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},\n", tabs))
+	b.WriteString(fmt.Sprintf("%s\tMarkdownDescription: %q,\n", tabs, "The ID of the Azure resource."))
+	b.WriteString(fmt.Sprintf("%s},\n", tabs))
+}
+
+// emitEnvelopeStringAttr writes a Required + RequiresReplace string attribute for
+// an envelope attribute (name or the parent reference), with any customizer-
+// supplied validators.
+func emitEnvelopeStringAttr(b *strings.Builder, a EnvelopeAttr, tabs string) {
+	b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, a.Name))
+	b.WriteString(fmt.Sprintf("%s\tRequired: true,\n", tabs))
+	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},\n", tabs))
+	emitStringValidators(b, a.Validators, tabs)
+	b.WriteString(fmt.Sprintf("%s\tMarkdownDescription: %q,\n", tabs, a.Description))
+	b.WriteString(fmt.Sprintf("%s},\n", tabs))
 }
 
 // emitDescriptionInt64Validators emits int64 validators extracted from descriptions.

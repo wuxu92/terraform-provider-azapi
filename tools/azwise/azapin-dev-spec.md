@@ -369,7 +369,7 @@ sequenceDiagram
     E-->>CLI: Go source (flags, validators, plan modifiers, init())
     CLI->>V: ValidateEmittedSchema(source, body)
     V-->>CLI: 0 mismatches (else fail)
-    CLI->>FS: write storage_account.go
+    CLI->>FS: write storage_account_gen.go
 ```
 
 ### 4.4 Create / Update (runtime sequence)

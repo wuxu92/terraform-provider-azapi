@@ -176,7 +176,7 @@ Generate all 2,631 stable resource types. Ship alongside `azapi_resource`.
 | Post-processing | ✓ Complete | `generator/postprocess.go` |
 | Schema emitter | ✓ Complete | `generator/emitter.go`, `emitter_test.go` |
 | Runtime defaults | ✓ Complete | `schema/defaults.go` |
-| PoC: storage account | ✓ Generated | `generated/storage_account.go` (1,284 lines, compiles) |
+| PoC: storage account | ✓ Generated | `generated/storage_account_gen.go` (compiles) |
 | PoC generator | ✓ Working | `generator/cmd/generate_poc.go` |
 | CRUD methods | ○ Not started | — |
 | Provider registration | ○ Not started | — |

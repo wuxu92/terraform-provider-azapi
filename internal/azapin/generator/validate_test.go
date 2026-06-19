@@ -35,8 +35,10 @@ func TestValidateStorageAccountSchema(t *testing.T) {
 		t.Fatalf("EmitSchema: %v", err)
 	}
 
-	// Validate: emitted source covers all bicep properties and vice versa
-	mismatches := ValidateEmittedSchema(source, sa.Body)
+	// Validate: emitted source covers all bicep properties and vice versa. The
+	// synthesized envelope attributes (name / parent reference / id) are excluded
+	// since they are not part of the bicep body graph.
+	mismatches := ValidateEmittedSchema(source, sa.Body, EnvelopeAttrNames(sa)...)
 
 	if len(mismatches) > 0 {
 		t.Logf("Mismatches:\n%s", FormatMismatches(mismatches))

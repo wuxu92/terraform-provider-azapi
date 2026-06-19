@@ -32,6 +32,7 @@ import (
 	"text/template"
 
 	"github.com/Azure/terraform-provider-azapi/internal/acceptance"
+	"github.com/Azure/terraform-provider-azapi/internal/azapin/generated"
 	"github.com/Azure/terraform-provider-azapi/internal/azure/location"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -162,6 +163,7 @@ type tmplData struct {
 	Name           string
 	Type           string
 	Label          string
+	ParentAttr     string
 	ParentRef      string
 	Body           string
 }
@@ -178,7 +180,7 @@ resource "azapi_resource" "parent" {
 const resourceBlockTemplate = `
 resource "{{.Type}}" "{{.Label}}" {
   name      = "{{.Name}}"
-  parent_id = {{.ParentRef}}
+  {{.ParentAttr}} = {{.ParentRef}}
 {{.Body}}
 }
 `
@@ -193,6 +195,7 @@ func (s *Spec) renderConfig(td acceptance.TestData, name, body string) string {
 		Name:           name,
 		Type:           s.tfType,
 		Label:          s.label,
+		ParentAttr:     generated.Registry[s.tfType].ParentAttr,
 		ParentRef:      "azapi_resource.parent.id",
 	}
 	// Render the body fragment first so it may use the same template variables,

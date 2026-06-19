@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
+	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator/customizers"
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/validate"
 
 	// Import generated package to trigger init() registrations
@@ -111,11 +112,14 @@ func main() {
 			continue
 		}
 
-		// Apply same post-processing as the generator
-		generator.PostProcess([]*generator.ResourceDefinition{{Name: tag, Body: body}})
+		// Apply the same generation pipeline: post-process, then customizers, so the
+		// body graph matches what the generated schema was built from.
+		pdef := &generator.ResourceDefinition{Name: tag, Body: body}
+		generator.PostProcess([]*generator.ResourceDefinition{pdef})
+		customizers.Apply([]*generator.ResourceDefinition{pdef})
 
-		// Validate
-		mismatches := validate.SchemaAgainstBicep(s, body)
+		// Validate the body; exclude the synthesized envelope attributes.
+		mismatches := validate.SchemaAgainstBicep(s, body, "name", d.ParentAttr, "id")
 
 		errors := 0
 		warnings := 0

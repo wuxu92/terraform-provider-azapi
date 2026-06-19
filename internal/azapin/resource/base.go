@@ -22,8 +22,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -57,7 +55,10 @@ func New(name string) resource.Resource {
 		// in normal operation.
 		panic(fmt.Sprintf("azapin: no generated descriptor for %q", name))
 	}
-	return &Base{desc: d, hooks: hookRegistry[name]}
+	return &Base{
+		desc:  d,
+		hooks: hookRegistry[name],
+	}
 }
 
 func (b *Base) typeAndVersion() string { return b.desc.ARMType + "@" + b.desc.APIVersion }
@@ -77,30 +78,14 @@ func (b *Base) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resou
 	resp.Schema = b.composeSchema(ctx)
 }
 
-// composeSchema wraps the generated body schema with the operational envelope
-// (name, parent_id, id, timeouts). The body already carries location/tags/
-// identity/sku/properties as typed attributes, so only the ARM-ID envelope and
-// timeouts are added here.
+// composeSchema serves the generated schema, adding only the ctx-bound timeouts
+// block. The generated schema is already complete: the body attributes plus the
+// operational envelope (name, the per-resource parent reference, id) with all
+// validators baked in at generation time (see internal/azapin/generator). The
+// runtime never mutates the schema — timeouts is the sole addition because
+// timeouts.Block needs a context the static generated function cannot hold.
 func (b *Base) composeSchema(ctx context.Context) schema.Schema {
 	s := b.desc.Schema()
-	if s.Attributes == nil {
-		s.Attributes = map[string]schema.Attribute{}
-	}
-	s.Attributes["name"] = schema.StringAttribute{
-		Required:            true,
-		PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
-		MarkdownDescription: "Specifies the name of the Azure resource.",
-	}
-	s.Attributes["parent_id"] = schema.StringAttribute{
-		Required:            true,
-		PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
-		MarkdownDescription: "The ID of the parent resource that contains this resource.",
-	}
-	s.Attributes["id"] = schema.StringAttribute{
-		Computed:            true,
-		PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-		MarkdownDescription: "The ID of the Azure resource.",
-	}
 	if s.Blocks == nil {
 		s.Blocks = map[string]schema.Block{}
 	}
@@ -166,9 +151,9 @@ func (b *Base) ImportState(ctx context.Context, req resource.ImportStateRequest,
 
 	objType := b.objectType(ctx)
 	envelope := map[string]attr.Value{
-		"id":        types.StringValue(id.ID()),
-		"name":      types.StringValue(id.Name),
-		"parent_id": types.StringValue(id.ParentId),
+		"id":              types.StringValue(id.ID()),
+		"name":            types.StringValue(id.Name),
+		b.desc.ParentAttr: types.StringValue(id.ParentId),
 	}
 	stateObj, diags := mapper.Flatten(ctx, asMap(respBody), objType, bt, envelope)
 	resp.Diagnostics.Append(diags...)
@@ -223,7 +208,7 @@ func (b *Base) put(ctx context.Context, planObj types.Object, isNew bool, to tim
 	}
 
 	name := attrString(planObj, "name")
-	parentID := attrString(planObj, "parent_id")
+	parentID := attrString(planObj, b.desc.ParentAttr)
 	id, err := parse.NewResourceID(name, parentID, b.typeAndVersion())
 	if err != nil {
 		diags.AddError("Invalid configuration", err.Error())

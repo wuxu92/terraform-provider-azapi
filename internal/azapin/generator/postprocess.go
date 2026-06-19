@@ -9,12 +9,18 @@ import (
 // PostProcess applies semantic rules to a parsed type graph that can't be
 // derived from bicep flags alone. Call after ParseTypesJSON.
 //
-// Rules applied:
+// Rules applied (in order):
 //   - Extract default values from property descriptions
 //   - Extract validators from property descriptions (ARM ID, datetime, numeric ranges)
 //   - Promote single-optional-child block properties to Required
 //   - Overlay azwise knowledge (ForceNew, computed, sensitive, verified defaults,
-//     validation) — applied last so curated AzureRM knowledge wins over heuristics
+//     validation) so curated AzureRM knowledge is the base for the schema
+//   - Seed the operational-envelope spec (name + parent reference) from the ARM
+//     type and writable scope
+//
+// Per-resource developer customizers run separately, after PostProcess, via the
+// generator/customizers sub-package (customizers.Apply); generator core does not
+// depend on them so the runtime never pulls customizers in.
 func PostProcess(defs []*ResourceDefinition) {
 	for _, def := range defs {
 		if def.Body != nil {
@@ -22,6 +28,7 @@ func PostProcess(defs []*ResourceDefinition) {
 			extractDescriptionValidators(def.Body)
 			promoteSingleOptional(def.Body)
 			ApplyAzwise(def)
+			applyEnvelopeDefaults(def)
 		}
 	}
 }

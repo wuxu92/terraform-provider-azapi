@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
+	// Registers the per-resource schema customizers (init()) and exposes Apply.
+	// Customizers are generation-time only and are not part of the provider runtime.
+	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator/customizers"
 )
 
 func main() {
@@ -28,8 +31,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Apply post-processing: extract defaults from descriptions, promote single-optional children
+	// Apply post-processing (defaults, validators, azwise overlay, envelope spec),
+	// then run per-resource developer customizers so hand-written Go has the final say.
 	generator.PostProcess(defs)
+	customizers.Apply(defs)
 
 	// Find storage account
 	var sa *generator.ResourceDefinition
@@ -50,8 +55,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Validate: emitted schema covers all bicep properties and vice versa
-	mismatches := generator.ValidateEmittedSchema(source, sa.Body)
+	// Validate: emitted schema covers all bicep body properties and vice versa.
+	// Exclude the synthesized envelope attributes (name / parent reference / id).
+	mismatches := generator.ValidateEmittedSchema(source, sa.Body, generator.EnvelopeAttrNames(sa)...)
 	if len(mismatches) > 0 {
 		fmt.Fprintf(os.Stderr, "Schema validation failed:\n%s", generator.FormatMismatches(mismatches))
 		// Count errors (extra and type_mismatch are errors; missing is a warning)
@@ -72,7 +78,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error creating output dir: %v\n", err)
 		os.Exit(1)
 	}
-	outPath := filepath.Join(outDir, "storage_account.go")
+	outPath := filepath.Join(outDir, generator.FileName(sa))
 	if err := os.WriteFile(outPath, []byte(source), 0o644); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing %s: %v\n", outPath, err)
 		os.Exit(1)

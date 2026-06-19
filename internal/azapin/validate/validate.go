@@ -59,12 +59,27 @@ func ExtractResourceTag(description string) (string, bool) {
 
 // SchemaAgainstBicep validates a compiled schema.Schema against a bicep type tree.
 // It walks both trees in parallel, matching snake_case Terraform attributes to
-// camelCase ARM properties via naming.CamelToSnake.
-func SchemaAgainstBicep(s schema.Schema, body *generator.Type) []Mismatch {
+// camelCase ARM properties via naming.CamelToSnake. ignoreTopLevel lists
+// top-level attribute names to exclude — the synthesized operational-envelope
+// attributes (name / parent reference / id) are not part of the bicep body.
+func SchemaAgainstBicep(s schema.Schema, body *generator.Type, ignoreTopLevel ...string) []Mismatch {
 	if body == nil || body.Kind != generator.KindObject {
 		return []Mismatch{{Kind: MismatchTypeMismatch, Detail: "bicep body is not an ObjectType"}}
 	}
-	return validateObject(s.Attributes, body, "")
+	attrs := s.Attributes
+	if len(ignoreTopLevel) > 0 {
+		ignore := make(map[string]bool, len(ignoreTopLevel))
+		for _, n := range ignoreTopLevel {
+			ignore[n] = true
+		}
+		attrs = make(map[string]schema.Attribute, len(s.Attributes))
+		for k, v := range s.Attributes {
+			if !ignore[k] {
+				attrs[k] = v
+			}
+		}
+	}
+	return validateObject(attrs, body, "")
 }
 
 func validateObject(tfAttrs map[string]schema.Attribute, bicepObj *generator.Type, prefix string) []Mismatch {

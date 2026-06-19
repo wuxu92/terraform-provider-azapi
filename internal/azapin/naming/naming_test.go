@@ -1,6 +1,9 @@
 package naming
 
-import "testing"
+import (
+	"regexp"
+	"testing"
+)
 
 func TestCamelToSnake(t *testing.T) {
 	tests := []struct {
@@ -102,6 +105,139 @@ func TestIsValidTerraformName(t *testing.T) {
 	for _, name := range invalid {
 		if IsValidTerraformName(name) {
 			t.Errorf("IsValidTerraformName(%q) = true, want false", name)
+		}
+	}
+}
+
+func TestParentReference(t *testing.T) {
+	tests := []struct {
+		name        string
+		armType     string
+		scopes      int
+		wantName    string
+		constrained bool
+		matches     string // an ID the validator must accept (when constrained)
+		rejects     string // an ID the validator must reject (when constrained)
+	}{
+		{
+			name:        "resource-group scoped resource",
+			armType:     "Microsoft.Storage/storageAccounts",
+			scopes:      ScopeResourceGroup,
+			wantName:    "resource_group_id",
+			constrained: true,
+			matches:     "/subscriptions/s/resourceGroups/rg1",
+			rejects:     "/subscriptions/s",
+		},
+		{
+			name:        "child resource references its parent type",
+			armType:     "Microsoft.Storage/storageAccounts/blobServices",
+			scopes:      ScopeResourceGroup,
+			wantName:    "storage_account_id",
+			constrained: true,
+			matches:     "/subscriptions/s/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/acct1",
+			rejects:     "/subscriptions/s/resourceGroups/rg",
+		},
+		{
+			name:        "grandchild references its immediate parent type",
+			armType:     "Microsoft.Sql/servers/databases",
+			scopes:      ScopeResourceGroup,
+			wantName:    "server_id",
+			constrained: true,
+			matches:     "/subscriptions/s/resourceGroups/rg/providers/Microsoft.Sql/servers/srv1",
+			rejects:     "/subscriptions/s/resourceGroups/rg",
+		},
+		{
+			// Deeply nested type: the parent ID interleaves type segments with
+			// instance names (.../service/<name>/apis/<name>), so the validator
+			// must NOT expect the type segments back-to-back.
+			name:        "multi-level child interleaves parent type segments and names",
+			armType:     "Microsoft.ApiManagement/service/apis/operations",
+			scopes:      ScopeResourceGroup,
+			wantName:    "api_id",
+			constrained: true,
+			matches:     "/subscriptions/s/resourceGroups/rg/providers/Microsoft.ApiManagement/service/instance1/apis/api1",
+			rejects:     "/subscriptions/s/resourceGroups/rg/providers/Microsoft.ApiManagement/service/instance1",
+		},
+		{
+			name:        "subscription scoped resource",
+			armType:     "Microsoft.Authorization/policyDefinitions",
+			scopes:      ScopeSubscription,
+			wantName:    "subscription_id",
+			constrained: true,
+			matches:     "/subscriptions/s",
+			rejects:     "/subscriptions/s/resourceGroups/rg",
+		},
+		{
+			name:        "management-group scoped resource",
+			armType:     "Microsoft.Management/managementGroups/subscriptions",
+			scopes:      ScopeManagementGroup,
+			wantName:    "management_group_id",
+			constrained: true,
+			matches:     "/providers/Microsoft.Management/managementGroups/mg1",
+			rejects:     "/subscriptions/s",
+		},
+		{
+			name:     "multi-scope falls back to generic parent_id",
+			armType:  "Microsoft.Foo/bars",
+			scopes:   ScopeResourceGroup | ScopeExtension,
+			wantName: "parent_id",
+		},
+		{
+			name:     "unknown scope falls back to generic parent_id",
+			armType:  "Microsoft.Foo/bars",
+			scopes:   0,
+			wantName: "parent_id",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ref := ParentReference(tt.armType, tt.scopes)
+			if ref.Name != tt.wantName {
+				t.Fatalf("Name = %q, want %q", ref.Name, tt.wantName)
+			}
+			if tt.constrained {
+				if ref.Pattern == "" {
+					t.Fatalf("expected a validator pattern for %q", tt.armType)
+				}
+				re := regexp.MustCompile(ref.Pattern)
+				if !re.MatchString(tt.matches) {
+					t.Errorf("pattern %q should match %q", ref.Pattern, tt.matches)
+				}
+				if re.MatchString(tt.rejects) {
+					t.Errorf("pattern %q should reject %q", ref.Pattern, tt.rejects)
+				}
+			} else if ref.Pattern != "" {
+				t.Errorf("expected unconstrained parent (empty pattern), got %q", ref.Pattern)
+			}
+		})
+	}
+}
+
+func TestTypeReferenceName(t *testing.T) {
+	tests := map[string]string{
+		"Microsoft.Storage/storageAccounts":          "storage_account",
+		"Microsoft.Network/virtualNetworks":          "virtual_network",
+		"Microsoft.ContainerService/managedClusters": "managed_cluster",
+		"Microsoft.Sql/servers":                      "server",
+		"Microsoft.Sql/servers/databases":            "database",
+	}
+	for in, want := range tests {
+		if got := TypeReferenceName(in); got != want {
+			t.Errorf("TypeReferenceName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestParentARMType(t *testing.T) {
+	tests := map[string]string{
+		"Microsoft.Storage/storageAccounts/blobServices": "Microsoft.Storage/storageAccounts",
+		"Microsoft.Sql/servers/databases":                "Microsoft.Sql/servers",
+		"Microsoft.Storage/storageAccounts":              "Microsoft.Storage/storageAccounts",
+	}
+	for in, want := range tests {
+		if got := parentARMType(in); got != want {
+			t.Errorf("parentARMType(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

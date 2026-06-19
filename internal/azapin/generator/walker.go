@@ -12,10 +12,10 @@ import (
 type PropertyFlag int
 
 const (
-	FlagNone         PropertyFlag = 0
-	FlagRequired     PropertyFlag = 1
-	FlagReadOnly     PropertyFlag = 2
-	FlagWriteOnly    PropertyFlag = 4
+	FlagNone          PropertyFlag = 0
+	FlagRequired      PropertyFlag = 1
+	FlagReadOnly      PropertyFlag = 2
+	FlagWriteOnly     PropertyFlag = 4
 	FlagSystemManaged PropertyFlag = 8
 )
 
@@ -116,16 +116,25 @@ type ResourceDefinition struct {
 	Name       string // e.g., "Microsoft.Storage/storageAccounts@2025-01-01"
 	APIVersion string
 	Body       *Type
+	// WritableScopes is the bicep scope bitmask for the resource (Tenant=1,
+	// ManagementGroup=2, Subscription=4, ResourceGroup=8, Extension=16). It seeds
+	// the default operational envelope (see Envelope) at generation time.
+	WritableScopes int
+	// Envelope is the operational-envelope spec (name + parent reference) baked
+	// into the generated schema. PostProcess populates it from the ARM type and
+	// WritableScopes; a customizer plugin may override it before emission.
+	Envelope Envelope
 }
 
 // rawEntry is a JSON entry in types.json.
 type rawEntry struct {
-	Type       string                  `json:"$type"`
-	Name       string                  `json:"name,omitempty"`
-	Value      string                  `json:"value,omitempty"`
-	Body       *rawRef                 `json:"body,omitempty"`
-	Properties map[string]*rawProperty `json:"properties,omitempty"`
-	ItemType   *rawRef                 `json:"itemType,omitempty"`
+	Type           string                  `json:"$type"`
+	Name           string                  `json:"name,omitempty"`
+	WritableScopes int                     `json:"writableScopes,omitempty"`
+	Value          string                  `json:"value,omitempty"`
+	Body           *rawRef                 `json:"body,omitempty"`
+	Properties     map[string]*rawProperty `json:"properties,omitempty"`
+	ItemType       *rawRef                 `json:"itemType,omitempty"`
 	// Elements is json.RawMessage because its shape is type-dependent:
 	// UnionType uses an array ([]rawRef); DiscriminatedObjectType uses an
 	// object (map[string]rawRef). Decoding it lazily in resolve() avoids
@@ -177,9 +186,10 @@ func ParseTypesJSON(data []byte) ([]*ResourceDefinition, error) {
 			name = name[:at]
 		}
 		defs = append(defs, &ResourceDefinition{
-			Name:       entry.Name,
-			APIVersion: apiVersion,
-			Body:       body,
+			Name:           entry.Name,
+			APIVersion:     apiVersion,
+			Body:           body,
+			WritableScopes: entry.WritableScopes,
 		})
 	}
 	return defs, nil

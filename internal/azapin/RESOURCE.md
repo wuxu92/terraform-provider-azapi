@@ -69,25 +69,32 @@ The generated schema covers only the ARM **body** properties (`location`, `tags`
 `SystemManaged` fields (`id`, `name`, `type`, `apiVersion`) are excluded by the
 generator (GENERATOR.md Rule 5).
 
-The base **wraps** the generated body schema with the operational envelope every
-resource needs, then hands the union to Terraform:
+The **generated** schema already includes the operational envelope: the generator
+synthesizes `name`, the parent reference, and `id` directly into the generated
+file (GENERATOR.md Rule 9c). The runtime base adds only the `timeouts` block — it
+needs a `context.Context` the static generated function cannot hold — and serves
+the rest verbatim. The schema is therefore never mutated at runtime:
 
 ```
 final schema = generated body attributes
-             + base envelope attributes:
-                 "name"       (Optional+Computed, RequiresReplace)
-                 "parent_id"  (Optional+Computed, RequiresReplace, resource-id validator)
-                 "id"         (Computed — the ARM resource ID)
-                 "timeouts"   (create/read/update/delete block)
+             + generated envelope attributes:
+                 "name"               (Required, RequiresReplace, optional name validator)
+                 "<parent>_id"        (Required, RequiresReplace, resource-id validator)
+                 "id"                 (Computed — the ARM resource ID)
+             + runtime-added block:
+                 "timeouts"           (create/read/update/delete block)
 ```
 
-`location`, `tags`, `identity` are NOT re-added — they are already typed body
-attributes from the bicep graph, so the user sets them natively:
+The parent reference takes a resource-specific name and validator derived from the
+ARM scope (e.g. `resource_group_id`, `subscription_id`, `storage_account_id`,
+falling back to `parent_id`); the chosen name is recorded in `Descriptor.ParentAttr`
+so the runtime can compose/parse the ARM ID. `location`, `tags`, `identity` are
+already typed body attributes from the bicep graph, so the user sets them natively:
 
 ```hcl
 resource "azapi_storage_account" "example" {
-  name      = "mystorage"
-  parent_id = azurerm_resource_group.example.id
+  name              = "mystorage"
+  resource_group_id = azurerm_resource_group.example.id
 
   location = "westus2"
   kind     = "StorageV2"
@@ -114,7 +121,8 @@ type Descriptor struct {
     Name       string                  // "azapi_storage_account"
     ARMType    string                  // "Microsoft.Storage/storageAccounts"
     APIVersion string                  // "2025-01-01"
-    Schema     func() schema.Schema    // generated body schema
+    Schema     func() schema.Schema    // generated schema (body + envelope)
+    ParentAttr string                  // generated parent-reference attribute name
     // Hooks is nil for fully-generated resources; hand-written overlay files
     // populate it for resources that need custom behavior.
     Hooks      *Hooks
@@ -146,7 +154,7 @@ directly (`azapin.New(name)`), so there is exactly one implementation to maintai
 | Interface | Method | Behavior |
 |---|---|---|
 | `resource.Resource` | `Metadata` | `TypeName = desc.Name` |
-| | `Schema` | `composeSchema(desc.Schema())` (body + envelope) |
+| | `Schema` | `composeSchema` serves `desc.Schema()` (body + generated envelope) + adds the `timeouts` block |
 | | `Create` | unified `createUpdate(isNew=true)` |
 | | `Read` | unified `read` |
 | | `Update` | unified `createUpdate(isNew=false)` |
@@ -164,14 +172,14 @@ All four operations funnel through two private methods on `Base`. The mapper
 ### createUpdate(ctx, plan, state, isNew)
 
 ```
-1. id := parse.NewResourceID(plan.name, plan.parent_id, ARMType@APIVersion)
+1. id := parse.NewResourceID(plan.name, plan.<parent>_id, ARMType@APIVersion)
 2. timeout := azwise.TimeoutDefault(ARMType, APIVersion, "create"|"update", default)
 3. hook.BeforeCreate / BeforeUpdate (optional)           ← customization
 4. armBody := mapper.Expand(plan.bodyObject, typeGraph)   ← unified composition
 5. resp := client.CreateOrUpdate(ctx, id.AzureResourceId, id.ApiVersion, armBody, opts)
 6. getResp := client.Get(...)                             ← read-back
 7. newState := mapper.Flatten(getResp, schema, typeGraph) ← unified composition
-8. newState.id = id.ID(); newState.name/parent_id carried from plan
+8. newState.id = id.ID(); newState.name/<parent>_id carried from plan
 9. hook.AfterCreate / AfterUpdate (optional)              ← customization
 10. resp.State.Set(newState)
 ```
@@ -254,6 +262,11 @@ Two layered mechanisms, in order of preference:
 
 ### 1. Hooks (data-driven, primary)
 
+Hooks customize runtime **behavior** only. Schema customization — attribute
+validators, defaults, the parent-reference name — is baked into the generated
+schema at generation time via generator customizers (GENERATOR.md Rule 9d), so the
+runtime never mutates the schema.
+
 A hand-written overlay file sets `Descriptor.Hooks`. Hooks receive a `*CrudCtx`
 carrying everything they might touch and return diagnostics:
 
@@ -320,7 +333,8 @@ unified flow entirely.
 
 ## Envelope & ID Details
 
-- `name` + `parent_id` build the ARM ID via `parse.NewResourceID`. Both
+- `name` + the parent reference build the ARM ID via `parse.NewResourceID` (the
+  runtime reads the parent attribute name from `Descriptor.ParentAttr`). Both
   `RequiresReplace`.
 - `id` (computed) = `id.ID()` (the ARM resource path).
 - `location`/`tags`/`identity` flow through the typed body — `Flatten` normalizes
@@ -344,14 +358,19 @@ unified flow entirely.
 - **Mapper** — `internal/azapin/mapper`: `Expand`, `Flatten`, `FlattenInto`, driven
   by the bicep type graph; round-trip tested on storage_account (`mapper_test.go`).
 - **Base** — `internal/azapin/resource/base.go`: implements `Resource`,
-  `ResourceWithConfigure/ModifyPlan/ValidateConfig/ImportState`; composed schema
-  (envelope + body) validated by `Schema.ValidateImplementation` in tests; unified
+  `ResourceWithConfigure/ModifyPlan/ValidateConfig/ImportState`; serves the
+  generated schema (body + envelope) plus the runtime `timeouts` block, validated by
+  `Schema.ValidateImplementation` in tests; unified
   `put`/`Read`/`Delete`; runtime body loader reads the authoritative types.json from
   `azure.StaticFiles` (`loader.go`).
-- **Hooks** — `hooks.go`: `Before/After` per op + `ValidateConfig`/`ModifyPlan`
-  overrides; storage overlay (`overlay_storage_account.go`) implements the SKU
-  zone-migration ForceNew via `azwise.CheckForceNew`.
-- **Generated descriptor** — `generated.Descriptor{Name, ARMType, APIVersion, Schema}`
+- **Hooks** — `hooks.go`: runtime behavior only — `Before/After` per op +
+  `ValidateConfig`/`ModifyPlan` overrides; storage overlay
+  (`overlay_storage_account.go`) implements the SKU zone-migration ForceNew via
+  `azwise.CheckForceNew`.
+- **Schema customizers** — `internal/azapin/generator/customizers`: generation-time, per-ARM-type
+  Go hooks that bake validators/defaults/parent-name into the generated schema
+  (see GENERATOR.md Rule 9d). Not part of the provider runtime.
+- **Generated descriptor** — `generated.Descriptor{Name, ARMType, APIVersion, Schema, WritableScopes, ParentAttr}`
   registered via each generated file's `init()`.
 - **Provider** — `Resources()` appends `azapinresource.New(name)` for every
   `generated.Registry` entry.

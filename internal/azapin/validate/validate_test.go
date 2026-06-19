@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/generated"
+	"github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
@@ -47,8 +47,9 @@ func TestStorageAccountSchemaAgainstBicep(t *testing.T) {
 		t.Logf("Tag: %s", tag)
 	}
 
-	// Validate
-	mismatches := SchemaAgainstBicep(s, body)
+	// Validate; exclude the synthesized envelope attributes (name / parent / id).
+	d := generated.Registry["azapi_storage_account"]
+	mismatches := SchemaAgainstBicep(s, body, "name", d.ParentAttr, "id")
 
 	errors := 0
 	for _, m := range mismatches {

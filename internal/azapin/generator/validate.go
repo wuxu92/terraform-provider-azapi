@@ -58,12 +58,19 @@ func (k MismatchKind) String() string {
 //   - Every non-SystemManaged bicep property has a corresponding attribute in the emitted source
 //   - Every quoted attribute name in the emitted source exists in the bicep type graph
 //   - Type mapping is correct (String↔string, Bool↔bool, Object↔SingleNested, etc.)
-func ValidateEmittedSchema(emittedSource string, body *Type) []Mismatch {
+func ValidateEmittedSchema(emittedSource string, body *Type, ignoreTopLevel ...string) []Mismatch {
 	if body == nil || body.Kind != KindObject {
 		return []Mismatch{{
 			Kind:   MismatchTypeMismatch,
 			Detail: "bicep body is not an ObjectType",
 		}}
+	}
+
+	// Synthesized envelope attributes (name / parent reference / id) are not part
+	// of the bicep body graph; exclude them from the "extra in schema" check.
+	ignore := make(map[string]bool, len(ignoreTopLevel))
+	for _, n := range ignoreTopLevel {
+		ignore[n] = true
 	}
 
 	// Collect all expected attribute paths from the type graph
@@ -78,6 +85,9 @@ func ValidateEmittedSchema(emittedSource string, body *Type) []Mismatch {
 
 	// Check: every emitted path should exist in expected
 	for _, path := range sortedStringSet(emittedPaths) {
+		if ignore[path] {
+			continue
+		}
 		if _, ok := expectedPaths[path]; !ok {
 			mismatches = append(mismatches, Mismatch{
 				Path:   path,
@@ -102,6 +112,7 @@ func ValidateEmittedSchema(emittedSource string, body *Type) []Mismatch {
 
 	return mismatches
 }
+
 // CollectExpectedPaths walks the type graph and collects all attribute paths
 // that the emitter should produce, using the same logic as emitAttributes:
 // skip SystemManaged, convert names with CamelToSnake, recurse into objects/arrays.
@@ -129,7 +140,8 @@ func CollectExpectedPaths(typ *Type, prefix string, out map[string]*Property) {
 }
 
 // attrNameInSource matches quoted attribute names in schema declarations:
-//   "attribute_name": schema.XxxAttribute{
+//
+//	"attribute_name": schema.XxxAttribute{
 var attrNameInSource = regexp.MustCompile(`"([a-z][a-z0-9_]*)"\s*:\s*schema\.\w+Attribute`)
 
 // extractEmittedPaths parses the emitted Go source and extracts all attribute

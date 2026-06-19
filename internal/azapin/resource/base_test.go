@@ -28,11 +28,15 @@ func TestStorageAccountSchemaComposition(t *testing.T) {
 		t.Fatalf("schema validation failed: %v", diags)
 	}
 
-	// Envelope attributes present.
-	for _, name := range []string{"name", "parent_id", "id"} {
+	// Envelope attributes present. Storage account is resource-group scoped, so
+	// its parent reference is named resource_group_id (not the generic parent_id).
+	for _, name := range []string{"name", "resource_group_id", "id"} {
 		if _, ok := s.Attributes[name]; !ok {
 			t.Errorf("missing envelope attribute %q", name)
 		}
+	}
+	if _, ok := s.Attributes["parent_id"]; ok {
+		t.Error("storage account should expose resource_group_id, not the generic parent_id")
 	}
 	// timeouts block present.
 	if _, ok := s.Blocks["timeouts"]; !ok {

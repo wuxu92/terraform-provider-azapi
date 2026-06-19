@@ -14,6 +14,16 @@ type Descriptor struct {
 	ARMType    string // "Microsoft.Storage/storageAccounts"
 	APIVersion string // "2025-01-01"
 	Schema     func() schema.Schema
+	// WritableScopes is the bicep scope bitmask (Tenant=1, ManagementGroup=2,
+	// Subscription=4, ResourceGroup=8, Extension=16). It is retained as metadata;
+	// the parent-reference attribute name and validator are now baked into the
+	// generated Schema at generation time (see ParentAttr).
+	WritableScopes int
+	// ParentAttr is the generated operational-envelope parent-reference attribute
+	// name (e.g. "resource_group_id", "storage_account_id", "parent_id"). The
+	// runtime reads it to compose/parse the ARM resource ID; the schema validator
+	// for it is already baked into Schema.
+	ParentAttr string
 }
 
 // Registry maps Terraform resource names to their descriptors.

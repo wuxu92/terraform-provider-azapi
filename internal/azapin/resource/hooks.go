@@ -23,8 +23,14 @@ type CrudCtx struct {
 	Diags    *diag.Diagnostics
 }
 
-// Hooks holds optional per-resource customization. A nil Hooks (or nil field)
-// means "use the base behavior". Overlay files register Hooks via RegisterHooks.
+// Hooks holds optional per-resource customization of runtime BEHAVIOR only. A nil
+// Hooks (or nil field) means "use the base behavior". Overlay files register
+// Hooks via RegisterHooks.
+//
+// Schema customization (attribute validators, defaults, the parent-reference
+// name) is NOT done here — it is baked into the generated schema at generation
+// time via generator customizers (see internal/azapin/generator/customizers), so the
+// runtime never mutates the schema.
 type Hooks struct {
 	BeforeCreate func(*CrudCtx)
 	AfterCreate  func(*CrudCtx)
