@@ -71,6 +71,7 @@ type DescriptionValidator struct {
 	Max     *int64   // For numeric range / length validators
 	Allowed []string // For OneOf validators
 	Message string   // Human-readable description
+	Call    string   // For ValidatorCustom: an azapinschema constructor call, e.g. "StorageAccountIPRule()"
 }
 
 // ValidatorKind identifies the type of validator.
@@ -82,6 +83,7 @@ const (
 	ValidatorIntRange                           // Numeric min/max
 	ValidatorStringOneOf                        // String enum (azwise AllowedValues)
 	ValidatorStringLength                       // String length min/max (azwise)
+	ValidatorCustom                             // Reference to a hand-written azapinschema validator constructor
 )
 
 // IsEnum returns true if this type is a union of string literals (enum).

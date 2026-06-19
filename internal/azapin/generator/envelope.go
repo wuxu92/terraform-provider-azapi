@@ -81,6 +81,37 @@ func FindProperty(def *ResourceDefinition, armPath string) *Property {
 	return navigate(def.Body, armPath)
 }
 
+// IsolateArrayElement un-shares and returns the element object type of the array
+// property at armPath (e.g. "properties.networkAcls.ipRules"). The bicep graph
+// deduplicates structurally identical types, so two arrays of the same shape
+// (e.g. ipRules and ipv6Rules) point at one element *Type; mutating it in place
+// would leak the change to every sibling. IsolateArrayElement replaces the
+// array's element type with a private copy (the element struct plus a fresh
+// Properties map of per-property copies), so a customizer can attach validators
+// or flags to one array's elements without touching the others. Returns nil if
+// armPath is not an array of objects.
+func IsolateArrayElement(def *ResourceDefinition, armPath string) *Type {
+	arr := FindProperty(def, armPath)
+	if arr == nil || arr.Type == nil || arr.Type.Kind != KindArray {
+		return nil
+	}
+	elem := arr.Type.ElementType
+	if elem == nil || elem.Kind != KindObject {
+		return nil
+	}
+	clone := *elem
+	clone.Properties = make(map[string]*Property, len(elem.Properties))
+	for name, p := range elem.Properties {
+		pc := *p
+		if len(p.Validators) > 0 {
+			pc.Validators = append([]DescriptionValidator(nil), p.Validators...)
+		}
+		clone.Properties[name] = &pc
+	}
+	arr.Type.ElementType = &clone
+	return &clone
+}
+
 // ---------------------------------------------------------------------------
 // Validator constructors — ergonomic builders for the DescriptionValidator
 // representation the emitter already knows how to emit. The envelope seeding
@@ -116,4 +147,12 @@ func OneOfValidator(message string, allowed ...string) DescriptionValidator {
 // IntRangeValidator builds an inclusive int64 range validator.
 func IntRangeValidator(min, max int64) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorIntRange, Min: &min, Max: &max}
+}
+
+// CustomValidator builds a validator that references a hand-written constructor
+// in the azapin schema package (internal/azapin/schema), emitted as
+// azapinschema.<call>. Use it for semantic rules a regex/length/enum cannot
+// express, e.g. CustomValidator("StorageAccountIPRule()").
+func CustomValidator(call string) DescriptionValidator {
+	return DescriptionValidator{Kind: ValidatorCustom, Call: call}
 }

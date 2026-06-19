@@ -36,6 +36,9 @@ func TestCustomizerBakesEnvelopeAndPropertyChanges(t *testing.T) {
 		if p := generator.FindProperty(d, "properties.minimumTlsVersion"); p != nil {
 			p.DefaultValue = "TLS1_2"
 		}
+		if p := generator.FindProperty(d, "properties.accessTier"); p != nil {
+			p.Validators = append(p.Validators, generator.CustomValidator("StorageAccountIPRule()"))
+		}
 	})
 	t.Cleanup(func() { delete(registry, armType) })
 
@@ -70,6 +73,7 @@ func TestCustomizerBakesEnvelopeAndPropertyChanges(t *testing.T) {
 		`stringvalidator.LengthBetween(3, 24)`,
 		"regexp.MustCompile(`^[a-z0-9]+$`)",
 		`azapinschema.StaticString("TLS1_2")`,
+		`azapinschema.StorageAccountIPRule()`,
 	} {
 		if !strings.Contains(src, want) {
 			t.Errorf("emitted source missing %q", want)

@@ -1012,6 +1012,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 										"value": schema.StringAttribute{
 											Description: "Specifies the IP or IP range in CIDR format.",
 											Required:    true,
+											Validators: []validator.String{
+												azapinschema.StorageAccountIPRule(),
+											},
 										},
 									},
 								},

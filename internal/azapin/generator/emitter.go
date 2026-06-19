@@ -43,6 +43,8 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 				needs.stringValidator = true
 			case ValidatorIntRange:
 				needs.int64Validator = true
+			case ValidatorCustom:
+				needs.custom = true
 			}
 		}
 	}
@@ -81,13 +83,13 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	if needs.pmList {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier\"\n")
 	}
-	if needs.stringValidator || needs.int64Validator {
+	if needs.stringValidator || needs.int64Validator || needs.custom {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/schema/validator\"\n")
 	}
 	if needs.types {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/types\"\n")
 	}
-	if needs.defaults {
+	if needs.defaults || needs.custom {
 		b.WriteString("\tazapinschema \"github.com/Azure/terraform-provider-azapi/internal/azapin/schema\"\n")
 	}
 	b.WriteString(")\n\n")
@@ -159,6 +161,7 @@ type importNeeds struct {
 	pmInt64         bool // int64planmodifier
 	pmObject        bool // objectplanmodifier
 	pmList          bool // listplanmodifier
+	custom          bool // for a custom azapinschema validator reference
 }
 
 func scanImportNeeds(typ *Type) importNeeds {
@@ -188,6 +191,8 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 				needs.stringValidator = true
 			case ValidatorIntRange:
 				needs.int64Validator = true
+			case ValidatorCustom:
+				needs.custom = true
 			}
 		}
 		if prop.Type.IsEnum() && !computed {
@@ -564,6 +569,10 @@ func emitStringValidators(b *strings.Builder, validators []DescriptionValidator,
 				items = append(items, fmt.Sprintf("%s\t\tstringvalidator.LengthAtLeast(%d)", tabs, *v.Min))
 			case v.Max != nil:
 				items = append(items, fmt.Sprintf("%s\t\tstringvalidator.LengthAtMost(%d)", tabs, *v.Max))
+			}
+		case ValidatorCustom:
+			if v.Call != "" {
+				items = append(items, fmt.Sprintf("%s\t\tazapinschema.%s", tabs, v.Call))
 			}
 		}
 	}
