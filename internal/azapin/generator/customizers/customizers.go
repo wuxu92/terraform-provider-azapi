@@ -9,26 +9,31 @@
 // The shipped schema is therefore always final — the runtime never rewrites it,
 // and nothing in this package is compiled into the provider runtime.
 //
-// To customize a resource, add a file `<resource>.go` here whose init() calls
-// Register, keyed by ARM resource type:
+// To customize a resource, add its customizer function in a `<resource>.go` file
+// here and wire it up with a single Register line in register.go (the one place
+// that holds the init() and registers every customizer, keyed by ARM type):
 //
-//	func init() {
-//	    customizers.Register("Microsoft.Storage/storageAccounts", func(def *generator.ResourceDefinition) {
-//	        // constrain the resource name (bicep does not model it)
-//	        def.Envelope.Name.Validators = []generator.DescriptionValidator{
-//	            generator.LengthValidator(3, 24),
-//	            generator.RegexValidator(`^[a-z0-9]+$`, "name must be 3-24 lowercase letters and digits"),
-//	        }
-//	        // default an inferred-but-unset property
-//	        if p := generator.FindProperty(def, "properties.minimumTlsVersion"); p != nil {
-//	            p.DefaultValue = "TLS1_2"
-//	        }
-//	    })
+//	// storage_account.go
+//	func customizeStorageAccount(def *generator.ResourceDefinition) {
+//	    // constrain the resource name (bicep does not model it)
+//	    def.Envelope.Name.Validators = []generator.DescriptionValidator{
+//	        generator.LengthValidator(3, 24),
+//	        generator.RegexValidator(`^[a-z0-9]+$`, "name must be 3-24 lowercase letters and digits"),
+//	    }
+//	    // default an inferred-but-unset property
+//	    if p := generator.FindProperty(def, "properties.minimumTlsVersion"); p != nil {
+//	        p.DefaultValue = "TLS1_2"
+//	    }
 //	}
 //
-// The generator command imports this package (so the init() registrations run)
-// and calls Apply on the post-processed definitions, after generator.PostProcess,
-// so a hand-written customizer has the final say before emission.
+//	// register.go
+//	func init() {
+//	    Register("Microsoft.Storage/storageAccounts", customizeStorageAccount)
+//	}
+//
+// The generator command imports this package (so the register.go init() runs) and
+// calls Apply on the post-processed definitions, after generator.PostProcess, so a
+// hand-written customizer has the final say before emission.
 package customizers
 
 import "github.com/Azure/terraform-provider-azapi/internal/azapin/generator"

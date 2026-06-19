@@ -165,30 +165,36 @@ schema↔bicep validator via `EnvelopeAttrNames` (they have no bicep counterpart
 
 Some schema rules can't be inferred from bicep or azwise — e.g. the storage
 account name charset (the name isn't even in the body graph). Developers express
-these in Go as a **customizer** registered per ARM type in the dedicated
-`customizers` sub-package under the generator (`internal/azapin/generator/customizers`).
-Each resource gets its own `<resource>.go` file there:
+these in Go as a **customizer** in the dedicated `customizers` sub-package under
+the generator (`internal/azapin/generator/customizers`). Each resource gets its
+own `<resource>.go` file holding just the customizer function, and a single
+`Register` line in `register.go` (the one place that owns the `init()` and wires
+every customizer, keyed by ARM type):
 
 ```go
+// storage_account.go — the per-resource logic
+func customizeStorageAccount(def *generator.ResourceDefinition) {
+    // name is part of the operational envelope, not the bicep body
+    def.Envelope.Name.Validators = []generator.DescriptionValidator{
+        generator.LengthValidator(3, 24),
+        generator.RegexValidator(`^[a-z0-9]+$`, "must be 3-24 lowercase letters and digits"),
+    }
+    // default / force-new / mark a body property by ARM dot path
+    if p := generator.FindProperty(def, "properties.minimumTlsVersion"); p != nil {
+        p.DefaultValue = "TLS1_2"
+    }
+}
+
+// register.go — the single registration point
 func init() {
-    customizers.Register("Microsoft.Storage/storageAccounts", func(def *generator.ResourceDefinition) {
-        // name is part of the operational envelope, not the bicep body
-        def.Envelope.Name.Validators = []generator.DescriptionValidator{
-            generator.LengthValidator(3, 24),
-            generator.RegexValidator(`^[a-z0-9]+$`, "must be 3-24 lowercase letters and digits"),
-        }
-        // default / force-new / mark a body property by ARM dot path
-        if p := generator.FindProperty(def, "properties.minimumTlsVersion"); p != nil {
-            p.DefaultValue = "TLS1_2"
-        }
-    })
+    Register("Microsoft.Storage/storageAccounts", customizeStorageAccount)
 }
 ```
 
 The customizer mechanism lives entirely in the sub-package; generator core does
 **not** depend on it (so the runtime, which calls `generator.PostProcess` to load
 body type graphs, never pulls customizers in). The generator command imports the
-`customizers` package — which runs the `init()` registrations — and calls
+`customizers` package — which runs the `register.go` `init()` — and calls
 `customizers.Apply(defs)` **after** `generator.PostProcess`, so a hand-written
 customizer runs after the azwise overlay and envelope defaults and has the final
 say. Because it mutates the same type graph and `Envelope` spec the emitter
