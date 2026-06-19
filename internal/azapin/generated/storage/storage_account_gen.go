@@ -241,6 +241,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 										Description: "Specifies the domain GUID. If directoryServiceOptions is set to AD (AD DS authentication), this property is required. If directoryServiceOptions is set to AADDS (Entra DS authentication), this propert...",
 										Optional:    true,
 										Computed:    true,
+										Validators: []validator.String{
+											azapinschema.UUID(),
+										},
 										PlanModifiers: []planmodifier.String{
 											stringplanmodifier.UseStateForUnknown(),
 										},
@@ -1055,6 +1058,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 											Description: "Resource Id",
 											Optional:    true,
 											Computed:    true,
+											Validators: []validator.String{
+												azapinschema.AzureResourceID(),
+											},
 											PlanModifiers: []planmodifier.String{
 												stringplanmodifier.UseStateForUnknown(),
 											},
@@ -1063,6 +1069,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 											Description: "Tenant Id",
 											Optional:    true,
 											Computed:    true,
+											Validators: []validator.String{
+												azapinschema.UUID(),
+											},
 											PlanModifiers: []planmodifier.String{
 												stringplanmodifier.UseStateForUnknown(),
 											},

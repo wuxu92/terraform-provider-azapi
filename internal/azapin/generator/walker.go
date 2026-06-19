@@ -83,7 +83,8 @@ const (
 	ValidatorIntRange                           // Numeric min/max
 	ValidatorStringOneOf                        // String enum (azwise AllowedValues)
 	ValidatorStringLength                       // String length min/max (azwise)
-	ValidatorCustom                             // Reference to a hand-written azapinschema validator constructor
+	ValidatorCustom                             // Service-specific validator: generated/<service>/validators (validators.X())
+	ValidatorShared                             // Generic shared validator: internal/azapin/schema (azapinschema.X())
 )
 
 // IsEnum returns true if this type is a union of string literals (enum).

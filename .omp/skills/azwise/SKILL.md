@@ -90,25 +90,29 @@ IntRule{PropertyPath: "properties.capacity", Min: ptrInt(1), Max: ptrInt(100)}
 ArrayRule{PropertyPath: "properties.ipRules", MaxItems: ptrInt(200)}
 ```
 
-### Custom / semantic validators (→ azapin customizer validators)
+### Custom / semantic validators (→ azapin validators)
 
-`StringRule`/`IntRule`/`FloatRule` only cover enum, regex, length, and range. A
-validator with logic beyond that — e.g. AzureRM's `StorageAccountIpRule` (regex
-*plus* a public-vs-private IP check), UUID/JSON/CIDR checks, or multi-step logic —
-cannot be a declarative rule. Port it into an **azapin customizer validator**
-instead of dropping it:
+`StringRule`/`IntRule`/`FloatRule` only cover enum, regex, length, and range.
+Transfer **every** other `ValidateFunc` too, routed by reusability:
 
-- Implement a `validator.String` (or the matching typed validator) in the service's
-  validators package, `internal/azapin/generated/<service>/validators/<rule>.go`
-  (package `validators`, e.g. `generated/storage/validators/ip_rules.go`), one
-  validator per file with an exported constructor — mirroring the AzureRM logic and
-  citing the source.
-- Reference it from the resource customizer in
-  `internal/azapin/generator/customizers/<resource>.go` via
-  `generator.CustomValidator("StorageAccountIPRule()")` on the ARM property path
-  (use `generator.IsolateArrayElement` for a value in an array that shares its
-  element type with a sibling, e.g. `ipRules` vs `ipv6Rules`). See GENERATOR.md
-  Rule 9d.
+- **Generic / cross-resource** (`validation.IsUUID`, `azure.ValidateResourceID`, …):
+  use a shared validator in `internal/azapin/schema` (`UUID()`, `AzureResourceID()`,
+  …) via `generator.SharedValidator("UUID()")`. Add a new one there only when the
+  rule is genuinely cross-resource.
+- **Resource-specific** (e.g. `StorageAccountIpRule` — regex *plus* a public-vs-private
+  IP check): a `validator.String` in `internal/azapin/generated/<service>/validators/<rule>.go`
+  (package `validators`, e.g. `generated/storage/validators/ip_rules.go`), one per
+  file, referenced via `generator.CustomValidator("StorageAccountIPRule()")`.
+- **Sub-service** (e.g. `BlobPropertiesDefaultServiceVersion`): goes on the
+  sub-service resource, not the parent. **Non-mappable** (composite Key Vault key
+  URI, map-key validators): skip with a note.
+
+Attach by mapping the AzureRM field to its ARM body path and appending to
+`p.Validators` via `generator.FindProperty(def, "<arm.path>")` in the resource
+customizer (`internal/azapin/generator/customizers/<resource>.go`); call
+`generator.IsolateArrayElement` first for a value in an array whose element type may
+be shared with a sibling (e.g. `ipRules`/`ipv6Rules`, `resourceAccessRules`). See
+GENERATOR.md "Schema Customization Plugins".
 
 ## Output Format
 

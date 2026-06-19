@@ -46,6 +46,8 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 				needs.int64Validator = true
 			case ValidatorCustom:
 				needs.custom = true
+			case ValidatorShared:
+				needs.shared = true
 			}
 		}
 	}
@@ -84,13 +86,13 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	if needs.pmList {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier\"\n")
 	}
-	if needs.stringValidator || needs.int64Validator || needs.custom {
+	if needs.stringValidator || needs.int64Validator || needs.custom || needs.shared {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/schema/validator\"\n")
 	}
 	if needs.types {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/types\"\n")
 	}
-	if needs.defaults {
+	if needs.defaults || needs.shared {
 		b.WriteString("\tazapinschema \"github.com/Azure/terraform-provider-azapi/internal/azapin/schema\"\n")
 	}
 	b.WriteString("\t\"github.com/Azure/terraform-provider-azapi/internal/azapin/generated\"\n")
@@ -166,7 +168,8 @@ type importNeeds struct {
 	pmInt64         bool // int64planmodifier
 	pmObject        bool // objectplanmodifier
 	pmList          bool // listplanmodifier
-	custom          bool // for a custom azapinschema validator reference
+	custom          bool // for a service-specific generated/<service>/validators reference
+	shared          bool // for a generic azapinschema validator reference (SharedValidator)
 }
 
 func scanImportNeeds(typ *Type) importNeeds {
@@ -198,6 +201,8 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 				needs.int64Validator = true
 			case ValidatorCustom:
 				needs.custom = true
+			case ValidatorShared:
+				needs.shared = true
 			}
 		}
 		if prop.Type.IsEnum() && !computed {
@@ -580,6 +585,11 @@ func emitStringValidators(b *strings.Builder, validators []DescriptionValidator,
 				// Hand-written validators live in the service's validators package
 				// (generated/<service>/validators), so the call is qualified.
 				items = append(items, fmt.Sprintf("%s\t\tvalidators.%s", tabs, v.Call))
+			}
+		case ValidatorShared:
+			if v.Call != "" {
+				// Generic validators live in the shared azapin schema package.
+				items = append(items, fmt.Sprintf("%s\t\tazapinschema.%s", tabs, v.Call))
 			}
 		}
 	}

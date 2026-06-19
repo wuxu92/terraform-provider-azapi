@@ -160,12 +160,20 @@ func IntRangeValidator(min, max int64) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorIntRange, Min: &min, Max: &max}
 }
 
-// CustomValidator builds a validator that references a hand-written validator
-// constructor co-located with the generated schema (package generated, one file
-// per validator). The call is emitted verbatim and unqualified into the generated
-// schema, so it must name an exported constructor in package generated returning a
-// validator.String. Use it for semantic rules a regex/length/enum cannot express,
-// e.g. CustomValidator("StorageAccountIPRule()").
+// CustomValidator builds a reference to a resource-/service-specific validator
+// that lives with the generated schema in generated/<service>/validators. The
+// call is emitted qualified with that package (validators.<call>), so it must name
+// an exported constructor there returning a validator.String. Use it for a
+// semantic rule unique to one resource, e.g. CustomValidator("StorageAccountIPRule()").
 func CustomValidator(call string) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorCustom, Call: call}
+}
+
+// SharedValidator builds a reference to a generic, cross-resource validator in the
+// shared azapin schema package (internal/azapin/schema). The call is emitted
+// qualified as azapinschema.<call>, so it must name an exported constructor there
+// returning a validator.String. Use it for reusable rules like
+// SharedValidator("UUID()") or SharedValidator("AzureResourceID()").
+func SharedValidator(call string) DescriptionValidator {
+	return DescriptionValidator{Kind: ValidatorShared, Call: call}
 }

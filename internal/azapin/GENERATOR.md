@@ -208,14 +208,22 @@ knows how to emit). `generator.FindProperty` and `generator.IsolateArrayElement`
 **panic** on an unresolved/invalid ARM path — a customizer authors paths by hand,
 so a typo must fail generation rather than be silently skipped.
 
-For a semantic rule a regex/length/enum cannot express, use
-`generator.CustomValidator("<Call>()")`. The call is emitted qualified with the
-service's `validators` package, so the hand-written `validator.String` constructor
-lives in `internal/azapin/generated/<service>/validators/`, one validator per file
-(e.g. `generated/storage/validators/ip_rules.go` defining `StorageAccountIPRule()`,
-emitted as `validators.StorageAccountIPRule()`). When attaching a validator to one
-array's elements where sibling arrays share the same deduplicated bicep element
-type (e.g. `ipRules` vs `ipv6Rules`), call
+For a semantic rule a regex/length/enum cannot express, attach a hand-written
+`validator.String`. Two placements, by reusability:
+
+- **Resource-specific** → `generator.CustomValidator("<Call>()")`. Emitted qualified
+  with the service's `validators` package, so the constructor lives in
+  `internal/azapin/generated/<service>/validators/`, one validator per file (e.g.
+  `generated/storage/validators/ip_rules.go` defining `StorageAccountIPRule()`,
+  emitted as `validators.StorageAccountIPRule()`).
+- **Generic / cross-resource** → `generator.SharedValidator("<Call>()")`. Emitted as
+  `azapinschema.<Call>()`, so the constructor lives once in the shared
+  `internal/azapin/schema` package (e.g. `UUID()`, `AzureResourceID()` — ports of
+  AzureRM's `validation.IsUUID` / `azure.ValidateResourceID`). Reuse these across
+  resources instead of re-implementing per service.
+
+When attaching a validator to one array's elements where sibling arrays share the
+same deduplicated bicep element type (e.g. `ipRules` vs `ipv6Rules`), call
 `generator.IsolateArrayElement(def, "<array path>")` first so the change does not
 leak to the siblings.
 
