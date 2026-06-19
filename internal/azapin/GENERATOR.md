@@ -185,9 +185,9 @@ func customizeStorageAccount(def *generator.ResourceDefinition) {
     }
 }
 
-// register.go — the single registration point
+// register.go — the single registration point (ARM types come from the armtypes catalog)
 func init() {
-    Register("Microsoft.Storage/storageAccounts", customizeStorageAccount)
+    Register(armtypes.StorageAccount, customizeStorageAccount)
 }
 ```
 

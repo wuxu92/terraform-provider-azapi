@@ -28,7 +28,7 @@
 //
 //	// register.go
 //	func init() {
-//	    Register("Microsoft.Storage/storageAccounts", customizeStorageAccount)
+//	    Register(armtypes.StorageAccount, customizeStorageAccount)
 //	}
 //
 // The generator command imports this package (so the register.go init() runs) and
@@ -47,8 +47,8 @@ type Customizer func(*generator.ResourceDefinition)
 // registry maps an ARM resource type (no API version) to its customizer.
 var registry = map[string]Customizer{}
 
-// Register attaches a schema customizer to an ARM resource type, e.g.
-// "Microsoft.Storage/storageAccounts". Call from an init() in this package.
+// Register attaches a schema customizer to an ARM resource type (use an armtypes
+// constant, e.g. armtypes.StorageAccount). Call from register.go's init().
 // Registering twice for the same type panics — a resource has exactly one
 // customizer.
 func Register(armType string, c Customizer) {
