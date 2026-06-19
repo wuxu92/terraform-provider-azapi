@@ -70,6 +70,32 @@ When `automap` returns `recommendation: "Large resource"` (>30 top-level fields)
 - `RequiredFields`: list ARM body property paths that must be present for resource creation. Derived from `Required: true` in AzureRM schema. Exclude envelope fields (name, location, resource_group_name) and parent references (key_vault_id). Include fields that AzureRM hardcodes (e.g. `properties.sku.family` = "A" for KeyVault).
 - **Sub-service API separation**: AzureRM often bundles sub-service settings into a parent resource (e.g., `blob_properties`, `share_properties`, `queue_properties` inside `azurerm_storage_account`). In ARM, these are separate API resources (e.g., `Microsoft.Storage/storageAccounts/blobServices/default`, `fileServices/default`, `queueServices/default`). Rules for sub-service properties must go in their own knowledge file for the sub-service resource type, NOT in the parent resource's knowledge file.
 
+# Custom / semantic validators → azapin customizer validators
+
+The declarative `StringRules`/`IntRules`/`FloatRules` above only capture
+validators that reduce to an enum, regex, length, or numeric range. Some AzureRM
+validators are **semantic** and cannot be expressed declaratively — e.g.
+`storage/validate.StorageAccountIpRule` (a regex *plus* a public-vs-private IP
+check), UUID/JSON/CIDR checks, or multi-step logic. Do NOT drop these: try your
+best to transfer them into an **azapin customizer validator** so AzAPI users get
+the same guardrail, baked into the generated schema.
+
+1. Write the validator as a `validator.String` (or the matching typed validator)
+   **co-located with the generated schema** in `internal/azapin/generated/`, one
+   validator per file named `validator_<resource>_<rule>.go`, package `generated`,
+   with an exported constructor (e.g. `func StorageAccountIPRule() validator.String`).
+   Mirror the AzureRM logic exactly and cite the source file/line in a comment.
+2. Attach it in the resource's customizer
+   (`internal/azapin/generator/customizers/<resource>.go`) with
+   `generator.CustomValidator("StorageAccountIPRule()")`, targeting the ARM property
+   path via `generator.FindProperty(def, "<path>")`. For a value inside an array
+   whose element type is shared with a sibling array (e.g. `ipRules` vs `ipv6Rules`),
+   call `generator.IsolateArrayElement(def, "<array path>")` first so the rule does
+   not leak to the sibling.
+
+`FindProperty`/`IsolateArrayElement` panic on a bad path, so verify every path
+against the bicep/SDK model. See GENERATOR.md "Rule 9d" for the full contract.
+
 # Directives
 
 - Always call `azwise_extract` first. Do not skip it and go straight to reading files.
@@ -81,3 +107,7 @@ When `automap` returns `recommendation: "Large resource"` (>30 top-level fields)
 - If the extraction is ambiguous or a pattern is too complex to represent with the current rule types, add a `// TODO:` comment in the generated file explaining what was observed and why it could not be captured.
 - Validate that property paths you emit are valid ARM paths by checking the SDK model structs or the AzureRM expand/flatten functions.
 - When overriding a `BaseKnowledge` method (e.g., `CheckForceNew`), **always call the base method first** (`s.BaseKnowledge.CheckForceNew(oldBody, newBody)`) before adding custom logic. Overrides extend behavior, they do not replace it — the base implementation processes the declarative rules in the struct fields.
+- **Transfer every AzureRM validator.** Declarative ones (enum/regex/length/range)
+  become azwise `StringRules`/`IntRules`/`FloatRules`; semantic ones become azapin
+  customizer validators (see the section above). Never silently drop a validator
+  you cannot express declaratively — port the logic instead.

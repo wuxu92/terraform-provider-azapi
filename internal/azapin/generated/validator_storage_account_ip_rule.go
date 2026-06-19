@@ -1,4 +1,4 @@
-package schema
+package generated
 
 import (
 	"context"
@@ -9,6 +9,12 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
+
+// This validator is hand-written and co-located with the generated schema: a
+// customizer attaches it to network_acls.ip_rules[].value via
+// generator.CustomValidator("StorageAccountIPRule()"), and the emitter bakes the
+// (unqualified, same-package) call into storage_account_gen.go. One validator per
+// file; the constructor name is what the customizer references.
 
 // storageAccountIPRulePattern matches an IPv4 address with an optional CIDR
 // prefix of 0-30 bits (e.g. "23.45.1.0" or "23.45.1.0/30"). It mirrors the

@@ -180,9 +180,8 @@ func customizeStorageAccount(def *generator.ResourceDefinition) {
         generator.RegexValidator(`^[a-z0-9]+$`, "must be 3-24 lowercase letters and digits"),
     }
     // default / force-new / mark a body property by ARM dot path
-    if p := generator.FindProperty(def, "properties.minimumTlsVersion"); p != nil {
-        p.DefaultValue = "TLS1_2"
-    }
+    // (FindProperty panics on an unknown path, so a typo fails the generator)
+    generator.FindProperty(def, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"
 }
 
 // register.go — the single registration point (ARM types come from the armtypes catalog)
@@ -205,8 +204,22 @@ Customizers mutate `*Property` fields directly (`DefaultValue`, `ForceNew`,
 `Sensitive`, `ForceComputed`, `Validators`, `Description`) and use the helper
 constructors `generator.RegexValidator` / `LengthValidator` / `OneOfValidator` /
 `IntRangeValidator` (which build the `DescriptionValidator` the emitter already
-knows how to emit). `customizers.Register` panics on a duplicate registration —
-one customizer per resource type.
+knows how to emit). `generator.FindProperty` and `generator.IsolateArrayElement`
+**panic** on an unresolved/invalid ARM path — a customizer authors paths by hand,
+so a typo must fail generation rather than be silently skipped.
+
+For a semantic rule a regex/length/enum cannot express, use
+`generator.CustomValidator("<Call>()")`. The call is emitted unqualified into the
+generated schema, so the hand-written `validator.String` constructor lives **with
+the generated schema** in package `generated`, one validator per file (e.g.
+`internal/azapin/generated/validator_storage_account_ip_rule.go` defining
+`StorageAccountIPRule()`). When attaching a validator to one array's elements
+where sibling arrays share the same deduplicated bicep element type (e.g. `ipRules`
+vs `ipv6Rules`), call `generator.IsolateArrayElement(def, "<array path>")` first so
+the change does not leak to the siblings.
+
+`customizers.Register` panics on a duplicate registration — one customizer per
+resource type.
 
 ## Validators
 

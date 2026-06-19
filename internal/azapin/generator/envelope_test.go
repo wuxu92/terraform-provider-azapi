@@ -51,3 +51,33 @@ func TestIsolateArrayElementUnshares(t *testing.T) {
 		t.Error("ipRules.value and ipv6Rules.value are still the same *Property (not isolated)")
 	}
 }
+
+func TestFindPropertyPanicsOnUnknownPath(t *testing.T) {
+	def := &ResourceDefinition{
+		Name: "Microsoft.Fake/widgets@2024-01-01",
+		Body: &Type{Kind: KindObject, Properties: map[string]*Property{
+			"properties": {Name: "properties", Type: &Type{Kind: KindObject}},
+		}},
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("FindProperty on an unknown path did not panic")
+		}
+	}()
+	FindProperty(def, "properties.doesNotExist")
+}
+
+func TestIsolateArrayElementPanicsOnNonArray(t *testing.T) {
+	def := &ResourceDefinition{
+		Name: "Microsoft.Fake/widgets@2024-01-01",
+		Body: &Type{Kind: KindObject, Properties: map[string]*Property{
+			"scalar": {Name: "scalar", Type: &Type{Kind: KindString}},
+		}},
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("IsolateArrayElement on a non-array path did not panic")
+		}
+	}()
+	IsolateArrayElement(def, "scalar")
+}

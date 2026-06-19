@@ -90,6 +90,25 @@ IntRule{PropertyPath: "properties.capacity", Min: ptrInt(1), Max: ptrInt(100)}
 ArrayRule{PropertyPath: "properties.ipRules", MaxItems: ptrInt(200)}
 ```
 
+### Custom / semantic validators (→ azapin customizer validators)
+
+`StringRule`/`IntRule`/`FloatRule` only cover enum, regex, length, and range. A
+validator with logic beyond that — e.g. AzureRM's `StorageAccountIpRule` (regex
+*plus* a public-vs-private IP check), UUID/JSON/CIDR checks, or multi-step logic —
+cannot be a declarative rule. Port it into an **azapin customizer validator**
+instead of dropping it:
+
+- Implement a `validator.String` (or the matching typed validator) co-located with
+  the generated schema in `internal/azapin/generated/`, one validator per file
+  (`validator_storage_account_ip_rule.go`), package `generated`, with an exported
+  constructor — mirroring the AzureRM logic and citing the source.
+- Reference it from the resource customizer in
+  `internal/azapin/generator/customizers/<resource>.go` via
+  `generator.CustomValidator("StorageAccountIPRule()")` on the ARM property path
+  (use `generator.IsolateArrayElement` for a value in an array that shares its
+  element type with a sibling, e.g. `ipRules` vs `ipv6Rules`). See GENERATOR.md
+  Rule 9d.
+
 ## Output Format
 
 Each resource type gets a Go file in `internal/azure/azwise/`. The file:

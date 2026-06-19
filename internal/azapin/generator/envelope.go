@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azapin/naming"
@@ -71,14 +72,22 @@ func EnvelopeAttrNames(def *ResourceDefinition) []string {
 }
 
 // FindProperty resolves an ARM dot path (e.g. "properties.minimumTlsVersion",
-// "sku.name") to the Property it names within the resource body, or nil if any
-// segment is missing. Customizers use it to reach a body property and set flags
-// such as DefaultValue, ForceNew, Sensitive, or to append Validators.
+// "sku.name") to the Property it names within the resource body. Customizers use
+// it to reach a body property and set flags such as DefaultValue, ForceNew,
+// Sensitive, or to append Validators.
+//
+// It panics if the path does not resolve: a customizer references paths by hand,
+// so an unresolved path is a developer typo that must surface at generation time,
+// not be silently skipped.
 func FindProperty(def *ResourceDefinition, armPath string) *Property {
 	if def == nil {
-		return nil
+		panic("azapin: FindProperty called with a nil ResourceDefinition")
 	}
-	return navigate(def.Body, armPath)
+	p := navigate(def.Body, armPath)
+	if p == nil {
+		panic(fmt.Sprintf("azapin: customizer for %s references unknown property path %q", def.Name, armPath))
+	}
+	return p
 }
 
 // IsolateArrayElement un-shares and returns the element object type of the array
@@ -88,16 +97,18 @@ func FindProperty(def *ResourceDefinition, armPath string) *Property {
 // would leak the change to every sibling. IsolateArrayElement replaces the
 // array's element type with a private copy (the element struct plus a fresh
 // Properties map of per-property copies), so a customizer can attach validators
-// or flags to one array's elements without touching the others. Returns nil if
-// armPath is not an array of objects.
+// or flags to one array's elements without touching the others.
+//
+// It panics if armPath does not resolve or is not an array of objects — both are
+// customizer-authoring errors that must surface at generation time.
 func IsolateArrayElement(def *ResourceDefinition, armPath string) *Type {
 	arr := FindProperty(def, armPath)
-	if arr == nil || arr.Type == nil || arr.Type.Kind != KindArray {
-		return nil
+	if arr.Type == nil || arr.Type.Kind != KindArray {
+		panic(fmt.Sprintf("azapin: customizer for %s: IsolateArrayElement path %q is not an array", def.Name, armPath))
 	}
 	elem := arr.Type.ElementType
 	if elem == nil || elem.Kind != KindObject {
-		return nil
+		panic(fmt.Sprintf("azapin: customizer for %s: IsolateArrayElement path %q is not an array of objects", def.Name, armPath))
 	}
 	clone := *elem
 	clone.Properties = make(map[string]*Property, len(elem.Properties))
@@ -149,10 +160,12 @@ func IntRangeValidator(min, max int64) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorIntRange, Min: &min, Max: &max}
 }
 
-// CustomValidator builds a validator that references a hand-written constructor
-// in the azapin schema package (internal/azapin/schema), emitted as
-// azapinschema.<call>. Use it for semantic rules a regex/length/enum cannot
-// express, e.g. CustomValidator("StorageAccountIPRule()").
+// CustomValidator builds a validator that references a hand-written validator
+// constructor co-located with the generated schema (package generated, one file
+// per validator). The call is emitted verbatim and unqualified into the generated
+// schema, so it must name an exported constructor in package generated returning a
+// validator.String. Use it for semantic rules a regex/length/enum cannot express,
+// e.g. CustomValidator("StorageAccountIPRule()").
 func CustomValidator(call string) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorCustom, Call: call}
 }

@@ -33,12 +33,9 @@ func TestCustomizerBakesEnvelopeAndPropertyChanges(t *testing.T) {
 			generator.LengthValidator(3, 24),
 			generator.RegexValidator(`^[a-z0-9]+$`, "name must be lowercase alphanumeric"),
 		}
-		if p := generator.FindProperty(d, "properties.minimumTlsVersion"); p != nil {
-			p.DefaultValue = "TLS1_2"
-		}
-		if p := generator.FindProperty(d, "properties.accessTier"); p != nil {
-			p.Validators = append(p.Validators, generator.CustomValidator("StorageAccountIPRule()"))
-		}
+		generator.FindProperty(d, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"
+		accessTier := generator.FindProperty(d, "properties.accessTier")
+		accessTier.Validators = append(accessTier.Validators, generator.CustomValidator("StorageAccountIPRule()"))
 	})
 	t.Cleanup(func() { delete(registry, armType) })
 
@@ -59,7 +56,7 @@ func TestCustomizerBakesEnvelopeAndPropertyChanges(t *testing.T) {
 	if len(def.Envelope.Name.Validators) != 2 {
 		t.Errorf("name validators = %d, want 2 (from customizer)", len(def.Envelope.Name.Validators))
 	}
-	if p := generator.FindProperty(def, "properties.minimumTlsVersion"); p == nil || p.DefaultValue != "TLS1_2" {
+	if p := generator.FindProperty(def, "properties.minimumTlsVersion"); p.DefaultValue != "TLS1_2" {
 		t.Errorf("minimumTlsVersion default not applied by customizer: %+v", p)
 	}
 
@@ -73,7 +70,7 @@ func TestCustomizerBakesEnvelopeAndPropertyChanges(t *testing.T) {
 		`stringvalidator.LengthBetween(3, 24)`,
 		"regexp.MustCompile(`^[a-z0-9]+$`)",
 		`azapinschema.StaticString("TLS1_2")`,
-		`azapinschema.StorageAccountIPRule()`,
+		`StorageAccountIPRule()`,
 	} {
 		if !strings.Contains(src, want) {
 			t.Errorf("emitted source missing %q", want)

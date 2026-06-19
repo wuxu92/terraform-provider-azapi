@@ -9,7 +9,8 @@ import "github.com/Azure/terraform-provider-azapi/internal/azapin/generator"
 //     attached to the envelope name attribute.
 //   - network_acls.ip_rules[].value must be a public IPv4 address or CIDR range,
 //     a semantic rule ported from AzureRM that a plain regex/enum can't express;
-//     it references the hand-written azapinschema.StorageAccountIPRule validator.
+//     it references the StorageAccountIPRule validator co-located with the
+//     generated schema.
 func customizeStorageAccount(def *generator.ResourceDefinition) {
 	def.Envelope.Name.Validators = []generator.DescriptionValidator{
 		generator.LengthValidator(3, 24),
@@ -21,10 +22,9 @@ func customizeStorageAccount(def *generator.ResourceDefinition) {
 
 	// IPv4-only. ipRules and ipv6Rules share one bicep element type, so isolate
 	// the ipRules element first — otherwise the IPv4 validator would also land on
-	// ipv6Rules.value and reject valid IPv6 entries.
-	if elem := generator.IsolateArrayElement(def, "properties.networkAcls.ipRules"); elem != nil {
-		if v := elem.Properties["value"]; v != nil {
-			v.Validators = append(v.Validators, generator.CustomValidator("StorageAccountIPRule()"))
-		}
-	}
+	// ipv6Rules.value and reject valid IPv6 entries. Both helpers panic on a bad
+	// path, so a typo fails the generator immediately.
+	generator.IsolateArrayElement(def, "properties.networkAcls.ipRules")
+	ipv4 := generator.FindProperty(def, "properties.networkAcls.ipRules.value")
+	ipv4.Validators = append(ipv4.Validators, generator.CustomValidator("StorageAccountIPRule()"))
 }

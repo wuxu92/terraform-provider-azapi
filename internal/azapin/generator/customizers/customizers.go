@@ -20,10 +20,8 @@
 //	        generator.LengthValidator(3, 24),
 //	        generator.RegexValidator(`^[a-z0-9]+$`, "name must be 3-24 lowercase letters and digits"),
 //	    }
-//	    // default an inferred-but-unset property
-//	    if p := generator.FindProperty(def, "properties.minimumTlsVersion"); p != nil {
-//	        p.DefaultValue = "TLS1_2"
-//	    }
+//	    // default an inferred-but-unset property (FindProperty panics on a bad path)
+//	    generator.FindProperty(def, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"
 //	}
 //
 //	// register.go

@@ -89,7 +89,7 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	if needs.types {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/types\"\n")
 	}
-	if needs.defaults || needs.custom {
+	if needs.defaults {
 		b.WriteString("\tazapinschema \"github.com/Azure/terraform-provider-azapi/internal/azapin/schema\"\n")
 	}
 	b.WriteString(")\n\n")
@@ -572,7 +572,9 @@ func emitStringValidators(b *strings.Builder, validators []DescriptionValidator,
 			}
 		case ValidatorCustom:
 			if v.Call != "" {
-				items = append(items, fmt.Sprintf("%s\t\tazapinschema.%s", tabs, v.Call))
+				// Hand-written validators are co-located in package generated, so
+				// the call is emitted unqualified (e.g. StorageAccountIPRule()).
+				items = append(items, fmt.Sprintf("%s\t\t%s", tabs, v.Call))
 			}
 		}
 	}
