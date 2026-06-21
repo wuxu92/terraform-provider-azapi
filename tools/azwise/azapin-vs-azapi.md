@@ -118,7 +118,7 @@ hand-written, per-resource intelligence layered on the API. azapin gives every
 resource type a place to put that logic. `azapi_resource` structurally can't: it is
 one generic engine with no per-resource extension point.
 
-The static resource exposes typed **customization seams** (`internal/azapin/resource`):
+The static resource exposes typed **customization seams** (`internal/native/resource`):
 
 - **Hooks** (data-driven): `BeforeCreate` / `AfterCreate` / `BeforeUpdate` /
   `AfterUpdate` / `BeforeRead` / `AfterRead` / `BeforeDelete`, plus `ValidateConfig`

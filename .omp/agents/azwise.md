@@ -79,23 +79,23 @@ by what it does and route it to the right home:
 | AzureRM validator | Kind | Where it goes |
 | --- | --- | --- |
 | `StringInSlice` (enum), `IntBetween`/`FloatBetween` (range), `StringLenBetween` (length), `StringMatch` (regex) | declarative | azwise `StringRules`/`IntRules`/`FloatRules` (often already baked as `stringvalidator.OneOf` etc.) |
-| `validation.IsUUID`, `azure.ValidateResourceID`/`commonids.Validate*ID` | generic semantic | a **shared** validator in `internal/azapin/schema` (e.g. `UUID()`, `AzureResourceID()`), attached with `generator.SharedValidator("UUID()")` |
-| resource-specific semantic, e.g. `storage/validate.StorageAccountIpRule` (regex + public-vs-private IP) | resource-specific semantic | a validator in `internal/azapin/generated/<service>/validators/<rule>.go` (package `validators`), attached with `generator.CustomValidator("StorageAccountIPRule()")` |
+| `validation.IsUUID`, `azure.ValidateResourceID`/`commonids.Validate*ID` | generic semantic | a **shared** validator in `internal/native/schema` (e.g. `UUID()`, `AzureResourceID()`), attached with `generator.SharedValidator("UUID()")` |
+| resource-specific semantic, e.g. `storage/validate.StorageAccountIpRule` (regex + public-vs-private IP) | resource-specific semantic | a validator in `internal/native/generated/<service>/validators/<rule>.go` (package `validators`), attached with `generator.CustomValidator("StorageAccountIPRule()")` |
 | sub-service validator (e.g. `BlobPropertiesDefaultServiceVersion` on `blob_properties`) | sub-service | the sub-service resource's customizer, NOT the parent (see Sub-service API separation) |
 | a check over a representation that has no single ARM body field (e.g. a composite Key Vault key URI that ARM splits into keyName/keyVaultUri/keyVersion, or a map-key validator) | non-mappable | skip, and note why in the customizer |
 
 Workflow for the semantic ones (generic and resource-specific):
 
-1. **Reuse first.** If a shared validator already exists in `internal/azapin/schema`
+1. **Reuse first.** If a shared validator already exists in `internal/native/schema`
    (`UUID`, `AzureResourceID`, …), use `generator.SharedValidator(...)`. Only add a
    new shared validator there when the rule is genuinely cross-resource.
 2. **Otherwise write it** as a `validator.String` (or the matching typed validator):
-   generic → `internal/azapin/schema/validator_<rule>.go` (package `schema`);
-   resource-specific → `internal/azapin/generated/<service>/validators/<rule>.go`
+   generic → `internal/native/schema/validator_<rule>.go` (package `schema`);
+   resource-specific → `internal/native/generated/<service>/validators/<rule>.go`
    (package `validators`). One validator per file, exported constructor, mirroring
    the AzureRM logic exactly and citing the source file/line.
 3. **Attach it** in the resource customizer
-   (`internal/azapin/generator/customizers/<resource>.go`) by mapping the AzureRM
+   (`internal/native/generator/customizers/<resource>.go`) by mapping the AzureRM
    field to its ARM body path and setting `p.Validators = append(p.Validators, ...)`
    via `generator.FindProperty(def, "<arm.path>")`. For a value inside an array
    whose element type may be shared with a sibling array (e.g. `ipRules`/`ipv6Rules`,

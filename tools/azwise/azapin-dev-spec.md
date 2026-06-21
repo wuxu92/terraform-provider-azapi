@@ -2,7 +2,7 @@
 
 Status: Draft (PoC proven end-to-end against live Azure; productionization in progress)
 Owners: azapi provider team
-Related docs: `DESIGN.md`, `GENERATOR.md`, `RESOURCE.md` (under `internal/azapin/`),
+Related docs: `DESIGN.md`, `GENERATOR.md`, `RESOURCE.md` (under `internal/native/`),
 `azapin-vs-azapi.md`, `static-schema-generation-analysis.md`,
 `approach-comparison-report.md` (under `tools/azwise/`).
 
@@ -25,7 +25,7 @@ Two subsystems:
   knowledge (ForceNew rules, validation, real default values, sensitive/computed
   classification, timeouts). Consumed at runtime by `azapi_resource` and at
   build-time by the azapin generator.
-- **azapin** (`internal/azapin/`) — the static-schema generator, the generic
+- **azapin** (`internal/native/`) — the static-schema generator, the generic
   runtime resource base, and the supporting tooling (validators, acceptance
   framework, CLI).
 
@@ -157,7 +157,7 @@ User stories with acceptance criteria. **MUST/SHOULD/MAY** per RFC 2119.
 
 **Acceptance**
 - A maintainer MAY register a generation-time **customizer** (keyed by ARM type in
-  `internal/azapin/generator/customizers`) that mutates the parsed type graph so
+  `internal/native/generator/customizers`) that mutates the parsed type graph so
   validators/defaults/ForceNew are baked into the generated schema and never
   mutated at runtime. **SHOULD** be preferred for schema-shape rules.
 - A hand-written overlay MAY register `Hooks` (Before/After per op, ModifyPlan,
@@ -196,7 +196,7 @@ User stories with acceptance criteria. **MUST/SHOULD/MAY** per RFC 2119.
 | Unit testing | Go `testing` + `testify` |
 | "Database" | None. Two embedded, read-only data sources: the **bicep type graph** (`internal/azure/generated`, `go:embed`) and the **azwise knowledge registry** (compiled Go) |
 | External API | Azure Resource Manager REST (via `internal/clients.ResourceClient`) |
-| Code generation | Custom Go generator (`internal/azapin/generator`), run via `go run` / `go generate` |
+| Code generation | Custom Go generator (`internal/native/generator`), run via `go run` / `go generate` |
 
 There is **no frontend, no server, no database**. The "frontend" is the Terraform
 CLI; the "backend" is the provider plugin process plus ARM.
@@ -209,7 +209,7 @@ terraform CLI ──tfprotov6──► terraform-provider-azapi (plugin process)
         ┌─────────────────────────┼──────────────────────────────┐
         ▼                         ▼                              ▼
   azapi_resource          azapin runtime resource          azapi data sources
-  (dynamic body)          internal/azapin/resource.Base    (unchanged)
+  (dynamic body)          internal/native/resource.Base    (unchanged)
         │                         │
         │                  ┌──────┴───────┐
         │                  ▼              ▼
@@ -228,13 +228,13 @@ Build-time (not in the plugin process):
 ```
 internal/azure/generated/*/types.json  (embedded source of truth)
         │
-        ▼  internal/azapin/generator
+        ▼  internal/native/generator
   ParseTypesJSON ─► PostProcess(+ApplyAzwise from azwise, +envelope) ─► customizers.Apply ─► EmitSchema
         │                                                       │
         ▼ ValidateEmittedSchema (source-string)                 ▼
-  internal/azapin/generated/<service>/<resource>_gen.go  ──compiled──►  runtime Registry
+  internal/native/generated/<service>/<resource>_gen.go  ──compiled──►  runtime Registry
         ▲
-  internal/azapin/validate (compiled-schema cross-check, run as test/CLI)
+  internal/native/validate (compiled-schema cross-check, run as test/CLI)
 ```
 
 ### 3.3 Package responsibilities
@@ -242,17 +242,17 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 | Package | Responsibility |
 |---|---|
 | `internal/azure/azwise` | Knowledge registry + interface; `Validate`, `CheckForceNew`, `StripComputedFields`, `TimeoutDefault`, `SchemaKnowledge` accessors |
-| `internal/azapin/naming` | ARM type → TF resource name; camelCase ↔ snake_case |
-| `internal/azapin/generator` | `types.json` walker, post-processing, azwise overlay, schema emitter, source-string validator |
-| `internal/azapin/generator/customizers` | Generation-time per-ARM-type schema customizers (`Register`/`Apply`) — bake validators/defaults/ForceNew into the schema |
-| `internal/azapin/armtypes` | ARM resource type string constants |
-| `internal/azapin/schema` | Runtime static-default impls (`Static*`), shared generic validators (`UUID`, `AzureResourceID`), plan-modifier anchors |
-| `internal/azapin/mapper` | Generic state ↔ ARM JSON (`Expand`/`Flatten`/`FlattenInto`/`ResolveUnknowns`) |
-| `internal/azapin/resource` | Generic `Base` resource, hooks, body loader, overlays |
-| `internal/azapin/generated` | Registry (`Descriptor`/`Register`/`Registry`); per-service sub-packages `generated/<service>/` (schemas) + `generated/<service>/validators/`; `generated/all` blank-imports every service to populate the registry |
-| `internal/azapin/validate` | Compiled-schema ↔ bicep cross-validator |
-| `internal/azapin/acceptance` | Ginkgo BDD acceptance framework |
-| `internal/azapin/cmd/azapin-validate` | Standalone validation CLI |
+| `internal/native/naming` | ARM type → TF resource name; camelCase ↔ snake_case |
+| `internal/native/generator` | `types.json` walker, post-processing, azwise overlay, schema emitter, source-string validator |
+| `internal/native/generator/customizers` | Generation-time per-ARM-type schema customizers (`Register`/`Apply`) — bake validators/defaults/ForceNew into the schema |
+| `internal/native/armtypes` | ARM resource type string constants |
+| `internal/native/schema` | Runtime static-default impls (`Static*`), shared generic validators (`UUID`, `AzureResourceID`), plan-modifier anchors |
+| `internal/native/mapper` | Generic state ↔ ARM JSON (`Expand`/`Flatten`/`FlattenInto`/`ResolveUnknowns`) |
+| `internal/native/resource` | Generic `Base` resource, hooks, body loader, overlays |
+| `internal/native/generated` | Registry (`Descriptor`/`Register`/`Registry`); per-service sub-packages `generated/<service>/` (schemas) + `generated/<service>/validators/`; `generated/all` blank-imports every service to populate the registry |
+| `internal/native/validate` | Compiled-schema ↔ bicep cross-validator |
+| `internal/native/acceptance` | Ginkgo BDD acceptance framework |
+| `internal/native/cmd/azapin-validate` | Standalone validation CLI |
 
 ---
 
@@ -315,7 +315,7 @@ type SchemaKnowledge interface { // consumed by the generator
 #### Generated descriptor & runtime base
 
 ```go
-// internal/azapin/generated
+// internal/native/generated
 type Descriptor struct {
     Name           string // "azapi_storage_account"
     ARMType        string // "Microsoft.Storage/storageAccounts"
@@ -326,7 +326,7 @@ type Descriptor struct {
 }
 var Registry = map[string]Descriptor{} // each generated init() calls Register; generated/all blank-imports every service package to populate it
 
-// internal/azapin/resource
+// internal/native/resource
 type Base struct { desc Descriptor; hooks *Hooks; provider *clients.Client }
 type Hooks struct {
     BeforeCreate, AfterCreate, BeforeUpdate, AfterUpdate,
@@ -594,16 +594,16 @@ A generated resource is shippable when:
 
 ```sh
 # regenerate the storage account schema (PoC generator)
-go run ./internal/azapin/generator/cmd/generate_poc.go
+go run ./internal/native/generator/cmd/generate_poc.go
 
 # cross-validate a compiled schema against bicep
-go run ./internal/azapin/cmd/azapin-validate/ -r azapi_storage_account
+go run ./internal/native/cmd/azapin-validate/ -r azapi_storage_account
 
 # offline unit tests (skips acceptance)
-TF_ACC= go test ./internal/azapin/... ./internal/azure/azwise/...
+TF_ACC= go test ./internal/native/... ./internal/azure/azwise/...
 
 # acceptance (creates real Azure resources)
-TF_ACC=1 go test ./internal/azapin/acceptance/ -run TestStorageAccount \
+TF_ACC=1 go test ./internal/native/acceptance/ -run TestStorageAccount \
   -ginkgo.focus "creates a basic account and imports it" -timeout 900s
 
 # build the dev provider for manual workspaces
@@ -614,7 +614,7 @@ go build -o "$(go env GOPATH)/bin/terraform-provider-azapi" .
 
 ## Appendix A — Generator rule reference
 
-See `internal/azapin/GENERATOR.md` for the authoritative generator rules (flag derivation,
+See `internal/native/GENERATOR.md` for the authoritative generator rules (flag derivation,
 block-level computed inference, defaults, single-optional promotion, azwise overlay,
 validators, naming, runtime mapping, scope selection) plus the recursion/
 discriminated-type and dynamic-in-collection handling.

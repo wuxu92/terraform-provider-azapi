@@ -96,11 +96,11 @@ ArrayRule{PropertyPath: "properties.ipRules", MaxItems: ptrInt(200)}
 Transfer **every** other `ValidateFunc` too, routed by reusability:
 
 - **Generic / cross-resource** (`validation.IsUUID`, `azure.ValidateResourceID`, …):
-  use a shared validator in `internal/azapin/schema` (`UUID()`, `AzureResourceID()`,
+  use a shared validator in `internal/native/schema` (`UUID()`, `AzureResourceID()`,
   …) via `generator.SharedValidator("UUID()")`. Add a new one there only when the
   rule is genuinely cross-resource.
 - **Resource-specific** (e.g. `StorageAccountIpRule` — regex *plus* a public-vs-private
-  IP check): a `validator.String` in `internal/azapin/generated/<service>/validators/<rule>.go`
+  IP check): a `validator.String` in `internal/native/generated/<service>/validators/<rule>.go`
   (package `validators`, e.g. `generated/storage/validators/ip_rules.go`), one per
   file, referenced via `generator.CustomValidator("StorageAccountIPRule()")`.
 - **Sub-service** (e.g. `BlobPropertiesDefaultServiceVersion`): goes on the
@@ -109,7 +109,7 @@ Transfer **every** other `ValidateFunc` too, routed by reusability:
 
 Attach by mapping the AzureRM field to its ARM body path and appending to
 `p.Validators` via `generator.FindProperty(def, "<arm.path>")` in the resource
-customizer (`internal/azapin/generator/customizers/<resource>.go`); call
+customizer (`internal/native/generator/customizers/<resource>.go`); call
 `generator.IsolateArrayElement` first for a value in an array whose element type may
 be shared with a sibling (e.g. `ipRules`/`ipv6Rules`, `resourceAccessRules`). See
 GENERATOR.md "Schema Customization Plugins".
