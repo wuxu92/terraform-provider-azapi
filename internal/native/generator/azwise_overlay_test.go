@@ -119,3 +119,76 @@ func TestApplyAzwiseStorageAccount(t *testing.T) {
 		t.Error("expected emitted schema to import boolplanmodifier")
 	}
 }
+
+// TestApplyAzwiseBlobService verifies the azwise overlay bakes the blobServices
+// validation rules into the generated body and — critically — that an azwise
+// int-range rule replaces (does not stack onto) the description-mined one.
+func TestApplyAzwiseBlobService(t *testing.T) {
+	data, err := os.ReadFile("../../azure/generated/storage/microsoft.storage/2025-01-01/types.json")
+	if err != nil {
+		t.Skipf("types.json not found: %v", err)
+	}
+	defs, err := ParseTypesJSON(data)
+	if err != nil {
+		t.Fatalf("ParseTypesJSON: %v", err)
+	}
+	// Full post-processing runs description mining AND the azwise overlay — the
+	// combination that previously double-stacked the int-range validator.
+	PostProcess(defs)
+
+	var blob *ResourceDefinition
+	for _, d := range defs {
+		if strings.Contains(d.Name, "blobServices") {
+			blob = d
+			break
+		}
+	}
+	if blob == nil {
+		t.Fatal("blobServices definition not found")
+	}
+
+	// delete_retention_policy.days carries an int range from BOTH the ARM
+	// description and the azwise IntRule; the overlay must leave exactly one.
+	p := navigate(blob.Body, "properties.deleteRetentionPolicy.days")
+	if p == nil {
+		t.Fatal("properties.deleteRetentionPolicy.days not found")
+	}
+	n := 0
+	for _, v := range p.Validators {
+		if v.Kind == ValidatorIntRange {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("expected exactly 1 int-range validator on deleteRetentionPolicy.days, got %d", n)
+	}
+
+	// defaultServiceVersion is a free string in bicep; azwise adds the OneOf enum.
+	dv := navigate(blob.Body, "properties.defaultServiceVersion")
+	if dv == nil {
+		t.Fatal("properties.defaultServiceVersion not found")
+	}
+	hasOneOf := false
+	for _, v := range dv.Validators {
+		if v.Kind == ValidatorStringOneOf {
+			hasOneOf = true
+		}
+	}
+	if !hasOneOf {
+		t.Error("expected a OneOf validator on defaultServiceVersion from azwise")
+	}
+}
+
+// TestDropValidators verifies the helper removes only same-kind validators so an
+// authoritative azwise rule can replace a heuristic one without stacking.
+func TestDropValidators(t *testing.T) {
+	prop := &Property{Validators: []DescriptionValidator{
+		{Kind: ValidatorIntRange},
+		{Kind: ValidatorRegex},
+		{Kind: ValidatorIntRange},
+	}}
+	dropValidators(prop, ValidatorIntRange)
+	if len(prop.Validators) != 1 || prop.Validators[0].Kind != ValidatorRegex {
+		t.Fatalf("dropValidators left %d validators, want 1 Regex: %+v", len(prop.Validators), prop.Validators)
+	}
+}

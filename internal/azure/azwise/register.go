@@ -4,6 +4,7 @@ package azwise
 // Add new resource types here.
 func RegisterAll() {
 	Register(NewStorageAccount())
+	Register(NewStorageAccountBlobService())
 	Register(NewKeyVault())
 	Register(NewKeyVaultKey())
 	Register(NewKeyVaultSecret())

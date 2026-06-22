@@ -89,6 +89,7 @@ func ApplyAzwise(def *ResourceDefinition) {
 			continue
 		}
 		if r.MinValue != nil || r.MaxValue != nil {
+			dropValidators(prop, ValidatorIntRange)
 			prop.Validators = append(prop.Validators, DescriptionValidator{
 				Kind:    ValidatorIntRange,
 				Min:     r.MinValue,
@@ -135,6 +136,7 @@ func navigate(body *Type, path string) *Property {
 // emits a OneOf for enums) to avoid duplicate validators.
 func applyStringRule(prop *Property, r azwise.StringRule) {
 	if len(r.AllowedValues) > 0 && !prop.Type.IsEnum() {
+		dropValidators(prop, ValidatorStringOneOf)
 		prop.Validators = append(prop.Validators, DescriptionValidator{
 			Kind:    ValidatorStringOneOf,
 			Allowed: r.AllowedValues,
@@ -151,6 +153,7 @@ func applyStringRule(prop *Property, r azwise.StringRule) {
 			v := int64(r.MaxLength)
 			max = &v
 		}
+		dropValidators(prop, ValidatorStringLength)
 		prop.Validators = append(prop.Validators, DescriptionValidator{
 			Kind:    ValidatorStringLength,
 			Min:     min,
@@ -159,12 +162,27 @@ func applyStringRule(prop *Property, r azwise.StringRule) {
 		})
 	}
 	if r.Regex != "" {
+		dropValidators(prop, ValidatorRegex)
 		prop.Validators = append(prop.Validators, DescriptionValidator{
 			Kind:    ValidatorRegex,
 			Pattern: r.Regex,
 			Message: r.Message,
 		})
 	}
+}
+
+// dropValidators removes every validator of the given kind from the property so
+// an azwise rule replaces (rather than stacks onto) a description-mined or
+// bicep-flag validator of the same kind. azwise rules are authoritative, so a
+// duplicate or differing heuristic validator must not survive alongside them.
+func dropValidators(prop *Property, kind ValidatorKind) {
+	kept := prop.Validators[:0]
+	for _, v := range prop.Validators {
+		if v.Kind != kind {
+			kept = append(kept, v)
+		}
+	}
+	prop.Validators = kept
 }
 
 // formatAzwiseDefault renders an azwise default value (ARM wire format:

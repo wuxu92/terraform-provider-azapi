@@ -2,6 +2,54 @@
 
 This document describes the 17 technical rules and implementation details of the azapin schema generator. It complements DESIGN.md (architecture and project scope) with the specific behaviors that the generator must enforce.
 
+## Adding a New Resource (end-to-end)
+
+Generating a new static resource from the ground up — with
+`Microsoft.Storage/storageAccounts/blobServices` (→ `azapi_storage_account_blob_service`)
+as the worked example — follows this ordered checklist. **Do not skip the azwise
+step (2):** without it the generated schema carries only bicep-derived flags and
+loses the curated AzureRM validation, defaults, and ForceNew knowledge.
+
+1. **Register the ARM type.** Add the fully-qualified type constant to
+   `internal/native/armtypes/armtypes.go` (e.g. `StorageAccountBlobService =
+   "Microsoft.Storage/storageAccounts/blobServices"`).
+
+2. **Learn AzureRM knowledge (azwise).** Extract operational knowledge — ForceNew,
+   validation (enum/regex/length/range), defaults, computed/sensitive fields,
+   timeouts — from `terraform-provider-azurerm` into a knowledge file
+   `internal/azure/azwise/<resource>.go`, and add its `Register(New…())` call to
+   `register.go`. Use the **azwise agent/skill** (`.omp/agents/azwise.md`,
+   `skill://azwise`), which drives the `azwise_extract` tool over the azurerm source.
+   - **Sub-service API separation:** settings AzureRM bundles into a parent block
+     (e.g. `blob_properties`, `share_properties` inside `azurerm_storage_account`)
+     are *separate* ARM resources. Their knowledge goes in the sub-service's own
+     file, never the parent's.
+   - The generator overlays this automatically via `ApplyAzwise` (Rule 9b);
+     declarative rules become baked schema validators/defaults/modifiers.
+
+3. **Add a generation target.** Append the ARM type to the target list in
+   `internal/native/generator/cmd/generate_poc.go`.
+
+4. **Add a customizer (only if needed).** For rules neither bicep nor azwise can
+   express — a singleton name pinned to `OneOf("default")`, a resource-specific
+   semantic validator, a parent-name override — add
+   `internal/native/generator/customizers/<resource>.go` and register it (Rule 9d).
+   Skip when the bicep + azwise knowledge already suffices.
+
+5. **Regenerate.** Run `go run ./internal/native/generator/cmd/generate_poc.go`.
+   The generated `<name>_gen.go` self-registers via `init()`, so the provider
+   exposes it through `generated.Registry` with no provider edits.
+
+6. **Validate.** `go run ./internal/native/cmd/azapin-validate/` must report
+   `0 mismatches` for the new resource (schema ↔ bicep parity).
+
+7. **Test.** Add a runtime composition test (`resource/base_test.go`), an
+   acceptance `Describe` file (`acceptance/`), and an azwise rule test
+   (`internal/azure/azwise/`).
+
+8. **Document.** Refresh the DESIGN.md "Current State" inventory if the resource
+   set or component status changed.
+
 ## Schema Flag Derivation
 
 The generator reads bicep property flags (`flags` field in `types.json`) and derives Terraform schema flags. The mapping is not 1:1 — several inference, post-processing, and description-mining rules apply.
@@ -123,6 +171,11 @@ ForceNew logic (e.g. storage SKU zone migration) is NOT expressible as a plan
 modifier and stays in `azwise.CheckForceNew`, consulted by the resource's
 `ModifyPlan` (see RESOURCE.md). The overlay only adds flags/modifiers/validators —
 it never adds or removes properties, so the schema↔bicep validator still passes.
+
+Because azwise is authoritative, an azwise validator **replaces** a same-kind
+validator the description-miner produced for the same property (e.g. a
+retention-day `IntBetween` that also appears in the ARM description) instead of
+stacking a duplicate (`dropValidators` in `azwise_overlay.go`).
 
 Storage account example: 10 `RequiresReplace` modifiers (`is_hns_enabled` →
 `boolplanmodifier`, `sku.tier` → `stringplanmodifier`, `extended_location` →

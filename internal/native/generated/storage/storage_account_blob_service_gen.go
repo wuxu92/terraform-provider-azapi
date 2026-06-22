@@ -5,6 +5,7 @@ import (
 	"regexp"
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
+	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -47,9 +48,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Description: "Indicates whether change feed event logging is enabled for the Blob service.",
 								Optional:    true,
 								Computed:    true,
-								PlanModifiers: []planmodifier.Bool{
-									boolplanmodifier.UseStateForUnknown(),
-								},
+								Default:     nativeschema.StaticBool(false),
 							},
 							"retention_in_days": schema.Int64Attribute{
 								Description: "Indicates the duration of changeFeed retention in days. Minimum value is 1 day and maximum value is 146000 days (400 years). A null value indicates an infinite retention of the change feed.",
@@ -76,16 +75,15 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Description: "This property when set to true allows deletion of the soft deleted blob versions and snapshots. This property cannot be used blob restore policy. This property only applies to blob service and does no...",
 								Optional:    true,
 								Computed:    true,
-								PlanModifiers: []planmodifier.Bool{
-									boolplanmodifier.UseStateForUnknown(),
-								},
+								Default:     nativeschema.StaticBool(false),
 							},
 							"days": schema.Int64Attribute{
 								Description: "Indicates the number of days that the deleted item should be retained. The minimum specified value can be 1 and the maximum value can be 365.",
 								Optional:    true,
 								Computed:    true,
-								PlanModifiers: []planmodifier.Int64{
-									int64planmodifier.UseStateForUnknown(),
+								Default:     nativeschema.StaticInt64(7),
+								Validators: []validator.Int64{
+									int64validator.Between(1, 365),
 								},
 							},
 							"enabled": schema.BoolAttribute{
@@ -144,6 +142,45 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 						Description: "DefaultServiceVersion indicates the default version to use for requests to the Blob service if an incoming request’s version is not specified. Possible values include version 2008-10-27 and all more...",
 						Optional:    true,
 						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"2008-10-27",
+								"2009-04-14",
+								"2009-07-17",
+								"2009-09-19",
+								"2011-08-28",
+								"2012-02-12",
+								"2013-08-15",
+								"2014-02-14",
+								"2015-02-21",
+								"2015-04-05",
+								"2015-07-08",
+								"2015-12-11",
+								"2016-05-31",
+								"2017-04-17",
+								"2017-07-29",
+								"2017-11-09",
+								"2018-03-28",
+								"2018-11-09",
+								"2019-02-02",
+								"2019-07-07",
+								"2019-12-12",
+								"2020-02-10",
+								"2020-04-08",
+								"2020-06-12",
+								"2020-10-02",
+								"2020-12-06",
+								"2021-02-12",
+								"2021-04-10",
+								"2021-06-08",
+								"2021-08-06",
+								"2021-10-04",
+								"2021-12-02",
+								"2022-11-02",
+								"2023-01-03",
+								"2023-11-03",
+							),
+						},
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},
@@ -160,16 +197,15 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Description: "This property when set to true allows deletion of the soft deleted blob versions and snapshots. This property cannot be used blob restore policy. This property only applies to blob service and does no...",
 								Optional:    true,
 								Computed:    true,
-								PlanModifiers: []planmodifier.Bool{
-									boolplanmodifier.UseStateForUnknown(),
-								},
+								Default:     nativeschema.StaticBool(false),
 							},
 							"days": schema.Int64Attribute{
 								Description: "Indicates the number of days that the deleted item should be retained. The minimum specified value can be 1 and the maximum value can be 365.",
 								Optional:    true,
 								Computed:    true,
-								PlanModifiers: []planmodifier.Int64{
-									int64planmodifier.UseStateForUnknown(),
+								Default:     nativeschema.StaticInt64(7),
+								Validators: []validator.Int64{
+									int64validator.Between(1, 365),
 								},
 							},
 							"enabled": schema.BoolAttribute{
@@ -186,9 +222,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 						Description: "Versioning is enabled if set to true.",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     nativeschema.StaticBool(false),
 					},
 					"last_access_time_tracking_policy": schema.SingleNestedAttribute{
 						Description: "The blob service property to configure last access time based tracking policy.",
@@ -246,6 +280,9 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Description: "how long this blob can be restored. It should be great than zero and less than DeleteRetentionPolicy.days.",
 								Optional:    true,
 								Computed:    true,
+								Validators: []validator.Int64{
+									int64validator.Between(1, 365),
+								},
 								PlanModifiers: []planmodifier.Int64{
 									int64planmodifier.UseStateForUnknown(),
 								},
