@@ -1,4 +1,4 @@
-package azapinacc
+package nativeacc
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// existsResource is a generic acceptance.TestResource for any azapin static
+// existsResource is a generic acceptance.TestResource for any native static
 // resource: it reads the ARM resource ID from state and GETs it with the
 // resource's API version.
 type existsResource struct {

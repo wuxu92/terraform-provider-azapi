@@ -69,7 +69,7 @@ func TestCustomizerBakesEnvelopeAndPropertyChanges(t *testing.T) {
 		`"resource_group_id": schema.StringAttribute{`,
 		`stringvalidator.LengthBetween(3, 24)`,
 		"regexp.MustCompile(`^[a-z0-9]+$`)",
-		`azapinschema.StaticString("TLS1_2")`,
+		`nativeschema.StaticString("TLS1_2")`,
 		`StorageAccountIPRule()`,
 	} {
 		if !strings.Contains(src, want) {

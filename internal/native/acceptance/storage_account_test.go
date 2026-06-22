@@ -1,4 +1,4 @@
-package azapinacc
+package nativeacc
 
 import (
 	"testing"

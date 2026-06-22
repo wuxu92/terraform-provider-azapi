@@ -1,4 +1,4 @@
-// Package azapinacc is a BDD-style acceptance-test framework for azapin static
+// Package nativeacc is a BDD-style acceptance-test framework for native static
 // resources. It wraps terraform-plugin-testing with Ginkgo so that many
 // scenarios for a resource live in one suite and share a single config
 // template — only the resource body differs per scenario.
@@ -11,17 +11,17 @@
 //	}
 //
 //	var _ = Describe("azapi_storage_account", func() {
-//	    spec := azapinacc.NewSpec("azapi_storage_account",
+//	    spec := nativeacc.NewSpec("azapi_storage_account",
 //	        "Microsoft.Storage/storageAccounts", "2025-01-01")
 //	    It("creates, updates and imports", func() {
 //	        spec.Run(
-//	            azapinacc.Body(`location = "{{.Location}}" ... `).
-//	                Check(azapinacc.Exists(), azapinacc.Key("kind").HasValue("StorageV2")),
-//	            azapinacc.ImportStep(),
+//	            nativeacc.Body(`location = "{{.Location}}" ... `).
+//	                Check(nativeacc.Exists(), nativeacc.Key("kind").HasValue("StorageV2")),
+//	            nativeacc.ImportStep(),
 //	        )
 //	    })
 //	})
-package azapinacc
+package nativeacc
 
 import (
 	"bytes"
@@ -41,7 +41,7 @@ import (
 	ginkgo "github.com/onsi/ginkgo/v2"
 )
 
-// Spec describes one azapin resource under test: its Terraform type, the ARM
+// Spec describes one native resource under test: its Terraform type, the ARM
 // type + API version it targets, and the shared parent/config template.
 type Spec struct {
 	tfType     string
@@ -212,11 +212,11 @@ func (s *Spec) renderConfig(td acceptance.TestData, name, body string) string {
 func render(tpl string, data tmplData) string {
 	t, err := template.New("cfg").Parse(tpl)
 	if err != nil {
-		panic(fmt.Sprintf("azapinacc: invalid template: %v", err))
+		panic(fmt.Sprintf("nativeacc: invalid template: %v", err))
 	}
 	var buf bytes.Buffer
 	if err := t.Execute(&buf, data); err != nil {
-		panic(fmt.Sprintf("azapinacc: template execution failed: %v", err))
+		panic(fmt.Sprintf("nativeacc: template execution failed: %v", err))
 	}
 	return buf.String()
 }

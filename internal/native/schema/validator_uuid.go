@@ -12,7 +12,7 @@ import (
 // every generated resource. Resource-specific validators instead live with their
 // service in internal/native/generated/<service>/validators. A customizer attaches
 // a shared validator via generator.SharedValidator("UUID()"), emitted as a
-// qualified azapinschema.UUID() call in the generated schema.
+// qualified nativeschema.UUID() call in the generated schema.
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 

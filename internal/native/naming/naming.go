@@ -193,7 +193,7 @@ const (
 	ScopeExtension       = 16
 )
 
-// ParentRef describes the attribute an azapin resource uses to reference its
+// ParentRef describes the attribute a native resource uses to reference its
 // parent: the Terraform attribute name plus the ID shape that name must satisfy.
 // Pattern is empty when the parent shape can't be pinned to a single scope
 // (multi-scope / extension / tenant / unknown), in which case Name falls back to

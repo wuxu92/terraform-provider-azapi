@@ -19,7 +19,7 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/features"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
-	azapinresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
+	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
 	"github.com/Azure/terraform-provider-azapi/internal/services"
 	"github.com/Azure/terraform-provider-azapi/internal/services/functions"
 	"github.com/Azure/terraform-provider-azapi/internal/services/myvalidator"
@@ -794,12 +794,12 @@ func (p Provider) Resources(ctx context.Context) []func() resource.Resource {
 			return &services.DataPlaneResource{}
 		},
 	}
-	// azapin static resources (generated from bicep types). Each generated
+	// native static resources (generated from bicep types). Each generated
 	// descriptor becomes a typed resource backed by the shared base.
 	for name := range generated.Registry {
 		name := name
 		resources = append(resources, func() resource.Resource {
-			return azapinresource.New(name)
+			return nativeresource.New(name)
 		})
 	}
 	return resources

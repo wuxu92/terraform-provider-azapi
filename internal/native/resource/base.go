@@ -1,4 +1,4 @@
-// Package resource implements the runtime Terraform resource for azapin-generated
+// Package resource implements the runtime Terraform resource for native-generated
 // static schemas. A single generic Base implements the framework interface and a
 // unified payload-composition path (the mapper); per-resource Hooks customize it.
 package resource
@@ -28,7 +28,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
-// Base is the generic resource implementation shared by every azapin static
+// Base is the generic resource implementation shared by every native static
 // resource. It is constructed per Terraform name from a generated.Descriptor
 // plus optional Hooks.
 type Base struct {
@@ -53,7 +53,7 @@ func New(name string) resource.Resource {
 	if !ok {
 		// Programmer error: provider iterates the registry, so this can't happen
 		// in normal operation.
-		panic(fmt.Sprintf("azapin: no generated descriptor for %q", name))
+		panic(fmt.Sprintf("native: no generated descriptor for %q", name))
 	}
 	return &Base{
 		desc:  d,

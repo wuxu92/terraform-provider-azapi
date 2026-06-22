@@ -77,7 +77,7 @@ When a valid default is extracted and type-checked against the property type:
 - The property is emitted as `Optional: true, Computed: true` with a `Default`. The
   framework requires `Computed` whenever a `Default` is set (it surfaces the default
   as a known-after-apply value rather than `(known after apply)`).
-- Implementations: `azapinschema.StaticBool`, `azapinschema.StaticString`, `azapinschema.StaticInt64` in `internal/native/schema/defaults.go`
+- Implementations: `nativeschema.StaticBool`, `nativeschema.StaticString`, `nativeschema.StaticInt64` in `internal/native/schema/defaults.go`
 
 Validation rules for extracted defaults:
 - Bool defaults must be "true" or "false"
@@ -85,7 +85,7 @@ Validation rules for extracted defaults:
 - Int defaults must be numeric
 - "null" and "undefined" are rejected
 
-Example: `supportsHttpsTrafficOnly` description says "The default value is true since API version 2019-04-01" → emitted as `Optional: true, Computed: true, Default: azapinschema.StaticBool(true)`.
+Example: `supportsHttpsTrafficOnly` description says "The default value is true since API version 2019-04-01" → emitted as `Optional: true, Computed: true, Default: nativeschema.StaticBool(true)`.
 
 ### Single-Optional-Child Promotion
 
@@ -217,7 +217,7 @@ For a semantic rule a regex/length/enum cannot express, attach a hand-written
   `generated/storage/validators/ip_rules.go` defining `StorageAccountIPRule()`,
   emitted as `validators.StorageAccountIPRule()`).
 - **Generic / cross-resource** → `generator.SharedValidator("<Call>()")`. Emitted as
-  `azapinschema.<Call>()`, so the constructor lives once in the shared
+  `nativeschema.<Call>()`, so the constructor lives once in the shared
   `internal/native/schema` package (e.g. `UUID()`, `AzureResourceID()` — ports of
   AzureRM's `validation.IsUUID` / `azure.ValidateResourceID`). Reuse these across
   resources instead of re-implementing per service.
@@ -368,7 +368,7 @@ import (
 
     "github.com/Azure/terraform-provider-azapi/internal/native/generated"
     "github.com/Azure/terraform-provider-azapi/internal/native/generated/storage/validators"
-    azapinschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+    nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
     "github.com/hashicorp/terraform-plugin-framework/resource/schema"
     "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
     "github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -397,7 +397,7 @@ func AzapiStorageAccountSchema() schema.Schema {
                     },
                     "supports_https_traffic_only": schema.BoolAttribute{
                         Optional: true,
-                        Default:  azapinschema.StaticBool(true), // from description
+                        Default:  nativeschema.StaticBool(true), // from description
                     },
                     "provisioning_state": schema.StringAttribute{
                         Computed: true, // ReadOnly — no validators
@@ -473,7 +473,7 @@ The emitter pre-scans the type graph and only includes imports that are actually
 - `int64validator`: only when numeric range validators are emitted
 - `stringvalidator`: only when enum or regex validators are emitted
 - `types`: only when `schema.ListAttribute` with `ElementType` is used
-- `azapinschema`: only when description-extracted default values are emitted
+- `nativeschema`: only when description-extracted default values are emitted
 
 ## Future Enhancements
 

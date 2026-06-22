@@ -93,7 +93,7 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/types\"\n")
 	}
 	if needs.defaults || needs.shared {
-		b.WriteString("\tazapinschema \"github.com/Azure/terraform-provider-azapi/internal/native/schema\"\n")
+		b.WriteString("\tnativeschema \"github.com/Azure/terraform-provider-azapi/internal/native/schema\"\n")
 	}
 	b.WriteString("\t\"github.com/Azure/terraform-provider-azapi/internal/native/generated\"\n")
 	if needs.custom {
@@ -161,7 +161,7 @@ type importNeeds struct {
 	int64Validator  bool
 	stringValidator bool
 	types           bool // for types.StringType in ListAttribute
-	defaults        bool // for azapinschema.Static*
+	defaults        bool // for nativeschema.Static*
 	planmodifier    bool // for planmodifier.X plan-modifier slices
 	pmString        bool // stringplanmodifier
 	pmBool          bool // boolplanmodifier
@@ -169,7 +169,7 @@ type importNeeds struct {
 	pmObject        bool // objectplanmodifier
 	pmList          bool // listplanmodifier
 	custom          bool // for a service-specific generated/<service>/validators reference
-	shared          bool // for a generic azapinschema validator reference (SharedValidator)
+	shared          bool // for a generic nativeschema validator reference (SharedValidator)
 }
 
 func scanImportNeeds(typ *Type) importNeeds {
@@ -519,14 +519,14 @@ func listElementType(elem *Type) string {
 func emitDefault(b *strings.Builder, prop *Property, tabs string) {
 	switch prop.Type.Kind {
 	case KindBool:
-		b.WriteString(fmt.Sprintf("%s\tDefault: azapinschema.StaticBool(%s),\n", tabs, prop.DefaultValue))
+		b.WriteString(fmt.Sprintf("%s\tDefault: nativeschema.StaticBool(%s),\n", tabs, prop.DefaultValue))
 	case KindString:
-		b.WriteString(fmt.Sprintf("%s\tDefault: azapinschema.StaticString(%q),\n", tabs, prop.DefaultValue))
+		b.WriteString(fmt.Sprintf("%s\tDefault: nativeschema.StaticString(%q),\n", tabs, prop.DefaultValue))
 	case KindInt:
-		b.WriteString(fmt.Sprintf("%s\tDefault: azapinschema.StaticInt64(%s),\n", tabs, prop.DefaultValue))
+		b.WriteString(fmt.Sprintf("%s\tDefault: nativeschema.StaticInt64(%s),\n", tabs, prop.DefaultValue))
 	default:
 		if prop.Type.IsEnum() {
-			b.WriteString(fmt.Sprintf("%s\tDefault: azapinschema.StaticString(%q),\n", tabs, prop.DefaultValue))
+			b.WriteString(fmt.Sprintf("%s\tDefault: nativeschema.StaticString(%q),\n", tabs, prop.DefaultValue))
 		} else {
 			// Unknown type with default — fall back to Computed
 			b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
@@ -588,8 +588,8 @@ func emitStringValidators(b *strings.Builder, validators []DescriptionValidator,
 			}
 		case ValidatorShared:
 			if v.Call != "" {
-				// Generic validators live in the shared azapin schema package.
-				items = append(items, fmt.Sprintf("%s\t\tazapinschema.%s", tabs, v.Call))
+				// Generic validators live in the shared native schema package.
+				items = append(items, fmt.Sprintf("%s\t\tnativeschema.%s", tabs, v.Call))
 			}
 		}
 	}

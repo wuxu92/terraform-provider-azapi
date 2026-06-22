@@ -1,5 +1,5 @@
 // Package customizers is the developer-facing extension point for per-resource
-// schema customization of azapin static resources. It lives under the generator
+// schema customization of native static resources. It lives under the generator
 // (not in the generator package itself) so the growing set of per-resource
 // customizers has a dedicated home, separate from the generator core.
 //
@@ -51,7 +51,7 @@ var registry = map[string]Customizer{}
 // customizer.
 func Register(armType string, c Customizer) {
 	if _, dup := registry[armType]; dup {
-		panic("azapin: duplicate customizer for " + armType)
+		panic("native: duplicate customizer for " + armType)
 	}
 	registry[armType] = c
 }

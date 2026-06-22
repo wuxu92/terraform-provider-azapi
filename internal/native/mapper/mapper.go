@@ -1,5 +1,5 @@
-// Package mapper converts between the typed Terraform value tree (driven by an
-// azapin-generated schema) and ARM JSON. It is generic — there is no per-resource
+// Package mapper converts between the typed Terraform value tree (driven by a
+// native-generated schema) and ARM JSON. It is generic — there is no per-resource
 // Go struct. The bicep type graph supplies the authoritative ARM property names
 // (camelCase), so snake_case ↔ camelCase is a lookup, never a reversal.
 package mapper

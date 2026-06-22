@@ -1,4 +1,4 @@
-// Package schema provides runtime utilities for azapin generated resources,
+// Package schema provides runtime utilities for native generated resources,
 // including static default value implementations.
 package schema
 

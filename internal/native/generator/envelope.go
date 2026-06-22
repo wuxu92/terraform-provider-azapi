@@ -81,11 +81,11 @@ func EnvelopeAttrNames(def *ResourceDefinition) []string {
 // not be silently skipped.
 func FindProperty(def *ResourceDefinition, armPath string) *Property {
 	if def == nil {
-		panic("azapin: FindProperty called with a nil ResourceDefinition")
+		panic("native: FindProperty called with a nil ResourceDefinition")
 	}
 	p := navigate(def.Body, armPath)
 	if p == nil {
-		panic(fmt.Sprintf("azapin: customizer for %s references unknown property path %q", def.Name, armPath))
+		panic(fmt.Sprintf("native: customizer for %s references unknown property path %q", def.Name, armPath))
 	}
 	return p
 }
@@ -104,11 +104,11 @@ func FindProperty(def *ResourceDefinition, armPath string) *Property {
 func IsolateArrayElement(def *ResourceDefinition, armPath string) *Type {
 	arr := FindProperty(def, armPath)
 	if arr.Type == nil || arr.Type.Kind != KindArray {
-		panic(fmt.Sprintf("azapin: customizer for %s: IsolateArrayElement path %q is not an array", def.Name, armPath))
+		panic(fmt.Sprintf("native: customizer for %s: IsolateArrayElement path %q is not an array", def.Name, armPath))
 	}
 	elem := arr.Type.ElementType
 	if elem == nil || elem.Kind != KindObject {
-		panic(fmt.Sprintf("azapin: customizer for %s: IsolateArrayElement path %q is not an array of objects", def.Name, armPath))
+		panic(fmt.Sprintf("native: customizer for %s: IsolateArrayElement path %q is not an array of objects", def.Name, armPath))
 	}
 	clone := *elem
 	clone.Properties = make(map[string]*Property, len(elem.Properties))
@@ -170,8 +170,8 @@ func CustomValidator(call string) DescriptionValidator {
 }
 
 // SharedValidator builds a reference to a generic, cross-resource validator in the
-// shared azapin schema package (internal/native/schema). The call is emitted
-// qualified as azapinschema.<call>, so it must name an exported constructor there
+// shared native schema package (internal/native/schema). The call is emitted
+// qualified as nativeschema.<call>, so it must name an exported constructor there
 // returning a validator.String. Use it for reusable rules like
 // SharedValidator("UUID()") or SharedValidator("AzureResourceID()").
 func SharedValidator(call string) DescriptionValidator {

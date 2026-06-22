@@ -71,7 +71,7 @@ type DescriptionValidator struct {
 	Max     *int64   // For numeric range / length validators
 	Allowed []string // For OneOf validators
 	Message string   // Human-readable description
-	Call    string   // For ValidatorCustom: an azapinschema constructor call, e.g. "StorageAccountIPRule()"
+	Call    string   // For ValidatorCustom: an nativeschema constructor call, e.g. "StorageAccountIPRule()"
 }
 
 // ValidatorKind identifies the type of validator.
@@ -84,7 +84,7 @@ const (
 	ValidatorStringOneOf                        // String enum (azwise AllowedValues)
 	ValidatorStringLength                       // String length min/max (azwise)
 	ValidatorCustom                             // Service-specific validator: generated/<service>/validators (validators.X())
-	ValidatorShared                             // Generic shared validator: internal/native/schema (azapinschema.X())
+	ValidatorShared                             // Generic shared validator: internal/native/schema (nativeschema.X())
 )
 
 // IsEnum returns true if this type is a union of string literals (enum).

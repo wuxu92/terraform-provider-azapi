@@ -1,4 +1,4 @@
-// Command azapin-validate validates compiled azapin schemas against their
+// Command azapin-validate validates compiled native schemas against their
 // source bicep type definitions. Each schema self-describes its resource type
 // via an [azapin:ResourceType@Version] tag in the Description field.
 //

@@ -1,4 +1,4 @@
-package azapinacc
+package nativeacc
 
 import (
 	"github.com/Azure/terraform-provider-azapi/internal/acceptance"

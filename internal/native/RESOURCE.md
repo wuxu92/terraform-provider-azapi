@@ -56,9 +56,9 @@ func (p Provider) Resources(ctx context.Context) []func() resource.Resource {
         func() resource.Resource { return &services.AzapiResource{} },
         // … existing …
     }
-    for name := range generated.Registry {           // azapin static resources
+    for name := range generated.Registry {           // native static resources
         name := name
-        list = append(list, func() resource.Resource { return azapin.New(name) })
+        list = append(list, func() resource.Resource { return nativeresource.New(name) })
     }
     return list
 }
@@ -140,7 +140,7 @@ the descriptor is the source of truth at runtime.
 ## Base Struct
 
 ```go
-// package azapin
+// package resource
 type Base struct {
     desc     generated.Descriptor
     provider *clients.Client      // set in Configure
@@ -151,7 +151,7 @@ func New(name string) resource.Resource { return &Base{desc: generated.Lookup(na
 ```
 
 `Base` implements the full framework method set; every generated resource uses it
-directly (`azapin.New(name)`), so there is exactly one implementation to maintain:
+directly (`nativeresource.New(name)`), so there is exactly one implementation to maintain:
 
 | Interface | Method | Behavior |
 |---|---|---|
@@ -307,10 +307,10 @@ For wholesale-different behavior, a resource defines its own type embedding the 
 and shadows a method:
 
 ```go
-type StorageAccountResource struct{ *azapin.Base }
+type StorageAccountResource struct{ *nativeresource.Base }
 func (r *StorageAccountResource) Create(ctx, req, resp) { /* bespoke */ }
 func newStorageAccount() resource.Resource {
-    return &StorageAccountResource{Base: azapin.New("azapi_storage_account")}
+    return &StorageAccountResource{Base: nativeresource.New("azapi_storage_account")}
 }
 ```
 
@@ -374,7 +374,7 @@ unified flow entirely.
   (see GENERATOR.md Rule 9d). Not part of the provider runtime.
 - **Generated descriptor** — `generated.Descriptor{Name, ARMType, APIVersion, Schema, WritableScopes, ParentAttr}`
   registered via each generated file's `init()`.
-- **Provider** — `Resources()` appends `azapinresource.New(name)` for every
+- **Provider** — `Resources()` appends `nativeresource.New(name)` for every
   `generated.Registry` entry.
 - Not yet exercised against live ARM (acceptance tests need credentials); unit and
   schema-validation coverage in place.

@@ -10,7 +10,7 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/generator"
 //   - network_acls.ip_rules[].value must be a public IPv4 address or CIDR range
 //     (StorageAccountIPRule, in generated/storage/validators).
 //   - Several body fields carry generic AzureRM validators ported as shared
-//     azapinschema validators: UUID for the AD domain GUID and resource-access-rule
+//     nativeschema validators: UUID for the AD domain GUID and resource-access-rule
 //     tenant IDs, and AzureResourceID for resource-access-rule resource IDs.
 func customizeStorageAccount(def *generator.ResourceDefinition) {
 	def.Envelope.Name.Validators = []generator.DescriptionValidator{
