@@ -30,7 +30,7 @@ bicep flags (types.json)         base: Required/ReadOnly/WriteOnly → schema fl
 The result is baked into `internal/native/generated/<service>/<name>_gen.go`. The
 **runtime never mutates the schema** — it serves the generated `Schema()` and adds
 only a `timeouts` block. Per-resource runtime *behavior* (not schema) is a separate
-hook layer (`resource/overlay_<name>.go`).
+hook layer (`resource/overlay_<name>.go`); see **Runtime behavior hooks** below.
 
 Two failure modes worth internalizing before you start:
 
@@ -86,6 +86,139 @@ every bicep body property and vice versa. `INVARIANT …` lines mean a `Default`
 violates the framework's `Optional+Computed`/validator rules (GENERATOR.md
 "Schema Flag Invariants") — fix before shipping.
 
+---
+
+## Runtime behavior hooks
+
+Customizers (workflow 1, Step 4) shape the **schema** at generation time. Hooks
+shape runtime **behavior** — what happens during a CRUD/plan operation — and
+touch the schema not at all. The two never overlap: never validate, default, or
+`RequiresReplace` a fixed attribute from a hook (bake it into the generated schema
+instead), and never reach for ARM state from a customizer.
+
+A hook bundle is registered per Terraform resource name from an overlay file's
+`init()`. Overlays live in package `resource`, so they compile in automatically —
+**no blank import** (unlike customizers and the generated packages):
+
+```go
+// internal/native/resource/overlay_<name>.go
+package resource
+
+func init() {
+    RegisterHooks("azapi_<name>", &Hooks{
+        BeforeCreate: ...,
+        ModifyPlan:   ...,
+    })
+}
+```
+
+`newBase` looks the bundle up once (`hookRegistry[name]`); a nil bundle — or a nil
+field — means "use the base behavior".
+
+### What you can customize
+
+| Hook | Fires | Use it to |
+|---|---|---|
+| `BeforeCreate` | create, after the ARM body is composed, before PUT | mutate `ctx.Body` before it is sent |
+| `AfterCreate` | create, after the GET that follows the PUT | inspect `ctx.Response`; raise diagnostics |
+| `BeforeUpdate` | update, after the body is composed, before PUT | mutate `ctx.Body` |
+| `AfterUpdate` | update, after the follow-up GET | inspect `ctx.Response` |
+| `AfterRead` | read, after the GET, before the response maps into state | massage `ctx.Response` before flatten |
+| `BeforeDelete` | delete, before the DELETE call | preflight/guard using `ctx.State` |
+| `ValidateConfig` | config validation (plan-time; values may be unknown) | cross-field rules a single-attribute validator can't express |
+| `ModifyPlan` | plan, **after** the base's default work | conditional `RequiresReplace`, plan-time derivation |
+
+`Before/AfterCreate` vs `Before/AfterUpdate` are dispatched by whether the op is a
+create — both flow through the same body-composition path. `ValidateConfig` and
+`ModifyPlan` use the framework signatures and run *in addition* to the base (the
+base applies schema-level `RequiresReplace` first, then calls your `ModifyPlan`).
+
+> `Hooks.BeforeRead` exists in the struct but the `Read` path currently invokes
+> only `AfterRead` — registering `BeforeRead` is a **no-op today**. Wire it in
+> `base.go`'s `Read` before relying on it.
+
+### What a hook sees — `CrudCtx`
+
+Every `Before*`/`After*` hook receives a `*CrudCtx`:
+
+| Field | What | Notes |
+|---|---|---|
+| `Ctx` | operation `context.Context` | already timeout-scoped |
+| `Client` | `*clients.Client` | make extra ARM calls if needed |
+| `ID` | `parse.ResourceId` | the resource's Azure ID |
+| `Plan` | typed plan object | set on create/update, null otherwise |
+| `State` | typed prior-state object | set on read/update/delete, null otherwise |
+| `Body` | `map[string]interface{}` — ARM body being composed | **mutate in `Before*`** |
+| `Response` | `map[string]interface{}` — ARM GET response | **read in `After*`** |
+| `Diags` | `*diag.Diagnostics` | append an error + `return` to abort the op |
+
+The contract is directional: `Before*` hooks mutate `Body`, `After*` hooks read
+`Response`. The base checks `HasError()` after each hook — append a diagnostic and
+return to stop the operation.
+
+### Example — conditional ForceNew (shipped)
+
+The storage account's declarative ForceNew (`RequiresReplace`) is already baked
+into the schema by azwise. What a static plan modifier *can't* express is "replace
+only when migrating between zonal and non-zonal SKUs" — so that lives in a
+`ModifyPlan` hook that consults `azwise.CheckForceNew`:
+
+```go
+// internal/native/resource/overlay_storage_account.go
+func init() {
+    RegisterHooks("azapi_storage_account", &Hooks{ModifyPlan: storageAccountModifyPlan})
+}
+
+func storageAccountModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+    if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+        return // only relevant for updates
+    }
+    var oldName, newName types.String
+    skuName := path.Root("sku").AtName("name")
+    resp.Diagnostics.Append(req.State.GetAttribute(ctx, skuName, &oldName)...)
+    resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, skuName, &newName)...)
+    if resp.Diagnostics.HasError() {
+        return
+    }
+    // Pull ARMType/APIVersion from the shipped descriptor so the rule stays correct
+    // when the generator rolls the resource forward to a newer version.
+    d := generated.Registry["azapi_storage_account"]
+    oldBody := map[string]interface{}{"sku": map[string]interface{}{"name": oldName.ValueString()}}
+    newBody := map[string]interface{}{"sku": map[string]interface{}{"name": newName.ValueString()}}
+    if azwise.CheckForceNew(d.ARMType, d.APIVersion, oldBody, newBody) {
+        resp.RequiresReplace = append(resp.RequiresReplace, path.Root("sku"))
+    }
+}
+```
+
+### Example — body / response massaging (template)
+
+```go
+// internal/native/resource/overlay_<name>.go (package resource)
+func init() {
+    RegisterHooks("azapi_<name>", &Hooks{
+        BeforeCreate: func(c *CrudCtx) {
+            // inject/normalize a field the mapper can't derive; it is then PUT
+            c.Body["someField"] = derive(c)
+        },
+        AfterRead: func(c *CrudCtx) {
+            // massage c.Response before it flattens into state, or abort:
+            // c.Diags.AddError("title", "detail")
+        },
+    })
+}
+```
+
+### Hook rules
+
+- Schema concerns (validators, defaults, ForceNew on a fixed attribute) → generated
+  schema via customizers/azwise, **never** a hook.
+- Keyed by the **Terraform** name (`azapi_…`); same-package `init()` registration,
+  so no import wiring — just drop `overlay_<name>.go` into `resource/`.
+- Read ARM type/version from `generated.Registry[name]`, never hardcode — keeps the
+  hook correct across version upgrades.
+- Append to `Diags` (or `resp.Diagnostics`) and `return` to abort; the base checks
+  after every hook.
 ---
 
 ## 1. Add a new resource from the ground up
