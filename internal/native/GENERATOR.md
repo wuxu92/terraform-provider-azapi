@@ -67,7 +67,7 @@ The generator reads bicep property flags (`flags` field in `types.json`) and der
 
 **Rule 1: Required properties → `Required: true`**
 
-If the bicep flag has bit 0 set, the Terraform attribute is `Required: true`. This is the highest priority — Required overrides all other flags.
+If the bicep flag has bit 0 set, the Terraform attribute is `Required: true` — unless a `Default` is available (Rule 8), which demotes the property to `Optional + Computed + Default` since a field with a curated default is omittable. Apart from that, `Required` overrides the other flag rules.
 
 **Rule 2: ReadOnly properties → `Computed: true` (no Optional)**
 
@@ -79,7 +79,7 @@ If the property is neither Required nor ReadOnly, it is `Optional: true, Compute
 
 `Computed` should only be removed from `Optional` properties when there is explicit evidence that the server never populates the field unless the user sets it. This evidence comes from out-of-band sources (azwise knowledge, override files, manual testing), not from the bicep types alone.
 
-When a known default value is available (from description extraction or override file), the property uses `Optional: true` with a `Default` plan modifier instead of `Optional + Computed` (see Rule 8).
+When a known default value is available (from description extraction, azwise, or a customizer), the property is emitted as `Optional: true, Computed: true` with a `Default` (see Rule 8). The framework **requires** `Computed` whenever a `Default` is set — `Default` is a state value, not a plan modifier, and a non-`Computed` `Default` is rejected at provider startup. What the default *does* replace is the Rule 3 `UseStateForUnknown` safe-default modifier, which is omitted for default-bearing attributes.
 
 **Rule 4: WriteOnly properties → `Sensitive: true`**
 
@@ -123,8 +123,12 @@ Many ARM property descriptions mention default values even when the OpenAPI/bice
 
 When a valid default is extracted and type-checked against the property type:
 - The property is emitted as `Optional: true, Computed: true` with a `Default`. The
-  framework requires `Computed` whenever a `Default` is set (it surfaces the default
-  as a known-after-apply value rather than `(known after apply)`).
+  framework requires `Computed` whenever a `Default` is set; it rejects a `Default`
+  on a non-`Computed` attribute at provider startup.
+- A `Default` **demotes a `Required` property to Optional** (`demoteDefaultedRequired`):
+  a field with a curated default is omittable, so it is never emitted `Required` — the
+  framework forbids `Required + Default`. E.g. `kind` → `StorageV2` and network
+  `default_action` → `Allow`, matching azurerm's optional-with-default fields.
 - Implementations: `nativeschema.StaticBool`, `nativeschema.StaticString`, `nativeschema.StaticInt64` in `internal/native/schema/defaults.go`
 
 Validation rules for extracted defaults:
@@ -134,6 +138,25 @@ Validation rules for extracted defaults:
 - "null" and "undefined" are rejected
 
 Example: `supportsHttpsTrafficOnly` description says "The default value is true since API version 2019-04-01" → emitted as `Optional: true, Computed: true, Default: nativeschema.StaticBool(true)`.
+
+### Schema Flag Invariants (generation-time guard)
+
+`CheckFlagInvariants` (`invariants.go`) runs after post-processing and customizers,
+before emission, and fails generation on framework attribute-flag rules the bicep
+types and the framework's own startup validation don't catch:
+
+- **A `Default` requires `Optional + Computed`** — never `Required` or
+  read-only/computed-only. The framework rejects a non-`Computed` `Default` and
+  forbids `Required + Default`, and the emitter would otherwise drop the default
+  silently. (So a property with a default doesn't need the Computed *safe-default*
+  of Rule 3, but it still needs the Computed *flag*.)
+- **A `Default` must satisfy the attribute's own validators** — an enum/range/length
+  default outside its validated set would make the provider reject the value it
+  itself supplies when the field is omitted. The framework never cross-checks this.
+
+`azapin-validate` reports the same violations as `INVARIANT …` lines. Because
+customizers and azwise rules run *before* the guard, a contradictory hand-written
+rule is caught at generation time rather than at provider startup.
 
 ### Single-Optional-Child Promotion
 

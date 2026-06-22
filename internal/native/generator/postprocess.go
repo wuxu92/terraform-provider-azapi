@@ -28,8 +28,37 @@ func PostProcess(defs []*ResourceDefinition) {
 			extractDescriptionValidators(def.Body)
 			promoteSingleOptional(def.Body)
 			ApplyAzwise(def)
+			demoteDefaultedRequired(def.Body)
 			applyEnvelopeDefaults(def)
 		}
+	}
+}
+
+// demoteDefaultedRequired makes a Default override the Required flag: a property
+// with a known default value is, by definition, omittable, so it is emitted as
+// Optional+Computed+Default rather than Required. The framework forbids
+// Required+Default, and forcing the user to set a field that already has a curated
+// default is poor UX (azurerm makes e.g. account_kind / network default_action
+// optional-with-default for the same reason). Read-only/computed-only properties
+// are left untouched — a default there is a knowledge conflict that
+// CheckFlagInvariants surfaces instead.
+func demoteDefaultedRequired(typ *Type) {
+	if typ == nil {
+		return
+	}
+	switch typ.Kind {
+	case KindObject:
+		for _, prop := range typ.Properties {
+			if prop == nil {
+				continue
+			}
+			if prop.DefaultValue != "" && prop.Flags.IsRequired() && !effectiveComputed(prop) {
+				prop.Flags &^= FlagRequired
+			}
+			demoteDefaultedRequired(prop.Type)
+		}
+	case KindArray:
+		demoteDefaultedRequired(typ.ElementType)
 	}
 }
 

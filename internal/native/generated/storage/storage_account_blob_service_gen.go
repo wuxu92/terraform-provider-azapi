@@ -243,7 +243,9 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 							},
 							"enable": schema.BoolAttribute{
 								Description: "When set to true last access time based tracking is enabled.",
-								Required:    true,
+								Optional:    true,
+								Computed:    true,
+								Default:     nativeschema.StaticBool(false),
 							},
 							"name": schema.StringAttribute{
 								Description: "Name of the policy. The valid value is AccessTimeTracking. This field is currently read only",

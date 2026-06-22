@@ -123,6 +123,10 @@ func main() {
 		// Validate the body; exclude the synthesized envelope attributes.
 		mismatches := validate.SchemaAgainstBicep(s, body, "name", d.ParentAttr, "id")
 
+		// Flag-invariant restraints: Default ⟹ Optional+Computed (not Required /
+		// read-only) and Default ∈ its own validators.
+		inv := generator.CheckFlagInvariants(pdef)
+
 		errors := 0
 		warnings := 0
 		for _, m := range mismatches {
@@ -134,9 +138,14 @@ func main() {
 			}
 		}
 
-		if errors > 0 || warnings > 0 {
+		errors += len(inv)
+		for _, v := range inv {
+			fmt.Fprintf(os.Stderr, "INVARIANT %s (%s): %s\n", name, tag, v.String())
+		}
+		switch {
+		case len(mismatches) > 0:
 			fmt.Fprintf(os.Stderr, "FAIL %s (%s): %s", name, tag, validate.FormatMismatches(mismatches))
-		} else {
+		case errors == 0 && warnings == 0:
 			fmt.Printf("OK   %s (%s): 0 mismatches\n", name, tag)
 		}
 

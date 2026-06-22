@@ -473,8 +473,10 @@ func forceNewModifier(prop *Property) (pkg, typ string) {
 // Rules:
 //   - Required flag set → Required: true
 //   - Computed (ReadOnly or all-children-ReadOnly) → Computed: true only
-//   - Has default value → Optional: true + Default (not Computed)
-//   - Default → Optional: true, Computed: true (safe default)
+//   - Has default value → Optional: true, Computed: true, Default (the framework
+//     requires Computed whenever a Default is set; a non-Computed Default is a
+//     provider-startup error)
+//   - Otherwise → Optional: true, Computed: true (Rule 3 safe default)
 func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs string) {
 	if prop.Description != "" {
 		desc := strings.ReplaceAll(prop.Description, `"`, `\"`)

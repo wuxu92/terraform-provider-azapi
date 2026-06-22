@@ -103,7 +103,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 			},
 			"kind": schema.StringAttribute{
 				Description: "Required. Indicates the type of storage account.",
-				Required:    true,
+				Optional:    true,
+				Computed:    true,
+				Default:     nativeschema.StaticString("StorageV2"),
 				Validators: []validator.String{
 					stringvalidator.OneOf(
 						"Storage",
@@ -992,7 +994,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 							},
 							"default_action": schema.StringAttribute{
 								Description: "Specifies the default action of allow or deny when no other rules match.",
-								Required:    true,
+								Optional:    true,
+								Computed:    true,
+								Default:     nativeschema.StaticString("Allow"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"Allow",

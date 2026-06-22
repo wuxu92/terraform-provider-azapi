@@ -67,6 +67,13 @@ func main() {
 
 // generate emits, validates, and writes one resource's schema file.
 func generate(def *generator.ResourceDefinition) error {
+	// Restraint check: framework attribute-flag invariants the bicep types and the
+	// framework's startup validation don't catch (Default ⟹ Optional+Computed and
+	// not Required/read-only; Default ∈ its own validators).
+	if vs := generator.CheckFlagInvariants(def); len(vs) > 0 {
+		return fmt.Errorf("schema invariant violations for %s:\n%s", def.Name, generator.FormatViolations(vs))
+	}
+
 	source, err := generator.EmitSchema(def)
 	if err != nil {
 		return fmt.Errorf("emitting %s: %w", def.Name, err)
