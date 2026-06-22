@@ -15,12 +15,16 @@ import (
 // loadStorageBody parses the storage account bicep body type graph.
 func loadStorageBody(t *testing.T) *generator.Type {
 	t.Helper()
-	dir := filepath.Join("..", "..", "azure", "generated", "storage", "microsoft.storage")
-	ver, err := generator.LatestStableVersion(dir)
+	indexPath := filepath.Join("..", "..", "azure", "generated", "index.json")
+	idx, err := generator.LoadIndex(indexPath)
+	if err != nil {
+		t.Skipf("no index.json: %v", err)
+	}
+	tag, typesPath, err := idx.ResolveLatestStable("Microsoft.Storage/storageAccounts")
 	if err != nil {
 		t.Skipf("no stable storage version: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, ver, "types.json"))
+	data, err := os.ReadFile(typesPath)
 	if err != nil {
 		t.Skipf("types.json not found: %v", err)
 	}
@@ -29,7 +33,6 @@ func loadStorageBody(t *testing.T) *generator.Type {
 		t.Fatalf("ParseTypesJSON: %v", err)
 	}
 	generator.PostProcess(defs)
-	tag := "Microsoft.Storage/storageAccounts@" + ver
 	for _, d := range defs {
 		if d.Name == tag {
 			return d.Body

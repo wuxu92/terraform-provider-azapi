@@ -18,55 +18,70 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator/customizers"
 )
 
-// storageNamespaceDir holds the embedded bicep types for the Microsoft.Storage
-// namespace: one types.json per API version directory (YYYY-MM-DD[-preview]).
-const storageNamespaceDir = "internal/azure/generated/storage/microsoft.storage"
+// indexPath is the bicep-types manifest. It maps every "<ARMType>@<version>" to
+// the types.json that defines it, so it is the only path this command needs to
+// know: the latest stable API version and the types.json location for each target
+// are resolved from it (no per-namespace directory is hardcoded).
+const indexPath = "internal/azure/generated/index.json"
+
+// targets lists the ARM resource types to generate. For each, the latest stable
+// API version and its types.json are resolved through the manifest, so adding a
+// resource is one line here (plus its customizer, if any).
+var targets = []string{
+	armtypes.StorageAccount,
+	armtypes.StorageAccountBlobService,
+}
 
 func main() {
-	// Always generate from the latest STABLE (non-preview) API version available in
-	// the embedded types, so vendoring a newer types.json automatically rolls the
+	idx, err := generator.LoadIndex(indexPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading %s: %v\n", indexPath, err)
+		os.Exit(1)
+	}
+
+	// Resolve each target to its latest-stable tag + types.json via the manifest,
+	// then load + process each distinct types.json once (sibling resources such as
+	// storageAccounts and its blobServices child share one file). Always picking
+	// the latest STABLE version means vendoring a newer index/types.json rolls the
 	// generated schema forward without editing this command.
-	apiVersion, err := generator.LatestStableVersion(storageNamespaceDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error resolving latest stable API version: %v\n", err)
-		os.Exit(1)
+	byName := map[string]*generator.ResourceDefinition{}
+	tags := make([]string, 0, len(targets))
+	loaded := map[string]bool{}
+	for _, armType := range targets {
+		tag, typesPath, err := idx.ResolveLatestStable(armType)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error resolving %s: %v\n", armType, err)
+			os.Exit(1)
+		}
+		tags = append(tags, tag)
+		if loaded[typesPath] {
+			continue
+		}
+		loaded[typesPath] = true
+
+		data, err := os.ReadFile(typesPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading %s: %v\n", typesPath, err)
+			os.Exit(1)
+		}
+		defs, err := generator.ParseTypesJSON(data)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing %s: %v\n", typesPath, err)
+			os.Exit(1)
+		}
+		// Post-process (defaults, validators, azwise overlay, envelope spec), then
+		// per-resource developer customizers so hand-written Go has the final say.
+		generator.PostProcess(defs)
+		customizers.Apply(defs)
+		for _, d := range defs {
+			byName[d.Name] = d
+		}
 	}
 
-	// targets lists the resources to generate from this version's types.json, as
-	// fully-qualified "<ARMType>@<version>" tags. Add an ARM type here (and its
-	// customizer, if any) to generate another resource from the same namespace.
-	targets := []string{
-		armtypes.StorageAccount + "@" + apiVersion,
-		armtypes.StorageAccountBlobService + "@" + apiVersion,
-	}
-
-	typesPath := filepath.Join(storageNamespaceDir, apiVersion, "types.json")
-	data, err := os.ReadFile(typesPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading %s: %v\n", typesPath, err)
-		os.Exit(1)
-	}
-
-	defs, err := generator.ParseTypesJSON(data)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing types.json: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Apply post-processing (defaults, validators, azwise overlay, envelope spec),
-	// then run per-resource developer customizers so hand-written Go has the final say.
-	generator.PostProcess(defs)
-	customizers.Apply(defs)
-
-	byName := make(map[string]*generator.ResourceDefinition, len(defs))
-	for _, d := range defs {
-		byName[d.Name] = d
-	}
-
-	for _, tag := range targets {
+	for _, tag := range tags {
 		def := byName[tag]
 		if def == nil {
-			fmt.Fprintf(os.Stderr, "resource %s not found in %s\n", tag, typesPath)
+			fmt.Fprintf(os.Stderr, "resource %s not found in its types.json\n", tag)
 			os.Exit(1)
 		}
 		if err := generate(def); err != nil {

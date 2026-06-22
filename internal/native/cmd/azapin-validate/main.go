@@ -10,13 +10,11 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator/customizers"
@@ -52,19 +50,11 @@ func main() {
 	// project root is 4 levels up
 	projectRoot := resolveProjectRoot()
 
-	// Load the index file for types.json path resolution
+	// Load the bicep-types manifest; types.json paths come from its $ref entries.
 	indexPath := filepath.Join(projectRoot, "internal", "azure", "generated", "index.json")
-	indexData, err := os.ReadFile(indexPath)
+	idx, err := generator.LoadIndex(indexPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading index.json at %s: %v\n", indexPath, err)
-		os.Exit(1)
-	}
-
-	var index struct {
-		Resources map[string]json.RawMessage `json:"resources"`
-	}
-	if err := json.Unmarshal(indexData, &index); err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing index.json: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error loading %s: %v\n", indexPath, err)
 		os.Exit(1)
 	}
 
@@ -78,8 +68,8 @@ func main() {
 		// Resource tag comes straight from the descriptor.
 		tag := d.ARMType + "@" + d.APIVersion
 
-		// Find the types.json path from the index
-		typesPath, err := resolveTypesPath(tag, index.Resources, projectRoot)
+		// Find the types.json path from the manifest.
+		typesPath, err := idx.TypesPath(tag)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "SKIP %s: %v\n", name, err)
 			continue
@@ -179,46 +169,4 @@ func resolveProjectRoot() string {
 		root = filepath.Dir(root)
 	}
 	return root
-}
-
-// resolveTypesPath finds the types.json file for a given "ResourceType@Version" tag.
-func resolveTypesPath(tag string, resources map[string]json.RawMessage, projectRoot string) (string, error) {
-	// Check if the tag exists directly in the index
-	if _, ok := resources[tag]; ok {
-		return tagToTypesPath(tag, projectRoot)
-	}
-
-	// Try case-insensitive match
-	tagLower := strings.ToLower(tag)
-	for key := range resources {
-		if strings.ToLower(key) == tagLower {
-			return tagToTypesPath(key, projectRoot)
-		}
-	}
-
-	return "", fmt.Errorf("resource %q not found in index.json", tag)
-}
-
-func tagToTypesPath(tag string, projectRoot string) (string, error) {
-	// Split: Microsoft.Storage/storageAccounts@2025-01-01
-	parts := strings.SplitN(tag, "@", 2)
-	if len(parts) != 2 {
-		return "", fmt.Errorf("invalid tag format: %s (expected ResourceType@Version)", tag)
-	}
-	resourceType := parts[0] // Microsoft.Storage/storageAccounts
-	apiVersion := parts[1]   // 2025-01-01
-
-	// Split resource type: Microsoft.Storage/storageAccounts → Microsoft.Storage, storageAccounts
-	rtParts := strings.SplitN(resourceType, "/", 2)
-	if len(rtParts) < 2 {
-		return "", fmt.Errorf("invalid resource type: %s", resourceType)
-	}
-	namespace := strings.ToLower(rtParts[0]) // microsoft.storage
-
-	// Service directory: microsoft.storage → storage
-	nsParts := strings.Split(namespace, ".")
-	service := nsParts[len(nsParts)-1] // storage
-
-	path := filepath.Join(projectRoot, "internal", "azure", "generated", service, namespace, apiVersion, "types.json")
-	return path, nil
 }
