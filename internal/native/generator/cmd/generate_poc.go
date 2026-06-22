@@ -30,6 +30,7 @@ const indexPath = "internal/azure/generated/index.json"
 var targets = []string{
 	armtypes.StorageAccount,
 	armtypes.StorageAccountBlobService,
+	armtypes.ResourceGroup,
 }
 
 func main() {

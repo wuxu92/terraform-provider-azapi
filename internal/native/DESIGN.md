@@ -94,6 +94,7 @@ Where:
 |---|---|
 | `Microsoft.Storage/storageAccounts` | `azapi_storage_account` |
 | `Microsoft.Storage/storageAccounts/blobServices` | `azapi_storage_account_blob_service` |
+| `Microsoft.Resources/resourceGroups` | `azapi_resource_group` |
 | `Microsoft.KeyVault/vaults` | `azapi_keyvault_vault` |
 | `Microsoft.KeyVault/vaults/keys` | `azapi_keyvault_vault_key` |
 | `Microsoft.Network/virtualNetworks` | `azapi_network_virtual_network` |
@@ -186,9 +187,9 @@ Generate all 2,631 stable resource types. Ship alongside `azapi_resource`.
 | Post-processing | ✓ Complete | `generator/postprocess.go` |
 | Schema emitter | ✓ Complete | `generator/emitter.go`, `emitter_test.go` |
 | Runtime defaults | ✓ Complete | `schema/defaults.go` |
-| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service` | `generated/storage/*_gen.go` |
+| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group` | `generated/{storage,resources}/*_gen.go` |
 | Generator command | ✓ Working | `generator/cmd/generate_poc.go` |
 | CRUD methods | ✓ Complete | `resource/base.go`, `mapper/mapper.go` |
 | Provider registration | ✓ Complete | `internal/provider/provider.go` (iterates `generated.Registry`) |
 | Schema customization | ✓ Complete | `generator/customizers/` |
-| Full generation tool | ◐ PoC (storage service) | `generator/cmd/generate_poc.go` |
+| Full generation tool | ◐ PoC (storage + resources services) | `generator/cmd/generate_poc.go` |

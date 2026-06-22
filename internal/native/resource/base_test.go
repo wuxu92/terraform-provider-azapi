@@ -94,6 +94,48 @@ func TestBlobServiceSchemaComposition(t *testing.T) {
 	}
 }
 
+func TestResourceGroupSchemaComposition(t *testing.T) {
+	ctx := context.Background()
+	r := New("azapi_resource_group")
+
+	// Metadata: provider prefix + resource suffix.
+	mdResp := &resource.MetadataResponse{}
+	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
+	if mdResp.TypeName != "azapi_resource_group" {
+		t.Errorf("TypeName = %q, want azapi_resource_group", mdResp.TypeName)
+	}
+
+	// Schema: composed (envelope + body), and framework-valid.
+	schemaResp := &resource.SchemaResponse{}
+	r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+	if diags := s.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("schema validation failed: %v", diags)
+	}
+
+	// resourceGroups is a subscription-scoped top-level resource: its parent
+	// reference is named subscription_id, not resource_group_id or parent_id.
+	for _, name := range []string{"name", "subscription_id", "id"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing envelope attribute %q", name)
+		}
+	}
+	for _, absent := range []string{"resource_group_id", "parent_id"} {
+		if _, ok := s.Attributes[absent]; ok {
+			t.Errorf("resource group should expose subscription_id, not %q", absent)
+		}
+	}
+	if _, ok := s.Blocks["timeouts"]; !ok {
+		t.Error("missing timeouts block")
+	}
+	// Body attributes present (from the generated schema).
+	for _, name := range []string{"location", "managed_by", "properties"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing body attribute %q", name)
+		}
+	}
+}
+
 func TestInterfaceAssertions(t *testing.T) {
 	r := New("azapi_storage_account")
 	if _, ok := r.(resource.ResourceWithConfigure); !ok {

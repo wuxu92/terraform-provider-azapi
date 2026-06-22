@@ -104,3 +104,28 @@ func latestStorageDefs(t *testing.T) ([]*ResourceDefinition, string) {
 	ver := tag[len("Microsoft.Storage/storageAccounts@"):]
 	return defs, ver
 }
+
+// latestResourceGroupDefs loads and parses the resources types.json for the latest
+// stable resourceGroups API version (resolved through the manifest), mirroring
+// latestStorageDefs for the resources service.
+func latestResourceGroupDefs(t *testing.T) ([]*ResourceDefinition, string) {
+	t.Helper()
+	idx, err := LoadIndex(testIndexPath())
+	if err != nil {
+		t.Skipf("no index.json: %v", err)
+	}
+	tag, typesPath, err := idx.ResolveLatestStable("Microsoft.Resources/resourceGroups")
+	if err != nil {
+		t.Skipf("no stable resource group version: %v", err)
+	}
+	data, err := os.ReadFile(typesPath)
+	if err != nil {
+		t.Skipf("types.json not found: %v", err)
+	}
+	defs, err := ParseTypesJSON(data)
+	if err != nil {
+		t.Fatalf("ParseTypesJSON: %v", err)
+	}
+	ver := tag[len("Microsoft.Resources/resourceGroups@"):]
+	return defs, ver
+}

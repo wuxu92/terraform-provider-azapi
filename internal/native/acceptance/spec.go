@@ -48,6 +48,7 @@ type Spec struct {
 	label      string
 	parentTpl  string
 	nameFn     func(acceptance.TestData) string
+	parentRef  string
 }
 
 // NewSpec builds a Spec for a generated resource. The ARM type and API version are
@@ -68,12 +69,20 @@ func NewSpec(tfType string) *Spec {
 		label:      "test",
 		parentTpl:  defaultParentTemplate,
 		nameFn:     defaultName,
+		parentRef:  defaultParentRef,
 	}
 }
 
 // WithParent overrides the parent template. The template must declare a resource
 // labelled "parent" whose `.id` is referenced as the resource's parent_id.
 func (s *Spec) WithParent(tpl string) *Spec { s.parentTpl = tpl; return s }
+
+// WithParentRef overrides the HCL expression assigned to the parent attribute.
+// The default references the provisioned parent resource (azapi_resource.parent.id);
+// subscription- or management-group-scoped resources have no parent resource and set
+// a scope-ID literal instead (e.g. "/subscriptions/{{.SubscriptionID}}"). The
+// expression is template-rendered, so it may use the standard template variables.
+func (s *Spec) WithParentRef(ref string) *Spec { s.parentRef = ref; return s }
 
 // WithName overrides the resource-name generator.
 func (s *Spec) WithName(fn func(acceptance.TestData) string) *Spec { s.nameFn = fn; return s }
@@ -183,6 +192,10 @@ resource "azapi_resource" "parent" {
 }
 `
 
+// defaultParentRef is the HCL expression the parent attribute is set to when the
+// parent is a provisioned resource labelled "parent".
+const defaultParentRef = "azapi_resource.parent.id"
+
 const resourceBlockTemplate = `
 resource "{{.Type}}" "{{.Label}}" {
   name      = "{{.Name}}"
@@ -202,8 +215,8 @@ func (s *Spec) renderConfig(td acceptance.TestData, name, body string) string {
 		Type:           s.tfType,
 		Label:          s.label,
 		ParentAttr:     generated.Registry[s.tfType].ParentAttr,
-		ParentRef:      "azapi_resource.parent.id",
 	}
+	data.ParentRef = render(s.parentRef, data)
 	// Render the body fragment first so it may use the same template variables,
 	// then inject the result into the resource block (avoids double-render).
 	data.Body = indent(render(body, data), "  ")

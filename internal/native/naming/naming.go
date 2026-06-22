@@ -36,14 +36,36 @@ func ResourceName(armType string) string {
 		segments = append(segments, snake)
 	}
 
-	// Strip redundant service prefix from first segment
-	// e.g., storage/storageAccounts → storage + storage_account → strip to account
-	if len(segments) > 0 && strings.HasPrefix(segments[0], service+"_") {
-		segments[0] = segments[0][len(service)+1:]
+	// Flatten the service word and every segment word into one token list, then
+	// drop any token a later token repeats (singular/plural-insensitive), keeping
+	// the last occurrence. This removes the stutter a mechanical service-prefix +
+	// segment join produces — "storage"+"storage_account" -> "storage_account",
+	// "resources"+"resource_group" -> "resource_group", "network"+"virtual_network"
+	// -> "virtual_network" — without dropping a word the name still needs.
+	tokens := []string{service}
+	for _, seg := range segments {
+		tokens = append(tokens, strings.Split(seg, "_")...)
 	}
+	return "azapi_" + strings.Join(dedupRepeatedWords(tokens), "_")
+}
 
-	resourceName := strings.Join(segments, "_")
-	return "azapi_" + service + "_" + resourceName
+// dedupRepeatedWords returns tokens with repeated word-classes collapsed to their
+// last occurrence, comparing singular and plural forms as equal. Order of the
+// survivors is preserved, so ["resources","resource","group"] becomes
+// ["resource","group"] and ["network","virtual","network"] becomes
+// ["virtual","network"].
+func dedupRepeatedWords(tokens []string) []string {
+	last := make(map[string]int, len(tokens))
+	for i, t := range tokens {
+		last[singularize(t)] = i
+	}
+	out := make([]string, 0, len(tokens))
+	for i, t := range tokens {
+		if last[singularize(t)] == i {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // ServiceName returns the service folder/package name for an ARM resource type:

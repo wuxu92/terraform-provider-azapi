@@ -178,3 +178,45 @@ func TestDropValidators(t *testing.T) {
 		t.Fatalf("dropValidators left %d validators, want 1 Regex: %+v", len(prop.Validators), prop.Validators)
 	}
 }
+
+// TestApplyAzwiseResourceGroup verifies the azwise overlay flags location as
+// ForceNew and bakes the managed_by non-empty rule (StringIsNotEmpty -> length)
+// into the resource group body.
+func TestApplyAzwiseResourceGroup(t *testing.T) {
+	defs, ver := latestResourceGroupDefs(t)
+	PostProcess(defs)
+
+	tag := "Microsoft.Resources/resourceGroups@" + ver
+	var rg *ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			rg = d
+			break
+		}
+	}
+	if rg == nil {
+		t.Fatal("resource group definition not found")
+	}
+
+	// location is ForceNew via azwise (commonschema.Location).
+	if p := navigate(rg.Body, "location"); p == nil {
+		t.Fatal("location not found")
+	} else if !p.ForceNew {
+		t.Error("expected location to be ForceNew via azwise")
+	}
+
+	// managed_by carries a length validator from azwise (StringIsNotEmpty).
+	mb := navigate(rg.Body, "managedBy")
+	if mb == nil {
+		t.Fatal("managedBy not found")
+	}
+	hasLen := false
+	for _, v := range mb.Validators {
+		if v.Kind == ValidatorStringLength {
+			hasLen = true
+		}
+	}
+	if !hasLen {
+		t.Error("expected a length validator on managedBy from azwise")
+	}
+}

@@ -16,4 +16,8 @@ const (
 	// StorageAccountBlobService is Microsoft.Storage/storageAccounts/blobServices,
 	// the singleton blob-service child of a storage account (name always "default").
 	StorageAccountBlobService = "Microsoft.Storage/storageAccounts/blobServices"
+
+	// ResourceGroup is Microsoft.Resources/resourceGroups, a subscription-scoped
+	// top-level resource (envelope parent: subscription_id).
+	ResourceGroup = "Microsoft.Resources/resourceGroups"
 )
