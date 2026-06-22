@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
@@ -71,17 +70,11 @@ func TestFormatAzwiseDefault(t *testing.T) {
 // TestApplyAzwiseStorageAccount verifies the azwise overlay flags real storage
 // account properties as ForceNew and applies verified defaults.
 func TestApplyAzwiseStorageAccount(t *testing.T) {
-	data, err := os.ReadFile("../../azure/generated/storage/microsoft.storage/2025-01-01/types.json")
-	if err != nil {
-		t.Skipf("types.json not found: %v", err)
-	}
-	defs, err := ParseTypesJSON(data)
-	if err != nil {
-		t.Fatalf("ParseTypesJSON: %v", err)
-	}
+	defs, ver := latestStorageDefs(t)
+	tag := "Microsoft.Storage/storageAccounts@" + ver
 	var sa *ResourceDefinition
 	for _, d := range defs {
-		if d.Name == "Microsoft.Storage/storageAccounts@2025-01-01" {
+		if d.Name == tag {
 			sa = d
 			break
 		}
@@ -124,14 +117,7 @@ func TestApplyAzwiseStorageAccount(t *testing.T) {
 // validation rules into the generated body and — critically — that an azwise
 // int-range rule replaces (does not stack onto) the description-mined one.
 func TestApplyAzwiseBlobService(t *testing.T) {
-	data, err := os.ReadFile("../../azure/generated/storage/microsoft.storage/2025-01-01/types.json")
-	if err != nil {
-		t.Skipf("types.json not found: %v", err)
-	}
-	defs, err := ParseTypesJSON(data)
-	if err != nil {
-		t.Fatalf("ParseTypesJSON: %v", err)
-	}
+	defs, _ := latestStorageDefs(t)
 	// Full post-processing runs description mining AND the azwise overlay — the
 	// combination that previously double-stacked the int-range validator.
 	PostProcess(defs)

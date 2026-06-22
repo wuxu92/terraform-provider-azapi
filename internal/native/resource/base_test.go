@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	// Populate generated.Registry so New("azapi_storage_account") resolves.
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -119,7 +120,8 @@ func TestStorageAccountHookRegistered(t *testing.T) {
 }
 
 func TestLoadStorageBody(t *testing.T) {
-	body, err := loadBody("Microsoft.Storage/storageAccounts", "2025-01-01")
+	d := generated.Registry["azapi_storage_account"]
+	body, err := loadBody(d.ARMType, d.APIVersion)
 	if err != nil {
 		t.Fatalf("loadBody: %v", err)
 	}
@@ -127,7 +129,7 @@ func TestLoadStorageBody(t *testing.T) {
 		t.Fatal("storage body missing sku")
 	}
 	// Cached on second call.
-	body2, _ := loadBody("Microsoft.Storage/storageAccounts", "2025-01-01")
+	body2, _ := loadBody(d.ARMType, d.APIVersion)
 	if body2 != body {
 		t.Error("loadBody not cached")
 	}

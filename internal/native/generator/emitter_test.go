@@ -1,25 +1,17 @@
 package generator
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
 
 func TestEmitStorageAccountSchema(t *testing.T) {
-	data, err := os.ReadFile("../../azure/generated/storage/microsoft.storage/2025-01-01/types.json")
-	if err != nil {
-		t.Skipf("types.json not found: %v", err)
-	}
-
-	defs, err := ParseTypesJSON(data)
-	if err != nil {
-		t.Fatalf("ParseTypesJSON: %v", err)
-	}
+	defs, ver := latestStorageDefs(t)
+	tag := "Microsoft.Storage/storageAccounts@" + ver
 
 	var sa *ResourceDefinition
 	for _, d := range defs {
-		if d.Name == "Microsoft.Storage/storageAccounts@2025-01-01" {
+		if d.Name == tag {
 			sa = d
 			break
 		}

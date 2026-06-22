@@ -3,6 +3,7 @@ package validate
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
@@ -12,8 +13,24 @@ import (
 )
 
 func TestStorageAccountSchemaAgainstBicep(t *testing.T) {
-	typesPath := filepath.Join("..", "..", "azure", "generated", "storage", "microsoft.storage", "2025-01-01", "types.json")
+	// Validate the compiled schema against the bicep body for the SAME API version
+	// it was generated at — read from the schema's [azapin:<type>@<version>] tag —
+	// rather than a hardcoded version that silently drifts from the generator.
+	s := generated.Registry["azapi_storage_account"].Schema()
 
+	tag, ok := ExtractResourceTag(s.Description)
+	if !ok {
+		t.Fatal("no [azapin:...] tag in Description")
+	}
+	t.Logf("Tag: %s", tag)
+
+	at := strings.LastIndex(tag, "@")
+	if at < 0 {
+		t.Fatalf("tag %q has no @version", tag)
+	}
+	apiVersion := tag[at+1:]
+
+	typesPath := filepath.Join("..", "..", "azure", "generated", "storage", "microsoft.storage", apiVersion, "types.json")
 	data, err := os.ReadFile(typesPath)
 	if err != nil {
 		t.Skipf("types.json not found: %v", err)
@@ -23,29 +40,17 @@ func TestStorageAccountSchemaAgainstBicep(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseTypesJSON: %v", err)
 	}
-
 	generator.PostProcess(defs)
 
 	var body *generator.Type
 	for _, d := range defs {
-		if d.Name == "Microsoft.Storage/storageAccounts@2025-01-01" {
+		if d.Name == tag {
 			body = d.Body
 			break
 		}
 	}
 	if body == nil {
 		t.Fatal("storage account body not found")
-	}
-
-	// Get the compiled schema
-	s := generated.Registry["azapi_storage_account"].Schema()
-
-	// Verify the azapin tag is present
-	tag, ok := ExtractResourceTag(s.Description)
-	if !ok {
-		t.Error("no [azapin:...] tag in Description")
-	} else {
-		t.Logf("Tag: %s", tag)
 	}
 
 	// Validate; exclude the synthesized envelope attributes (name / parent / id).

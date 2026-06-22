@@ -6,7 +6,7 @@ import (
 )
 
 var _ = Describe("azapi_storage_account", func() {
-	spec := NewSpec("azapi_storage_account", "Microsoft.Storage/storageAccounts", "2025-01-01")
+	spec := NewSpec("azapi_storage_account")
 
 	// The generated schema models sku/properties as nested *attributes*, so HCL
 	// uses assignment syntax (`sku = { ... }`), not blocks.
@@ -106,6 +106,6 @@ sku = {
 
 var _ = Describe("framework", func() {
 	It("builds a spec without panicking", func() {
-		Expect(NewSpec("azapi_storage_account", "Microsoft.Storage/storageAccounts", "2025-01-01")).NotTo(BeNil())
+		Expect(NewSpec("azapi_storage_account")).NotTo(BeNil())
 	})
 })

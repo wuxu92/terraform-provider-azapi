@@ -3,6 +3,7 @@ package mapper
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
@@ -14,7 +15,12 @@ import (
 // loadStorageBody parses the storage account bicep body type graph.
 func loadStorageBody(t *testing.T) *generator.Type {
 	t.Helper()
-	data, err := os.ReadFile("../../azure/generated/storage/microsoft.storage/2025-01-01/types.json")
+	dir := filepath.Join("..", "..", "azure", "generated", "storage", "microsoft.storage")
+	ver, err := generator.LatestStableVersion(dir)
+	if err != nil {
+		t.Skipf("no stable storage version: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ver, "types.json"))
 	if err != nil {
 		t.Skipf("types.json not found: %v", err)
 	}
@@ -23,8 +29,9 @@ func loadStorageBody(t *testing.T) *generator.Type {
 		t.Fatalf("ParseTypesJSON: %v", err)
 	}
 	generator.PostProcess(defs)
+	tag := "Microsoft.Storage/storageAccounts@" + ver
 	for _, d := range defs {
-		if d.Name == "Microsoft.Storage/storageAccounts@2025-01-01" {
+		if d.Name == tag {
 			return d.Body
 		}
 	}

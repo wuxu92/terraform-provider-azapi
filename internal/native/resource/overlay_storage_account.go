@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
+	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -40,7 +41,10 @@ func storageAccountModifyPlan(ctx context.Context, req resource.ModifyPlanReques
 	oldBody := map[string]interface{}{"sku": map[string]interface{}{"name": oldName.ValueString()}}
 	newBody := map[string]interface{}{"sku": map[string]interface{}{"name": newName.ValueString()}}
 
-	if azwise.CheckForceNew("Microsoft.Storage/storageAccounts", "2025-01-01", oldBody, newBody) {
+	// Look up the ARM type + API version from the shipped descriptor so this stays
+	// correct when the generator rolls the resource forward to a newer version.
+	d := generated.Registry["azapi_storage_account"]
+	if azwise.CheckForceNew(d.ARMType, d.APIVersion, oldBody, newBody) {
 		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("sku"))
 	}
 }

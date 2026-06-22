@@ -17,7 +17,7 @@ resource "azapi_resource" "rg" {
 }
 
 resource "azapi_resource" "parent" {
-  type      = "Microsoft.Storage/storageAccounts@2025-01-01"
+  type      = "Microsoft.Storage/storageAccounts@2025-06-01"
   name      = "acctestsa{{.RandomString}}"
   parent_id = azapi_resource.rg.id
   location  = "{{.Location}}"
@@ -31,8 +31,7 @@ resource "azapi_resource" "parent" {
 var _ = Describe("azapi_storage_account_blob_service", func() {
 	// blobServices is a singleton child whose ARM name is always "default", so the
 	// name is pinned (the OneOf("default") envelope validator rejects anything else).
-	spec := NewSpec("azapi_storage_account_blob_service",
-		"Microsoft.Storage/storageAccounts/blobServices", "2025-01-01").
+	spec := NewSpec("azapi_storage_account_blob_service").
 		WithParent(blobServiceParent).
 		WithName(func(acceptance.TestData) string { return "default" })
 

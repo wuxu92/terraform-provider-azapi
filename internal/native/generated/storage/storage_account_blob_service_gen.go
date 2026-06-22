@@ -19,10 +19,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiStorageAccountBlobServiceSchema returns the Terraform resource schema for Microsoft.Storage/storageAccounts/blobServices@2025-01-01.
+// AzapiStorageAccountBlobServiceSchema returns the Terraform resource schema for Microsoft.Storage/storageAccounts/blobServices@2025-06-01.
 func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 	return schema.Schema{
-		Description: "Manages a Microsoft.Storage/storageAccounts/blobServices resource. [azapin:Microsoft.Storage/storageAccounts/blobServices@2025-01-01]",
+		Description: "Manages a Microsoft.Storage/storageAccounts/blobServices resource. [azapin:Microsoft.Storage/storageAccounts/blobServices@2025-06-01]",
 		Attributes: map[string]schema.Attribute{
 			"properties": schema.SingleNestedAttribute{
 				Description: "The properties of a storage account’s Blob service.",
@@ -349,6 +349,79 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 					},
 				},
 			},
+			"system_data": schema.SingleNestedAttribute{
+				Description: "Azure Resource Manager metadata containing createdBy and modifiedBy information.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
+				Attributes: map[string]schema.Attribute{
+					"created_at": schema.StringAttribute{
+						Description: "The timestamp of resource creation (UTC).",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"created_by": schema.StringAttribute{
+						Description: "The identity that created the resource.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"created_by_type": schema.StringAttribute{
+						Description: "The type of identity that created the resource.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"User",
+								"Application",
+								"ManagedIdentity",
+								"Key",
+							),
+						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_at": schema.StringAttribute{
+						Description: "The timestamp of resource last modification (UTC)",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_by": schema.StringAttribute{
+						Description: "The identity that last modified the resource.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_by_type": schema.StringAttribute{
+						Description: "The type of identity that last modified the resource.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"User",
+								"Application",
+								"ManagedIdentity",
+								"Key",
+							),
+						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+				},
+			},
 			"name": schema.StringAttribute{
 				Required:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
@@ -383,7 +456,7 @@ func init() {
 	generated.Register(generated.Descriptor{
 		Name:           "azapi_storage_account_blob_service",
 		ARMType:        "Microsoft.Storage/storageAccounts/blobServices",
-		APIVersion:     "2025-01-01",
+		APIVersion:     "2025-06-01",
 		Schema:         AzapiStorageAccountBlobServiceSchema,
 		WritableScopes: 8,
 		ParentAttr:     "storage_account_id",

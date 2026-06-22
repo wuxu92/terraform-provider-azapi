@@ -19,10 +19,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiStorageAccountSchema returns the Terraform resource schema for Microsoft.Storage/storageAccounts@2025-01-01.
+// AzapiStorageAccountSchema returns the Terraform resource schema for Microsoft.Storage/storageAccounts@2025-06-01.
 func AzapiStorageAccountSchema() schema.Schema {
 	return schema.Schema{
-		Description: "Manages a Microsoft.Storage/storageAccounts resource. [azapin:Microsoft.Storage/storageAccounts@2025-01-01]",
+		Description: "Manages a Microsoft.Storage/storageAccounts resource. [azapin:Microsoft.Storage/storageAccounts@2025-06-01]",
 		Attributes: map[string]schema.Attribute{
 			"extended_location": schema.SingleNestedAttribute{
 				Description: "Optional. Set the extended location of the resource. If not set, the storage account will be created in Azure main region. Otherwise it will be created in the specified extended location",
@@ -748,6 +748,20 @@ func AzapiStorageAccountSchema() schema.Schema {
 							boolplanmodifier.UseStateForUnknown(),
 						},
 					},
+					"geo_priority_replication_status": schema.SingleNestedAttribute{
+						Description: "Status indicating whether Geo Priority Replication is enabled for the account.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+						Attributes: map[string]schema.Attribute{
+							"is_blob_enabled": schema.BoolAttribute{
+								Description: "Indicates whether Blob Geo Priority Replication is enabled for the storage account.",
+								Required:    true,
+							},
+						},
+					},
 					"geo_replication_stats": schema.SingleNestedAttribute{
 						Description: "Geo Replication Stats",
 						Computed:    true,
@@ -1423,7 +1437,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
 								"id": schema.StringAttribute{
-									Description: "Fully qualified resource ID for the resource. Ex - /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}",
+									Description: "Fully qualified resource ID for the resource. E.g. \\\"/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}\\\"",
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
 										stringplanmodifier.UseStateForUnknown(),
@@ -1496,6 +1510,79 @@ func AzapiStorageAccountSchema() schema.Schema {
 										"provisioning_state": schema.StringAttribute{
 											Description: "The provisioning state of the private endpoint connection resource.",
 											Computed:    true,
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
+										},
+									},
+								},
+								"system_data": schema.SingleNestedAttribute{
+									Description: "Azure Resource Manager metadata containing createdBy and modifiedBy information.",
+									Computed:    true,
+									PlanModifiers: []planmodifier.Object{
+										objectplanmodifier.UseStateForUnknown(),
+									},
+									Attributes: map[string]schema.Attribute{
+										"created_at": schema.StringAttribute{
+											Description: "The timestamp of resource creation (UTC).",
+											Optional:    true,
+											Computed:    true,
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
+										},
+										"created_by": schema.StringAttribute{
+											Description: "The identity that created the resource.",
+											Optional:    true,
+											Computed:    true,
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
+										},
+										"created_by_type": schema.StringAttribute{
+											Description: "The type of identity that created the resource.",
+											Optional:    true,
+											Computed:    true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(
+													"User",
+													"Application",
+													"ManagedIdentity",
+													"Key",
+												),
+											},
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
+										},
+										"last_modified_at": schema.StringAttribute{
+											Description: "The timestamp of resource last modification (UTC)",
+											Optional:    true,
+											Computed:    true,
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
+										},
+										"last_modified_by": schema.StringAttribute{
+											Description: "The identity that last modified the resource.",
+											Optional:    true,
+											Computed:    true,
+											PlanModifiers: []planmodifier.String{
+												stringplanmodifier.UseStateForUnknown(),
+											},
+										},
+										"last_modified_by_type": schema.StringAttribute{
+											Description: "The type of identity that last modified the resource.",
+											Optional:    true,
+											Computed:    true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(
+													"User",
+													"Application",
+													"ManagedIdentity",
+													"Key",
+												),
+											},
 											PlanModifiers: []planmodifier.String{
 												stringplanmodifier.UseStateForUnknown(),
 											},
@@ -1984,6 +2071,79 @@ func AzapiStorageAccountSchema() schema.Schema {
 					},
 				},
 			},
+			"system_data": schema.SingleNestedAttribute{
+				Description: "Azure Resource Manager metadata containing createdBy and modifiedBy information.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
+				Attributes: map[string]schema.Attribute{
+					"created_at": schema.StringAttribute{
+						Description: "The timestamp of resource creation (UTC).",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"created_by": schema.StringAttribute{
+						Description: "The identity that created the resource.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"created_by_type": schema.StringAttribute{
+						Description: "The type of identity that created the resource.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"User",
+								"Application",
+								"ManagedIdentity",
+								"Key",
+							),
+						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_at": schema.StringAttribute{
+						Description: "The timestamp of resource last modification (UTC)",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_by": schema.StringAttribute{
+						Description: "The identity that last modified the resource.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_by_type": schema.StringAttribute{
+						Description: "The type of identity that last modified the resource.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"User",
+								"Application",
+								"ManagedIdentity",
+								"Key",
+							),
+						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+				},
+			},
 			"tags": schema.SingleNestedAttribute{
 				Description: "Gets or sets a list of key value pairs that describe the resource. These tags can be used for viewing and grouping this resource (across resource groups). A maximum of 15 tags can be provided for a re...",
 				Optional:    true,
@@ -2038,7 +2198,7 @@ func init() {
 	generated.Register(generated.Descriptor{
 		Name:           "azapi_storage_account",
 		ARMType:        "Microsoft.Storage/storageAccounts",
-		APIVersion:     "2025-01-01",
+		APIVersion:     "2025-06-01",
 		Schema:         AzapiStorageAccountSchema,
 		WritableScopes: 8,
 		ParentAttr:     "resource_group_id",

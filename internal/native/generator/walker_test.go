@@ -7,15 +7,8 @@ import (
 )
 
 func TestParseStorageAccount(t *testing.T) {
-	data, err := os.ReadFile("../../azure/generated/storage/microsoft.storage/2025-01-01/types.json")
-	if err != nil {
-		t.Skipf("types.json not found: %v", err)
-	}
-
-	defs, err := ParseTypesJSON(data)
-	if err != nil {
-		t.Fatalf("ParseTypesJSON: %v", err)
-	}
+	defs, ver := latestStorageDefs(t)
+	tag := "Microsoft.Storage/storageAccounts@" + ver
 
 	if len(defs) == 0 {
 		t.Fatal("no resource definitions found")
@@ -24,13 +17,13 @@ func TestParseStorageAccount(t *testing.T) {
 	// Find storage account
 	var sa *ResourceDefinition
 	for _, d := range defs {
-		if d.Name == "Microsoft.Storage/storageAccounts@2025-01-01" {
+		if d.Name == tag {
 			sa = d
 			break
 		}
 	}
 	if sa == nil {
-		t.Fatal("Microsoft.Storage/storageAccounts@2025-01-01 not found")
+		t.Fatalf("%s not found", tag)
 	}
 
 	t.Logf("Found %d resource definitions", len(defs))

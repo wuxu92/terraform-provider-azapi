@@ -414,6 +414,8 @@ to a `StringAttribute` instead. The generated schema is checked by
 
 For each ARM resource type, the generator selects the latest non-preview API version. This gives ~2,631 resources. Preview-only resource types are excluded — users fall back to `azapi_resource`.
 
+**Implementation:** `generator.LatestStableVersion(dir)` is the single source of truth. It lists the API-version directories under a namespace (`<service>/<namespace>/<YYYY-MM-DD>[-preview]/types.json`), drops every `*preview*` entry, and returns the lexicographic max — which for `YYYY-MM-DD` names is the newest stable date. The generation command, the post-compile validator, and **every test that loads a bicep fixture** resolve the version through this function. No version literal is hardcoded anywhere in the generation path, so vendoring a newer `types.json` automatically rolls the generated schema (and its tests) forward. A hardcoded version would silently pin generation to a stale API — exactly the failure this rule exists to prevent.
+
 **Rule 17: One Terraform resource per ARM resource type**
 
 Each ARM resource type produces exactly one Terraform resource, pinned to one API version. The resource name encodes the service and resource path but NOT the API version.

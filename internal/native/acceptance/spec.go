@@ -10,9 +10,7 @@
 //	    RunSpecs(t, "azapi_storage_account")
 //	}
 //
-//	var _ = Describe("azapi_storage_account", func() {
-//	    spec := nativeacc.NewSpec("azapi_storage_account",
-//	        "Microsoft.Storage/storageAccounts", "2025-01-01")
+//	    spec := nativeacc.NewSpec("azapi_storage_account")
 //	    It("creates, updates and imports", func() {
 //	        spec.Run(
 //	            nativeacc.Body(`location = "{{.Location}}" ... `).
@@ -52,14 +50,21 @@ type Spec struct {
 	nameFn     func(acceptance.TestData) string
 }
 
-// NewSpec builds a Spec for a generated resource. The defaults use an
+// NewSpec builds a Spec for a generated resource. The ARM type and API version are
+// read from the resource's generated descriptor (generated.Registry) so the
+// acceptance test always targets the SAME version the provider ships — never a
+// hardcoded version that drifts from the generator. The defaults use an
 // azapi_resource resource group as the parent and a lowercase-alphanumeric name
 // (safe for storage-style naming). Override with WithParent / WithName.
-func NewSpec(tfType, armType, apiVersion string) *Spec {
+func NewSpec(tfType string) *Spec {
+	d, ok := generated.Registry[tfType]
+	if !ok {
+		panic(fmt.Sprintf("nativeacc: no generated descriptor for %q", tfType))
+	}
 	return &Spec{
 		tfType:     tfType,
-		armType:    armType,
-		apiVersion: apiVersion,
+		armType:    d.ARMType,
+		apiVersion: d.APIVersion,
 		label:      "test",
 		parentTpl:  defaultParentTemplate,
 		nameFn:     defaultName,

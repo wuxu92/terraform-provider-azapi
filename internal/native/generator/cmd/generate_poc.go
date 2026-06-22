@@ -18,18 +18,29 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator/customizers"
 )
 
-const storageAPIVersion = "2025-01-01"
-
-// targets lists the resources to generate from the storage types.json, as
-// fully-qualified "<ARMType>@<version>" tags. Add a tag here (and its customizer,
-// if any) to generate another resource from the same types.json.
-var targets = []string{
-	armtypes.StorageAccount + "@" + storageAPIVersion,
-	armtypes.StorageAccountBlobService + "@" + storageAPIVersion,
-}
+// storageNamespaceDir holds the embedded bicep types for the Microsoft.Storage
+// namespace: one types.json per API version directory (YYYY-MM-DD[-preview]).
+const storageNamespaceDir = "internal/azure/generated/storage/microsoft.storage"
 
 func main() {
-	typesPath := filepath.Join("internal", "azure", "generated", "storage", "microsoft.storage", storageAPIVersion, "types.json")
+	// Always generate from the latest STABLE (non-preview) API version available in
+	// the embedded types, so vendoring a newer types.json automatically rolls the
+	// generated schema forward without editing this command.
+	apiVersion, err := generator.LatestStableVersion(storageNamespaceDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error resolving latest stable API version: %v\n", err)
+		os.Exit(1)
+	}
+
+	// targets lists the resources to generate from this version's types.json, as
+	// fully-qualified "<ARMType>@<version>" tags. Add an ARM type here (and its
+	// customizer, if any) to generate another resource from the same namespace.
+	targets := []string{
+		armtypes.StorageAccount + "@" + apiVersion,
+		armtypes.StorageAccountBlobService + "@" + apiVersion,
+	}
+
+	typesPath := filepath.Join(storageNamespaceDir, apiVersion, "types.json")
 	data, err := os.ReadFile(typesPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading %s: %v\n", typesPath, err)
