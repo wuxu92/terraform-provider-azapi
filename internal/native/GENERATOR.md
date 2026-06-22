@@ -4,6 +4,10 @@ This document describes the 17 technical rules and implementation details of the
 
 ## Adding a New Resource (end-to-end)
 
+> For the full worked walkthrough (with the azwise extraction in detail) plus the
+> **update/regenerate** and **API-version-upgrade** workflows, see
+> [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md). The checklist below is the terse version.
+
 Generating a new static resource from the ground up — with
 `Microsoft.Storage/storageAccounts/blobServices` (→ `azapi_storage_account_blob_service`)
 as the worked example — follows this ordered checklist. **Do not skip the azwise

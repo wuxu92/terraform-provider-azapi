@@ -9,19 +9,24 @@
 ## Architecture
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│ go generate ./internal/native/...                                      │
-│                                                                        │
-│  ┌──────────────┐     ┌─────────────────┐     ┌──────────────────────┐ │
-│  │ types.json   │───▶│    Generator     │────▶│ Generated Go files  │ │
-│  │ (bicep types)│     │                 │     │ (schema + CRUD)      │ │
-│  └──────────────┘     │  - Walker       │     └──────────────────────┘ │
-│                       │  - PostProcess  │                              │
-│  ┌──────────────┐     │  - Emitter      │     ┌──────────────────────┐ │
-│  │ overrides/   │───▶│  - Namer        │────▶│ Overlay hooks        │ │
-│  │ (manual)     │     └─────────────────┘     │ (ForceNew, etc.)     │ │
-│  └──────────────┘                             └──────────────────────┘ │
-└────────────────────────────────────────────────────────────────────────┘
+generation time:
+
+    internal/azure/generated/index.json + types.json   (embedded bicep types)
+    internal/azure/azwise/<resource>.go                 (curated AzureRM knowledge)
+    generator/customizers/<resource>.go                 (per-resource Go rules)
+                              |
+                              v
+    generator:  Walker -> PostProcess (+ApplyAzwise overlay, +operational envelope)
+                       -> customizers.Apply -> Emitter
+                              |
+                              v
+    internal/native/generated/<service>/<name>_gen.go
+        Schema() + Descriptor, self-registers into generated.Registry via init()
+
+runtime:
+
+    internal/native/resource (Base) serves Descriptor.Schema() + a timeouts block.
+    Per-resource CRUD behavior: resource/overlay_<name>.go via RegisterHooks.
 ```
 
 ### Components
@@ -35,24 +40,29 @@
 | `internal/native/naming` | ARM type → Terraform resource name + property name conversion |
 | `internal/native/schema` | Runtime utilities: `StaticBool`, `StaticString`, `StaticInt64` default implementations |
 | `internal/native/generated/` | Registry (`Registry`, `Descriptor`, `Register`); per-service sub-packages `generated/<service>/` hold the generated schemas + `validators/`; `generated/all` aggregates them |
-| `internal/native/overrides/` | Manual overlay files (ForceNew, custom validation, etc.) |
+| `internal/native/generator/customizers/` | Per-resource generation-time schema customizers (Rule 9d), keyed by ARM type via `register.go` |
+| `internal/azure/azwise/` | Curated AzureRM operational knowledge (ForceNew, validation, defaults, timeouts) overlaid at generation time (`ApplyAzwise`) |
+| `internal/native/resource/` | Runtime `Base` (generic CRUD), the mapper, and per-resource behavior hooks (`overlay_<name>.go`, `RegisterHooks`) |
 
 ### Generation Pipeline
 
 ```
-types.json → ParseTypesJSON() → PostProcess() → EmitSchema() → Go source
+index.json → ResolveLatestStable → ParseTypesJSON → PostProcess (+ApplyAzwise,
+  +envelope) → customizers.Apply → EmitSchema → Go source
 ```
 
-1. Load `internal/azure/generated/index.json` to find all resource types
-2. For each resource type, select the latest stable (non-preview) API version
-3. Load and parse `types.json` for that version into an in-memory type graph
-4. **Post-process** the type graph:
+1. Load `internal/azure/generated/index.json`; resolve each target's latest stable
+   (non-preview) API version and its `types.json` path (`generator.Index`, Rule 16)
+2. Parse `types.json` for that version into an in-memory type graph
+3. **Post-process** the type graph (`PostProcess`):
    - Extract default values from property descriptions (Rule 8)
    - Extract validators from property descriptions: ARM resource IDs, datetime formats, numeric ranges (Rule 12)
    - Promote single-optional-child block properties to Required (Rule 9)
-5. Scan the post-processed graph to determine which imports are needed (conditional)
-6. Emit Go source file with a `Schema()` function returning the full Terraform schema
-7. Register resource with the provider
+   - Overlay curated azwise knowledge — ForceNew, validation, defaults, computed/sensitive (`ApplyAzwise`, Rule 9b)
+   - Synthesize the operational envelope — `name`, parent reference, `id` (Rule 9c)
+4. Run per-resource customizers (`customizers.Apply`, Rule 9d) — hand-written Go has the final say
+5. Guard framework attribute-flag invariants (`CheckFlagInvariants`), then scan for the conditional imports needed
+6. Emit the Go source: a `Schema()` function plus a `Descriptor` that self-registers via `init()`
 
 ### Runtime Architecture
 

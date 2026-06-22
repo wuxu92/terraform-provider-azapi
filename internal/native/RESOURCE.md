@@ -118,33 +118,40 @@ Each generated resource is described by a small data value. The generator emits 
 per resource (alongside the schema func) and registers it:
 
 ```go
-// In package generated (emitted)
+// In package generated (emitted; each generated file calls Register in its init())
 type Descriptor struct {
-    Name       string                  // "azapi_storage_account"
-    ARMType    string                  // "Microsoft.Storage/storageAccounts"
-    APIVersion string                  // "2025-01-01"
-    Schema     func() schema.Schema    // generated schema (body + envelope)
-    ParentAttr string                  // generated parent-reference attribute name
-    // Hooks is nil for fully-generated resources; hand-written overlay files
-    // populate it for resources that need custom behavior.
-    Hooks      *Hooks
+    Name           string               // "azapi_storage_account"
+    ARMType        string               // "Microsoft.Storage/storageAccounts"
+    APIVersion     string               // "2025-06-01" (latest stable, from index.json)
+    Schema         func() schema.Schema // generated schema: body + operational envelope
+    WritableScopes int                  // bicep scope bitmask (Tenant=1…ResourceGroup=8); metadata
+    ParentAttr     string               // generated parent-reference attribute, e.g. "resource_group_id"
 }
 
-func Register(d Descriptor) { registry[d.Name] = d }
+var Registry = map[string]Descriptor{}
+func Register(d Descriptor) { Registry[d.Name] = d }
 ```
 
-The ARM type + version replace the brittle `[azapin:…]` description-tag parsing
-the validator currently uses; the tag stays for the validator's convenience but
-the descriptor is the source of truth at runtime.
+The descriptor is deliberately dependency-light (schema only — no framework/client
+imports), so generated files stay pure. The ARM type + version replace the brittle
+`[azapin:…]` description-tag parsing the validator uses; the tag stays for the
+validator's convenience but the descriptor is the source of truth at runtime.
+
+Runtime **behavior** hooks are **not** on the descriptor. They live in a separate
+`hookRegistry` in `internal/native/resource`, keyed by resource name and populated
+by hand-written overlay files (`resource/overlay_<name>.go`) via `RegisterHooks`.
+`Base` looks them up once at construction (`hookRegistry[name]`); a resource with
+no overlay simply has nil hooks and uses the base behavior.
 
 ## Base Struct
 
 ```go
 // package resource
 type Base struct {
-    desc     generated.Descriptor
-    provider *clients.Client      // set in Configure
-    typeGraph *generator.Type     // lazily resolved ARM body type graph (cached)
+    desc      generated.Descriptor
+    hooks     *Hooks               // hookRegistry[name]; nil = base behavior only
+    provider  *clients.Client      // set in Configure
+    typeGraph *generator.Type      // lazily resolved ARM body type graph (cached)
 }
 
 func New(name string) resource.Resource { return &Base{desc: generated.Lookup(name)} }
