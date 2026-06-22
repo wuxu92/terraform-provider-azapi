@@ -9,4 +9,5 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/armtypes"
 // line here.
 func init() {
 	Register(armtypes.StorageAccount, customizeStorageAccount)
+	Register(armtypes.StorageAccountBlobService, customizeStorageAccountBlobService)
 }

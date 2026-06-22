@@ -52,6 +52,47 @@ func TestStorageAccountSchemaComposition(t *testing.T) {
 	}
 }
 
+func TestBlobServiceSchemaComposition(t *testing.T) {
+	ctx := context.Background()
+	r := New("azapi_storage_account_blob_service")
+
+	// Metadata: provider prefix + resource suffix.
+	mdResp := &resource.MetadataResponse{}
+	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
+	if mdResp.TypeName != "azapi_storage_account_blob_service" {
+		t.Errorf("TypeName = %q, want azapi_storage_account_blob_service", mdResp.TypeName)
+	}
+
+	// Schema: composed (envelope + body), and framework-valid.
+	schemaResp := &resource.SchemaResponse{}
+	r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+	if diags := s.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("schema validation failed: %v", diags)
+	}
+
+	// blobServices is a child resource: its parent reference is named after the
+	// parent ARM type (storage_account_id), not the resource-group scope name or
+	// the generic parent_id.
+	for _, name := range []string{"name", "storage_account_id", "id"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing envelope attribute %q", name)
+		}
+	}
+	for _, absent := range []string{"resource_group_id", "parent_id"} {
+		if _, ok := s.Attributes[absent]; ok {
+			t.Errorf("blob service should expose storage_account_id, not %q", absent)
+		}
+	}
+	if _, ok := s.Blocks["timeouts"]; !ok {
+		t.Error("missing timeouts block")
+	}
+	// Body attribute present (from the generated schema).
+	if _, ok := s.Attributes["properties"]; !ok {
+		t.Error("missing body attribute \"properties\"")
+	}
+}
+
 func TestInterfaceAssertions(t *testing.T) {
 	r := New("azapi_storage_account")
 	if _, ok := r.(resource.ResourceWithConfigure); !ok {

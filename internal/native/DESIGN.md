@@ -9,19 +9,19 @@
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ go generate ./internal/native/...                                        │
-│                                                                          │
+┌────────────────────────────────────────────────────────────────────────┐
+│ go generate ./internal/native/...                                      │
+│                                                                        │
 │  ┌──────────────┐     ┌─────────────────┐     ┌──────────────────────┐ │
-│  │ types.json   │────▶│    Generator     │────▶│ Generated Go files   │ │
+│  │ types.json   │───▶│    Generator     │────▶│ Generated Go files  │ │
 │  │ (bicep types)│     │                 │     │ (schema + CRUD)      │ │
 │  └──────────────┘     │  - Walker       │     └──────────────────────┘ │
-│                       │  - PostProcess  │                               │
+│                       │  - PostProcess  │                              │
 │  ┌──────────────┐     │  - Emitter      │     ┌──────────────────────┐ │
-│  │ overrides/   │────▶│  - Namer        │────▶│ Overlay hooks        │ │
+│  │ overrides/   │───▶│  - Namer        │────▶│ Overlay hooks        │ │
 │  │ (manual)     │     └─────────────────┘     │ (ForceNew, etc.)     │ │
 │  └──────────────┘                             └──────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Components
@@ -176,9 +176,9 @@ Generate all 2,631 stable resource types. Ship alongside `azapi_resource`.
 | Post-processing | ✓ Complete | `generator/postprocess.go` |
 | Schema emitter | ✓ Complete | `generator/emitter.go`, `emitter_test.go` |
 | Runtime defaults | ✓ Complete | `schema/defaults.go` |
-| PoC: storage account | ✓ Generated | `generated/storage_account_gen.go` (compiles) |
-| PoC generator | ✓ Working | `generator/cmd/generate_poc.go` |
-| CRUD methods | ○ Not started | — |
-| Provider registration | ○ Not started | — |
-| Full generation tool | ○ Not started | — |
-| Override system | ○ Not started | — |
+| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service` | `generated/storage/*_gen.go` |
+| Generator command | ✓ Working | `generator/cmd/generate_poc.go` |
+| CRUD methods | ✓ Complete | `resource/base.go`, `mapper/mapper.go` |
+| Provider registration | ✓ Complete | `internal/provider/provider.go` (iterates `generated.Registry`) |
+| Schema customization | ✓ Complete | `generator/customizers/` |
+| Full generation tool | ◐ PoC (storage service) | `generator/cmd/generate_poc.go` |

@@ -1,5 +1,6 @@
-// Command generate-poc is a proof-of-concept that generates the storage account
-// resource schema from bicep types.json and writes it to stdout or a file.
+// Command generate-poc generates native static resource schemas from the bicep
+// types.json embedded under internal/azure/generated and writes one Go file per
+// resource into internal/native/generated/<service>/.
 //
 //go:build ignore
 
@@ -10,15 +11,25 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Azure/terraform-provider-azapi/internal/native/armtypes"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	// Registers the per-resource schema customizers (init()) and exposes Apply.
 	// Customizers are generation-time only and are not part of the provider runtime.
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator/customizers"
 )
 
+const storageAPIVersion = "2025-01-01"
+
+// targets lists the resources to generate from the storage types.json, as
+// fully-qualified "<ARMType>@<version>" tags. Add a tag here (and its customizer,
+// if any) to generate another resource from the same types.json.
+var targets = []string{
+	armtypes.StorageAccount + "@" + storageAPIVersion,
+	armtypes.StorageAccountBlobService + "@" + storageAPIVersion,
+}
+
 func main() {
-	// Find the types.json for storage accounts
-	typesPath := filepath.Join("internal", "azure", "generated", "storage", "microsoft.storage", "2025-01-01", "types.json")
+	typesPath := filepath.Join("internal", "azure", "generated", "storage", "microsoft.storage", storageAPIVersion, "types.json")
 	data, err := os.ReadFile(typesPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading %s: %v\n", typesPath, err)
@@ -36,54 +47,59 @@ func main() {
 	generator.PostProcess(defs)
 	customizers.Apply(defs)
 
-	// Find storage account
-	var sa *generator.ResourceDefinition
+	byName := make(map[string]*generator.ResourceDefinition, len(defs))
 	for _, d := range defs {
-		if d.Name == "Microsoft.Storage/storageAccounts@2025-01-01" {
-			sa = d
-			break
-		}
-	}
-	if sa == nil {
-		fmt.Fprintf(os.Stderr, "Storage account not found\n")
-		os.Exit(1)
+		byName[d.Name] = d
 	}
 
-	source, err := generator.EmitSchema(sa)
+	for _, tag := range targets {
+		def := byName[tag]
+		if def == nil {
+			fmt.Fprintf(os.Stderr, "resource %s not found in %s\n", tag, typesPath)
+			os.Exit(1)
+		}
+		if err := generate(def); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+	}
+}
+
+// generate emits, validates, and writes one resource's schema file.
+func generate(def *generator.ResourceDefinition) error {
+	source, err := generator.EmitSchema(def)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error emitting schema: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("emitting %s: %w", def.Name, err)
 	}
 
 	// Validate: emitted schema covers all bicep body properties and vice versa.
 	// Exclude the synthesized envelope attributes (name / parent reference / id).
-	mismatches := generator.ValidateEmittedSchema(source, sa.Body, generator.EnvelopeAttrNames(sa)...)
+	mismatches := generator.ValidateEmittedSchema(source, def.Body, generator.EnvelopeAttrNames(def)...)
+	errors := 0
+	for _, m := range mismatches {
+		// extra and type_mismatch are errors; missing is a warning.
+		if m.Kind != generator.MismatchMissingInSchema {
+			errors++
+		}
+	}
 	if len(mismatches) > 0 {
-		fmt.Fprintf(os.Stderr, "Schema validation failed:\n%s", generator.FormatMismatches(mismatches))
-		// Count errors (extra and type_mismatch are errors; missing is a warning)
-		errors := 0
-		for _, m := range mismatches {
-			if m.Kind != generator.MismatchMissingInSchema {
-				errors++
-			}
-		}
-		if errors > 0 {
-			os.Exit(1)
-		}
+		fmt.Fprintf(os.Stderr, "Schema validation for %s:\n%s", def.Name, generator.FormatMismatches(mismatches))
+	}
+	if errors > 0 {
+		return fmt.Errorf("schema validation failed for %s", def.Name)
 	}
 
 	// Write to file (path includes the service folder, e.g. storage/storage_account_gen.go).
-	outPath := filepath.Join("internal", "native", "generated", generator.FileName(sa))
+	outPath := filepath.Join("internal", "native", "generated", generator.FileName(def))
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating output dir: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("creating output dir for %s: %w", def.Name, err)
 	}
 	if err := os.WriteFile(outPath, []byte(source), 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing %s: %v\n", outPath, err)
-		os.Exit(1)
+		return fmt.Errorf("writing %s: %w", outPath, err)
 	}
 
-	fmt.Printf("Generated %s (%d bytes, %d properties validated)\n", outPath, len(source), countExpectedPaths(sa.Body))
+	fmt.Printf("Generated %s (%d bytes, %d properties validated)\n", outPath, len(source), countExpectedPaths(def.Body))
+	return nil
 }
 
 func countExpectedPaths(body *generator.Type) int {

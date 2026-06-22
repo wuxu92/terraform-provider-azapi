@@ -1,18 +1,9 @@
 package nativeacc
 
 import (
-	"testing"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-// TestStorageAccount is the Go entry point that runs the Ginkgo suite. With
-// TF_ACC unset, every scenario skips, so `go test` stays fast and offline.
-func TestStorageAccount(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "azapi_storage_account Acceptance Suite")
-}
 
 var _ = Describe("azapi_storage_account", func() {
 	spec := NewSpec("azapi_storage_account", "Microsoft.Storage/storageAccounts", "2025-01-01")

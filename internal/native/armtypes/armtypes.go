@@ -12,4 +12,8 @@ package armtypes
 const (
 	// StorageAccount is Microsoft.Storage/storageAccounts.
 	StorageAccount = "Microsoft.Storage/storageAccounts"
+
+	// StorageAccountBlobService is Microsoft.Storage/storageAccounts/blobServices,
+	// the singleton blob-service child of a storage account (name always "default").
+	StorageAccountBlobService = "Microsoft.Storage/storageAccounts/blobServices"
 )
