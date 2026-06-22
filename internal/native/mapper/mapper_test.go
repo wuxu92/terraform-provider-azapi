@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
@@ -156,5 +157,97 @@ func TestExpandSkipsNullAndUnknown(t *testing.T) {
 	}
 	if out["kind"] != "StorageV2" {
 		t.Errorf("kind: got %v", out["kind"])
+	}
+}
+
+// loadBody parses an arbitrary ARM resource's bicep body type graph.
+func loadBody(t *testing.T, armType string) *generator.Type {
+	t.Helper()
+	indexPath := filepath.Join("..", "..", "azure", "generated", "index.json")
+	idx, err := generator.LoadIndex(indexPath)
+	if err != nil {
+		t.Skipf("no index.json: %v", err)
+	}
+	tag, typesPath, err := idx.ResolveLatestStable(armType)
+	if err != nil {
+		t.Skipf("no stable version for %s: %v", armType, err)
+	}
+	data, err := os.ReadFile(typesPath)
+	if err != nil {
+		t.Skipf("types.json not found: %v", err)
+	}
+	defs, err := generator.ParseTypesJSON(data)
+	if err != nil {
+		t.Fatalf("ParseTypesJSON: %v", err)
+	}
+	generator.PostProcess(defs)
+	for _, d := range defs {
+		if d.Name == tag {
+			return d.Body
+		}
+	}
+	t.Fatalf("body not found for %s", armType)
+	return nil
+}
+
+// TestFlattenIntoPreservesNestedOmitted locks the fix for "inconsistent result
+// after apply": a nested optional the user set but ARM drops from its GET response
+// must keep the planned value (not collapse to null), at every depth. blobServices
+// omits automaticSnapshotPolicyEnabled (deprecated) and, for containerDelete-
+// RetentionPolicy, allowPermanentDelete when false — while echoing siblings.
+func TestFlattenIntoPreservesNestedOmitted(t *testing.T) {
+	ctx := context.Background()
+	body := loadBody(t, "Microsoft.Storage/storageAccounts/blobServices")
+	objType := generated.Registry["azapi_storage_account_blob_service"].Schema().Type().(basetypes.ObjectType)
+
+	// Plan: user explicitly set both flags to false (plus an echoed sibling).
+	plan := map[string]interface{}{
+		"properties": map[string]interface{}{
+			"automaticSnapshotPolicyEnabled": false,
+			"containerDeleteRetentionPolicy": map[string]interface{}{
+				"enabled":              true,
+				"days":                 float64(7),
+				"allowPermanentDelete": false,
+			},
+		},
+	}
+	planObj, diags := Flatten(ctx, plan, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten plan diags: %v", diags)
+	}
+
+	// ARM GET response: drops the deprecated top-level flag and the nested
+	// allowPermanentDelete, echoes the parent block, and changes days 7 -> 5.
+	resp := map[string]interface{}{
+		"properties": map[string]interface{}{
+			"containerDeleteRetentionPolicy": map[string]interface{}{
+				"enabled": true,
+				"days":    float64(5),
+			},
+		},
+	}
+	out, diags := FlattenInto(ctx, resp, planObj, body)
+	if diags.HasError() {
+		t.Fatalf("FlattenInto diags: %v", diags)
+	}
+
+	props := out.Attributes()["properties"].(types.Object)
+
+	// Top-level nested optional ARM omitted: planned false is preserved.
+	snap := props.Attributes()["automatic_snapshot_policy_enabled"].(types.Bool)
+	if snap.IsNull() || snap.ValueBool() != false {
+		t.Errorf("automatic_snapshot_policy_enabled: got %v, want false (preserved)", snap)
+	}
+
+	cdrp := props.Attributes()["container_delete_retention_policy"].(types.Object)
+	// Doubly-nested optional ARM omitted: planned false is preserved.
+	apd := cdrp.Attributes()["allow_permanent_delete"].(types.Bool)
+	if apd.IsNull() || apd.ValueBool() != false {
+		t.Errorf("container_delete_retention_policy.allow_permanent_delete: got %v, want false (preserved)", apd)
+	}
+	// A field ARM echoed with a new value is still overwritten.
+	days := cdrp.Attributes()["days"].(types.Int64)
+	if days.IsNull() || days.ValueInt64() != 5 {
+		t.Errorf("container_delete_retention_policy.days: got %v, want 5 (overwritten)", days)
 	}
 }

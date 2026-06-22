@@ -253,8 +253,10 @@ func ResolveUnknowns(ctx context.Context, v attr.Value) attr.Value {
 // FlattenInto refreshes the body attributes of an existing object (plan for
 // create, prior state for read/update) from an ARM JSON response, preserving the
 // envelope (name, parent_id, id, timeouts) and any body attribute the response
-// omits. Only attributes present in the response are overwritten — this avoids
-// wiping write-only fields the server never echoes and optional fields it omits.
+// omits — recursively, so a nested optional the user set but the server drops keeps
+// the planned value instead of collapsing to null (which the framework rejects as
+// an inconsistent apply result). Only attributes present in the response are
+// overwritten, avoiding wipes of write-only fields the server never echoes.
 func FlattenInto(ctx context.Context, arm map[string]interface{}, base types.Object, body *generator.Type) (types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if base.IsNull() || base.IsUnknown() {
@@ -281,7 +283,7 @@ func FlattenInto(ctx context.Context, arm map[string]interface{}, base types.Obj
 			if !present || armVal == nil {
 				continue // keep the base value
 			}
-			v, d := flattenValue(ctx, armVal, at, prop.Type)
+			v, d := flattenValueInto(ctx, armVal, values[name], at, prop.Type)
 			diags.Append(d...)
 			values[name] = v
 		}
@@ -290,4 +292,23 @@ func FlattenInto(ctx context.Context, arm map[string]interface{}, base types.Obj
 	obj, d := types.ObjectValue(attrTypes, values)
 	diags.Append(d...)
 	return obj, diags
+}
+
+// flattenValueInto is the base-aware counterpart of flattenValue: for a nested
+// object it recurses through FlattenInto, threading the corresponding base value
+// so fields the response omits are preserved at every depth. Non-object kinds have
+// no per-element base to thread and delegate to flattenValue unchanged.
+func flattenValueInto(ctx context.Context, armVal interface{}, base attr.Value, at attr.Type, bicep *generator.Type) (attr.Value, diag.Diagnostics) {
+	if _, ok := at.(basetypes.ObjectType); ok {
+		if m, ok := armVal.(map[string]interface{}); ok {
+			if baseObj, ok := base.(types.Object); ok && !baseObj.IsNull() && !baseObj.IsUnknown() {
+				var nested *generator.Type
+				if bicep != nil && bicep.Kind == generator.KindObject {
+					nested = bicep
+				}
+				return FlattenInto(ctx, m, baseObj, nested)
+			}
+		}
+	}
+	return flattenValue(ctx, armVal, at, bicep)
 }
