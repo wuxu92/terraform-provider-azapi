@@ -1,43 +1,29 @@
 package nativeacc
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/services/parse"
 	"github.com/Azure/terraform-provider-azapi/utils"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// existsResource is a generic acceptance.TestResource for any native static
-// resource: it reads the ARM resource ID from state and GETs it with the
-// resource's API version.
-type existsResource struct {
-	armType    string
-	apiVersion string
-}
-
-func newExists(armType, apiVersion string) existsResource {
-	return existsResource{armType: armType, apiVersion: apiVersion}
-}
-
-func (e existsResource) Exists(ctx context.Context, client *clients.Client, state *terraform.InstanceState) (*bool, error) {
-	idStr := state.Attributes["id"]
+// azureExists GETs the ARM resource by its Terraform state ID at the resource's
+// API version. It returns (false, nil) when the resource is absent (404) and an
+// error for any other failure.
+func azureExists(client *clients.Client, armType, apiVersion, idStr string) (bool, error) {
 	if idStr == "" {
-		return nil, fmt.Errorf("resource has no id in state")
+		return false, fmt.Errorf("resource has no id in state")
 	}
-	id, err := parse.ResourceIDWithResourceType(idStr, e.armType+"@"+e.apiVersion)
+	id, err := parse.ResourceIDWithResourceType(idStr, armType+"@"+apiVersion)
 	if err != nil {
-		return nil, fmt.Errorf("parsing id %q: %w", idStr, err)
+		return false, fmt.Errorf("parsing id %q: %w", idStr, err)
 	}
-	if _, err := client.ResourceClient.Get(ctx, id.AzureResourceId, id.ApiVersion, clients.DefaultRequestOptions()); err != nil {
+	if _, err := client.ResourceClient.Get(client.StopContext, id.AzureResourceId, id.ApiVersion, clients.DefaultRequestOptions()); err != nil {
 		if utils.ResponseErrorWasNotFound(err) {
-			b := false
-			return &b, nil
+			return false, nil
 		}
-		return nil, fmt.Errorf("retrieving %s: %w", id.ID(), err)
+		return false, fmt.Errorf("retrieving %s: %w", id.ID(), err)
 	}
-	b := true
-	return &b, nil
+	return true, nil
 }

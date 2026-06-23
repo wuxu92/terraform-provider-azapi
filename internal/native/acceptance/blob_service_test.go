@@ -1,14 +1,14 @@
 package nativeacc
 
 import (
-	"github.com/Azure/terraform-provider-azapi/internal/acceptance"
 	. "github.com/onsi/ginkgo/v2"
 )
 
-// blobServiceParent provisions a resource group and a storage account. The
-// storage account is labelled "parent" so the framework wires
-// storage_account_id = azapi_resource.parent.id for the child resource.
-const blobServiceParent = `
+// Azure Storage Blob Service groups the blobServices scenarios. The shared base is
+// a resource group plus a storage account; the blob service is the singleton child
+// resource-under-test (ARM name always "default").
+var _ = Describe("Azure Storage Blob Service", Ordered, func() {
+	ws := NewWorkspace(`
 resource "azapi_resource" "rg" {
   type      = "Microsoft.Resources/resourceGroups@2021-04-01"
   name      = "acctest-rg-{{.RandomInteger}}"
@@ -16,7 +16,7 @@ resource "azapi_resource" "rg" {
   location  = "{{.Location}}"
 }
 
-resource "azapi_resource" "parent" {
+resource "azapi_resource" "sa" {
   type      = "Microsoft.Storage/storageAccounts@2025-06-01"
   name      = "acctestsa{{.RandomString}}"
   parent_id = azapi_resource.rg.id
@@ -26,38 +26,61 @@ resource "azapi_resource" "parent" {
     kind = "StorageV2"
   }
 }
-`
+`)
+	BeforeAll(ws.Start)
+	AfterAll(ws.Destroy)
 
-var _ = Describe("azapi_storage_account_blob_service", func() {
-	// blobServices is a singleton child whose ARM name is always "default", so the
-	// name is pinned (the OneOf("default") envelope validator rejects anything else).
-	spec := NewSpec("azapi_storage_account_blob_service").
-		WithParent(blobServiceParent).
-		WithName(func(acceptance.TestData) string { return "default" })
+	// blobServices is a singleton child whose ARM name is always "default" (the
+	// OneOf("default") envelope validator rejects anything else).
+	blob := ws.Resource("azapi_storage_account_blob_service", "test")
 
-	It("creates the singleton blob service and imports it", func() {
-		spec.Run(
-			Body(`
-properties = {
-  change_feed = {
-    enabled = true
+	It("enables change feed", func() {
+		blob.Apply(`
+resource "azapi_storage_account_blob_service" "test" {
+  name               = "default"
+  storage_account_id = azapi_resource.sa.id
+  properties = {
+    change_feed = {
+      enabled = true
+    }
   }
 }
-`).Check(
-				Exists(),
-				Key("properties.change_feed.enabled").HasValue("true"),
-			),
-			ImportStep(),
+`,
+			Exists(),
+			Key("properties.change_feed.enabled").HasValue("true"),
+		)
+	})
+
+	It("imports cleanly with no drift", func() {
+		blob.ImportVerify()
+	})
+
+	It("disables change feed in place", func() {
+		blob.Apply(`
+resource "azapi_storage_account_blob_service" "test" {
+  name               = "default"
+  storage_account_id = azapi_resource.sa.id
+  properties = {
+    change_feed = {
+      enabled = false
+    }
+  }
+}
+`,
+			Exists(),
+			Key("properties.change_feed.enabled").HasValue("false"),
 		)
 	})
 
 	It("rejects a name other than \"default\"", func() {
-		spec.WithName(func(acceptance.TestData) string { return "notdefault" }).Run(
-			Body(`
-properties = {
-  is_versioning_enabled = true
+		ws.Resource("azapi_storage_account_blob_service", "invalid").ApplyExpectError(`
+resource "azapi_storage_account_blob_service" "invalid" {
+  name               = "notdefault"
+  storage_account_id = azapi_resource.sa.id
+  properties = {
+    is_versioning_enabled = true
+  }
 }
-`).ExpectError(`blob service name must be "default"`),
-		)
+`, `name value must be one of`)
 	})
 })

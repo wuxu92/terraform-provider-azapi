@@ -1,41 +1,42 @@
 package nativeacc
 
 import (
-	"fmt"
-
-	"github.com/Azure/terraform-provider-azapi/internal/acceptance"
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("azapi_resource_group", func() {
-	// resourceGroups is a subscription-scoped top-level resource: the parent is the
-	// subscription itself, so there is no parent resource to provision — the parent
-	// template is dropped and the envelope subscription_id is set to the scope ID.
-	spec := NewSpec("azapi_resource_group").
-		WithParent("").
-		WithParentRef(`"/subscriptions/{{.SubscriptionID}}"`).
-		WithName(func(td acceptance.TestData) string {
-			return fmt.Sprintf("acctest-rg-%d", td.RandomInteger)
-		})
+// Azure Resource Group groups the resourceGroups scenarios. resourceGroups is a
+// subscription-scoped top-level resource, so there is no provisioned parent: the
+// workspace has no base, and the envelope subscription_id is the subscription scope.
+var _ = Describe("Azure Resource Group", Ordered, func() {
+	ws := NewWorkspace("")
+	BeforeAll(ws.Start)
+	AfterAll(ws.Destroy)
 
-	It("creates a resource group and imports it", func() {
-		spec.Run(
-			Body(`
-location = "{{.Location}}"
-`).Check(
-				Exists(),
-			),
-			ImportStep(),
+	rg := ws.Resource("azapi_resource_group", "test")
+
+	It("creates a resource group", func() {
+		rg.Apply(`
+resource "azapi_resource_group" "test" {
+  name            = "acctest-rg-{{.RandomInteger}}"
+  subscription_id = "/subscriptions/{{.SubscriptionID}}"
+  location        = "{{.Location}}"
+}
+`,
+			Exists(),
 		)
 	})
 
+	It("imports cleanly with no drift", func() {
+		rg.ImportVerify()
+	})
+
 	It("rejects a name ending with a period", func() {
-		spec.WithName(func(td acceptance.TestData) string {
-			return fmt.Sprintf("acctest-rg-%d.", td.RandomInteger)
-		}).Run(
-			Body(`
-location = "{{.Location}}"
-`).ExpectError(`may not end with a period`),
-		)
+		ws.Resource("azapi_resource_group", "invalid").ApplyExpectError(`
+resource "azapi_resource_group" "invalid" {
+  name            = "acctest-rg-{{.RandomInteger}}."
+  subscription_id = "/subscriptions/{{.SubscriptionID}}"
+  location        = "{{.Location}}"
+}
+`, `may not end with a period`)
 	})
 })
