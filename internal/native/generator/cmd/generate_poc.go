@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Azure/terraform-provider-azapi/internal/azure"
 	"github.com/Azure/terraform-provider-azapi/internal/native/armtypes"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	// Registers the per-resource schema customizers (init()) and exposes Apply.
@@ -18,15 +19,11 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator/customizers"
 )
 
-// indexPath is the bicep-types manifest. It maps every "<ARMType>@<version>" to
-// the types.json that defines it, so it is the only path this command needs to
-// know: the latest stable API version and the types.json location for each target
-// are resolved from it (no per-namespace directory is hardcoded).
-const indexPath = "internal/azure/generated/index.json"
-
 // targets lists the ARM resource types to generate. For each, the latest stable
-// API version and its types.json are resolved through the manifest, so adding a
-// resource is one line here (plus its customizer, if any).
+// API version and its types.json location are resolved through the azure schema
+// loader (internal/azure), which reads the same embedded index.json/types.json the
+// provider runtime loads — so adding a resource is one line here (plus its
+// customizer, if any) and no per-namespace directory is hardcoded.
 var targets = []string{
 	armtypes.StorageAccount,
 	armtypes.StorageAccountBlobService,
@@ -34,40 +31,42 @@ var targets = []string{
 }
 
 func main() {
-	idx, err := generator.LoadIndex(indexPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading %s: %v\n", indexPath, err)
-		os.Exit(1)
-	}
-
-	// Resolve each target to its latest-stable tag + types.json via the manifest,
-	// then load + process each distinct types.json once (sibling resources such as
-	// storageAccounts and its blobServices child share one file). Always picking
-	// the latest STABLE version means vendoring a newer index/types.json rolls the
-	// generated schema forward without editing this command.
+	// Resolve each target to its latest-stable version + types.json location via
+	// the azure schema loader, then load + process each distinct types.json once
+	// (sibling resources such as storageAccounts and its blobServices child share
+	// one file). Always picking the latest STABLE version means vendoring a newer
+	// index/types.json rolls the generated schema forward without editing this
+	// command. types.json is read from the same embedded FS the provider runtime
+	// loads, so the generator never reads or reconstructs an on-disk path.
 	byName := map[string]*generator.ResourceDefinition{}
 	tags := make([]string, 0, len(targets))
 	loaded := map[string]bool{}
 	for _, armType := range targets {
-		tag, typesPath, err := idx.ResolveLatestStable(armType)
+		version, err := azure.GetLatestStableApiVersion(armType)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error resolving %s: %v\n", armType, err)
 			os.Exit(1)
 		}
-		tags = append(tags, tag)
-		if loaded[typesPath] {
+		tags = append(tags, armType+"@"+version)
+
+		location, err := azure.GetResourceTypeLocation(armType, version)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error resolving %s: %v\n", armType, err)
+			os.Exit(1)
+		}
+		if loaded[location] {
 			continue
 		}
-		loaded[typesPath] = true
+		loaded[location] = true
 
-		data, err := os.ReadFile(typesPath)
+		data, err := azure.StaticFiles.ReadFile("generated/" + location)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading %s: %v\n", typesPath, err)
+			fmt.Fprintf(os.Stderr, "Error reading %s: %v\n", location, err)
 			os.Exit(1)
 		}
 		defs, err := generator.ParseTypesJSON(data)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing %s: %v\n", typesPath, err)
+			fmt.Fprintf(os.Stderr, "Error parsing %s: %v\n", location, err)
 			os.Exit(1)
 		}
 		// Post-process (defaults, validators, azwise overlay, envelope spec), then

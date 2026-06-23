@@ -13,9 +13,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 
+	"github.com/Azure/terraform-provider-azapi/internal/azure"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator/customizers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/validate"
@@ -45,19 +44,6 @@ func main() {
 		targets = map[string]generated.Descriptor{*res: d}
 	}
 
-	// Resolve the project root from this source file's location:
-	// this file is at internal/native/cmd/azapin-validate/main.go
-	// project root is 4 levels up
-	projectRoot := resolveProjectRoot()
-
-	// Load the bicep-types manifest; types.json paths come from its $ref entries.
-	indexPath := filepath.Join(projectRoot, "internal", "azure", "generated", "index.json")
-	idx, err := generator.LoadIndex(indexPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading %s: %v\n", indexPath, err)
-		os.Exit(1)
-	}
-
 	totalErrors := 0
 	totalWarnings := 0
 	validated := 0
@@ -68,17 +54,17 @@ func main() {
 		// Resource tag comes straight from the descriptor.
 		tag := d.ARMType + "@" + d.APIVersion
 
-		// Find the types.json path from the manifest.
-		typesPath, err := idx.TypesPath(tag)
+		// Resolve the bicep types.json that defines this resource from the azure
+		// schema loader (the same embedded source the provider runtime loads).
+		location, err := azure.GetResourceTypeLocation(d.ARMType, d.APIVersion)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "SKIP %s: %v\n", name, err)
 			continue
 		}
 
-		// Parse the bicep types
-		typesData, err := os.ReadFile(typesPath)
+		typesData, err := azure.StaticFiles.ReadFile("generated/" + location)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR %s: reading %s: %v\n", name, typesPath, err)
+			fmt.Fprintf(os.Stderr, "ERROR %s: reading %s: %v\n", name, location, err)
 			totalErrors++
 			continue
 		}
@@ -99,7 +85,7 @@ func main() {
 			}
 		}
 		if body == nil {
-			fmt.Fprintf(os.Stderr, "ERROR %s: resource %s not found in %s\n", name, tag, typesPath)
+			fmt.Fprintf(os.Stderr, "ERROR %s: resource %s not found in %s\n", name, tag, location)
 			totalErrors++
 			continue
 		}
@@ -148,25 +134,4 @@ func main() {
 	if totalErrors > 0 {
 		os.Exit(1)
 	}
-}
-
-// resolveProjectRoot determines the project root directory from this source
-// file's location using runtime.Caller. This file lives at:
-//
-//	<project>/internal/native/cmd/azapin-validate/main.go
-//
-// So the project root is 4 directories up.
-func resolveProjectRoot() string {
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: cannot determine source file location via runtime.Caller\n")
-		os.Exit(1)
-	}
-	// thisFile = .../internal/native/cmd/azapin-validate/main.go
-	// Go up 4 levels: azapin-validate → cmd → native → internal → project root
-	root := filepath.Dir(thisFile)
-	for i := 0; i < 4; i++ {
-		root = filepath.Dir(root)
-	}
-	return root
 }

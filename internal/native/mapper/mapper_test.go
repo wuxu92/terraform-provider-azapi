@@ -2,10 +2,9 @@ package mapper
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/Azure/terraform-provider-azapi/internal/azure"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
@@ -16,31 +15,7 @@ import (
 // loadStorageBody parses the storage account bicep body type graph.
 func loadStorageBody(t *testing.T) *generator.Type {
 	t.Helper()
-	indexPath := filepath.Join("..", "..", "azure", "generated", "index.json")
-	idx, err := generator.LoadIndex(indexPath)
-	if err != nil {
-		t.Skipf("no index.json: %v", err)
-	}
-	tag, typesPath, err := idx.ResolveLatestStable("Microsoft.Storage/storageAccounts")
-	if err != nil {
-		t.Skipf("no stable storage version: %v", err)
-	}
-	data, err := os.ReadFile(typesPath)
-	if err != nil {
-		t.Skipf("types.json not found: %v", err)
-	}
-	defs, err := generator.ParseTypesJSON(data)
-	if err != nil {
-		t.Fatalf("ParseTypesJSON: %v", err)
-	}
-	generator.PostProcess(defs)
-	for _, d := range defs {
-		if d.Name == tag {
-			return d.Body
-		}
-	}
-	t.Fatal("storage account body not found")
-	return nil
+	return loadBody(t, "Microsoft.Storage/storageAccounts")
 }
 
 func TestRoundTripStorageAccount(t *testing.T) {
@@ -160,19 +135,19 @@ func TestExpandSkipsNullAndUnknown(t *testing.T) {
 	}
 }
 
-// loadBody parses an arbitrary ARM resource's bicep body type graph.
+// loadBody parses an arbitrary ARM resource's bicep body type graph for its
+// latest stable API version, resolved through the azure schema loader.
 func loadBody(t *testing.T, armType string) *generator.Type {
 	t.Helper()
-	indexPath := filepath.Join("..", "..", "azure", "generated", "index.json")
-	idx, err := generator.LoadIndex(indexPath)
-	if err != nil {
-		t.Skipf("no index.json: %v", err)
-	}
-	tag, typesPath, err := idx.ResolveLatestStable(armType)
+	version, err := azure.GetLatestStableApiVersion(armType)
 	if err != nil {
 		t.Skipf("no stable version for %s: %v", armType, err)
 	}
-	data, err := os.ReadFile(typesPath)
+	location, err := azure.GetResourceTypeLocation(armType, version)
+	if err != nil {
+		t.Skipf("no types.json for %s: %v", armType, err)
+	}
+	data, err := azure.StaticFiles.ReadFile("generated/" + location)
 	if err != nil {
 		t.Skipf("types.json not found: %v", err)
 	}
@@ -181,6 +156,7 @@ func loadBody(t *testing.T, armType string) *generator.Type {
 		t.Fatalf("ParseTypesJSON: %v", err)
 	}
 	generator.PostProcess(defs)
+	tag := armType + "@" + version
 	for _, d := range defs {
 		if d.Name == tag {
 			return d.Body
