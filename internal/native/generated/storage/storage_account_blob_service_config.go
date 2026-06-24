@@ -1,16 +1,30 @@
 package storage
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
+)
 
 // BlobService builds azapi_storage_account_blob_service acceptance-test
 // configurations. blobServices is the singleton "default" child of a storage
-// account: Label is the Terraform state label and StorageAccountIDRef is the injected
+// account: construct it with NewBlobService. StorageAccountIDRef is the injected
 // parent reference — the Terraform address of a storage account applied as a base,
-// e.g. the acceptance Resource's IDRef "azapi_storage_account.sa.id". The returned HCL
-// is a template rendered by the acceptance framework.
+// e.g. the acceptance Resource's IDRef "azapi_storage_account.sa.id". The returned
+// HCL is a template rendered by the acceptance framework.
 type BlobService struct {
-	Label               string
+	generated.ResourceConfigBase
 	StorageAccountIDRef string
+}
+
+// NewBlobService builds a blob-service config with the given Terraform state label
+// and parent storage-account address reference (storageAccountIDRef, e.g.
+// sa.IDRef()). The resource type is set from generated.TypeStorageAccountBlobService.
+func NewBlobService(label, storageAccountIDRef string) BlobService {
+	return BlobService{
+		ResourceConfigBase:  generated.NewResourceConfigBase(generated.TypeStorageAccountBlobService, label),
+		StorageAccountIDRef: storageAccountIDRef,
+	}
 }
 
 // Basic is the singleton default blob service with change feed enabled.
@@ -31,11 +45,11 @@ func (r BlobService) Named(name string) string { return r.config(name, r.version
 
 func (r BlobService) config(name, body string) string {
 	return fmt.Sprintf(`
-resource "azapi_storage_account_blob_service" %q {
+resource %q %q {
   name               = %q
   storage_account_id = %s%s
 }
-`, r.Label, name, r.StorageAccountIDRef, body)
+`, r.ResourceType(), r.ResourceLabel(), name, r.StorageAccountIDRef, body)
 }
 
 // changeFeed is a BlobService properties fragment toggling change feed. Defined as a
@@ -58,11 +72,3 @@ func (r BlobService) versioning(enabled bool) string {
     is_versioning_enabled = %t
   }`, enabled)
 }
-
-// ResourceType is the Terraform type this builder configures; with ResourceLabel it
-// satisfies acceptance.ResourceConfig, so a scope can vend the matching handle
-// directly — acct.ResourceFor(cfg) — without restating the literal type and label.
-func (r BlobService) ResourceType() string { return "azapi_storage_account_blob_service" }
-
-// ResourceLabel is the Terraform state label (see ResourceType).
-func (r BlobService) ResourceLabel() string { return r.Label }

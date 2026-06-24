@@ -1,16 +1,30 @@
 package storage
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
+)
 
 // StorageAccount builds azapi_storage_account acceptance-test configurations.
-//
-// Label is the Terraform state label; ResourceGroupIDRef is the injected parent
-// reference — the Terraform address of a resource group applied as a base, e.g. the
-// acceptance Resource's IDRef "azapi_resource_group.rg.id". The returned HCL is a
-// template rendered by the acceptance framework ({{.RandomString}}, {{.Location}}).
+// Construct it with NewStorageAccount. ResourceGroupIDRef is the injected parent
+// reference — the Terraform address of a resource group applied as a base, e.g.
+// the acceptance Resource's IDRef "azapi_resource_group.rg.id". The returned HCL
+// is a template rendered by the acceptance framework ({{.RandomString}},
+// {{.Location}}).
 type StorageAccount struct {
-	Label              string
+	generated.ResourceConfigBase
 	ResourceGroupIDRef string
+}
+
+// NewStorageAccount builds a storage-account config with the given Terraform state
+// label and parent resource-group address reference (resourceGroupIDRef, e.g.
+// rg.IDRef()). The resource type is set from generated.TypeStorageAccount.
+func NewStorageAccount(label, resourceGroupIDRef string) StorageAccount {
+	return StorageAccount{
+		ResourceConfigBase: generated.NewResourceConfigBase(generated.TypeStorageAccount, label),
+		ResourceGroupIDRef: resourceGroupIDRef,
+	}
 }
 
 // Basic is a StorageV2 Standard_LRS account with no optional properties.
@@ -26,7 +40,7 @@ func (r StorageAccount) WithSKU(sku string) string { return r.config(sku, "") }
 
 func (r StorageAccount) config(sku, extra string) string {
 	return fmt.Sprintf(`
-resource "azapi_storage_account" %q {
+resource %q %q {
   name              = "acctestsa{{.RandomString}}"
   resource_group_id = %s
   location          = "{{.Location}}"
@@ -35,7 +49,7 @@ resource "azapi_storage_account" %q {
     name = %q
   }%s
 }
-`, r.Label, r.ResourceGroupIDRef, sku, extra)
+`, r.ResourceType(), r.ResourceLabel(), r.ResourceGroupIDRef, sku, extra)
 }
 
 // accessTier is a StorageAccount properties fragment setting access_tier. Defined as
@@ -47,11 +61,3 @@ func (r StorageAccount) accessTier(tier string) string {
     access_tier = %q
   }`, tier)
 }
-
-// ResourceType is the Terraform type this builder configures; with ResourceLabel it
-// satisfies acceptance.ResourceConfig, so a scope can vend the matching handle
-// directly — acct.ResourceFor(cfg) — without restating the literal type and label.
-func (r StorageAccount) ResourceType() string { return "azapi_storage_account" }
-
-// ResourceLabel is the Terraform state label (see ResourceType).
-func (r StorageAccount) ResourceLabel() string { return r.Label }

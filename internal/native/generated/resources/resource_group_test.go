@@ -16,7 +16,7 @@ var _ = Describe("Azure Resource Group", Ordered, func() {
 	BeforeAll(ws.Start)
 	AfterAll(ws.Destroy)
 
-	cfg := resources.ResourceGroup{Label: "test"}
+	cfg := resources.NewResourceGroup("test")
 	rg := ws.ResourceFor(cfg)
 
 	It("creates a resource group, then imports it with no drift", func() {
@@ -24,7 +24,7 @@ var _ = Describe("Azure Resource Group", Ordered, func() {
 	})
 
 	It("rejects a name ending with a period", func() {
-		invalid := resources.ResourceGroup{Label: "invalid"}
+		invalid := resources.NewResourceGroup("invalid")
 		ws.ResourceFor(invalid).ApplyExpectError(
 			invalid.Named("acctest-rg-{{.RandomInteger}}."),
 			`may not end with a period`,

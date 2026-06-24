@@ -23,10 +23,11 @@ type Resource struct {
 	apiVersion string
 }
 
-// ResourceConfig is implemented by a generated config builder: it names the Terraform
-// type and state label of the resource it configures. A scope's ResourceFor takes one
-// and vends the matching Resource handle, so the literal type and label are spelled
-// exactly once — in the config — rather than restated at the call site.
+// ResourceConfig is implemented by a generated config builder via the embedded
+// generated.ResourceConfigBase: it names the Terraform type and state label of the
+// resource it configures. A scope's ResourceFor takes one and vends the matching
+// Resource handle, so the literal type and label are spelled exactly once — set from a
+// generated.Type* constant in the builder's NewXxx constructor — not restated here.
 type ResourceConfig interface {
 	ResourceType() string  // Terraform type, e.g. "azapi_storage_account"
 	ResourceLabel() string // Terraform state label
