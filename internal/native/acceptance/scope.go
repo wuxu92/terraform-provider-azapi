@@ -37,6 +37,13 @@ func (s *Scope) Resource(tfType, label string) *Resource {
 	return newResource(s, tfType, label)
 }
 
+// ResourceFor declares a resource-under-test in this scope from a config builder,
+// taking the Terraform type and label from the config (see ResourceConfig). It pairs
+// the handle with its config so neither the type nor the label is restated by the test.
+func (s *Scope) ResourceFor(c ResourceConfig) *Resource {
+	return s.Resource(c.ResourceType(), c.ResourceLabel())
+}
+
 func newResource(s *Scope, tfType, label string) *Resource {
 	d, ok := generated.Registry[tfType]
 	if !ok {

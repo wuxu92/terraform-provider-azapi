@@ -23,6 +23,15 @@ type Resource struct {
 	apiVersion string
 }
 
+// ResourceConfig is implemented by a generated config builder: it names the Terraform
+// type and state label of the resource it configures. A scope's ResourceFor takes one
+// and vends the matching Resource handle, so the literal type and label are spelled
+// exactly once — in the config — rather than restated at the call site.
+type ResourceConfig interface {
+	ResourceType() string  // Terraform type, e.g. "azapi_storage_account"
+	ResourceLabel() string // Terraform state label
+}
+
 // Apply writes the resource's config block, applies the workspace, and then re-plans
 // to assert the apply left no drift: a refresh-backed plan must be empty, proving the
 // config round-trips through the provider (Create/Update -> Read -> plan is stable).
@@ -139,3 +148,12 @@ func (r *Resource) stateResource() *tfjson.StateResource {
 }
 
 func (r *Resource) address() string { return r.tfType + "." + r.label }
+
+// Address is the resource's Terraform address (tfType.label), e.g.
+// "azapi_resource_group.rg".
+func (r *Resource) Address() string { return r.address() }
+
+// IDRef is the Terraform reference to this resource's id attribute, e.g.
+// "azapi_resource_group.rg.id". Pass it to a dependent resource's config builder so
+// the dependent injects this resource as its parent by address.
+func (r *Resource) IDRef() string { return r.address() + ".id" }

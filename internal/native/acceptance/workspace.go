@@ -69,6 +69,12 @@ func (w *Workspace) Resource(tfType, label string) *Resource {
 	return w.root.Resource(tfType, label)
 }
 
+// ResourceFor declares a resource-under-test in the root scope from a config builder
+// (see Scope.ResourceFor and ResourceConfig).
+func (w *Workspace) ResourceFor(c ResourceConfig) *Resource {
+	return w.root.ResourceFor(c)
+}
+
 // Scope returns a child of the root scope. Wire its Teardown to a nested container's
 // AfterAll so the container's own resources are destroyed while the base survives.
 func (w *Workspace) Scope() *Scope {
