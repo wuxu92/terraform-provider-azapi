@@ -4,83 +4,57 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-// Azure Storage Blob Service groups the blobServices scenarios. The shared base is
-// a resource group plus a storage account; the blob service is the singleton child
-// resource-under-test (ARM name always "default").
+// Azure Storage Blob Service demonstrates deeper reuse: a resource group (root) and
+// a storage account (child scope) are each provisioned once, and the blob service —
+// the singleton "default" child of that account — is exercised on the shared base,
+// injected with the account reference by Terraform address.
+//
+// The blob service lives in the SAME scope as its storage account: blobServices is a
+// singleton with no ARM delete operation, so it can only be torn down together with
+// the account (the scope's Teardown destroys both and then asserts both are gone).
 var _ = Describe("Azure Storage Blob Service", Ordered, func() {
-	ws := NewWorkspace(`
-resource "azapi_resource" "rg" {
-  type      = "Microsoft.Resources/resourceGroups@2021-04-01"
-  name      = "acctest-rg-{{.RandomInteger}}"
-  parent_id = "/subscriptions/{{.SubscriptionID}}"
-  location  = "{{.Location}}"
-}
-
-resource "azapi_resource" "sa" {
-  type      = "Microsoft.Storage/storageAccounts@2025-06-01"
-  name      = "acctestsa{{.RandomString}}"
-  parent_id = azapi_resource.rg.id
-  location  = "{{.Location}}"
-  body = {
-    sku  = { name = "Standard_LRS" }
-    kind = "StorageV2"
-  }
-}
-`)
+	ws := NewWorkspace()
 	BeforeAll(ws.Start)
 	AfterAll(ws.Destroy)
 
-	// blobServices is a singleton child whose ARM name is always "default" (the
-	// OneOf("default") envelope validator rejects anything else).
-	blob := ws.Resource("azapi_storage_account_blob_service", "test")
+	// Root scope: the resource group base, reused by the account scope below.
+	rg := ws.Resource("azapi_resource_group", "rg")
+	BeforeAll(func() { rg.Apply(resourceGroupConfig("rg"), Exists()) })
 
-	It("enables change feed", func() {
-		blob.Apply(`
-resource "azapi_storage_account_blob_service" "test" {
-  name               = "default"
-  storage_account_id = azapi_resource.sa.id
-  properties = {
-    change_feed = {
-      enabled = true
-    }
-  }
-}
-`,
-			Exists(),
-			Key("properties.change_feed.enabled").HasValue("true"),
-		)
-	})
+	Describe("on a storage account", Ordered, func() {
+		const rgRef = "azapi_resource_group.rg.id"
+		const saRef = "azapi_storage_account.sa.id"
 
-	It("imports cleanly with no drift", func() {
-		blob.ImportVerify()
-	})
+		// Child scope: the storage account plus its blob service, torn down together
+		// after this container while the resource group survives.
+		acct := ws.Scope()
+		AfterAll(acct.Teardown)
+		sa := acct.Resource("azapi_storage_account", "sa")
+		blob := acct.Resource("azapi_storage_account_blob_service", "test")
 
-	It("disables change feed in place", func() {
-		blob.Apply(`
-resource "azapi_storage_account_blob_service" "test" {
-  name               = "default"
-  storage_account_id = azapi_resource.sa.id
-  properties = {
-    change_feed = {
-      enabled = false
-    }
-  }
-}
-`,
-			Exists(),
-			Key("properties.change_feed.enabled").HasValue("false"),
-		)
-	})
+		BeforeAll(func() {
+			sa.Apply(storageAccountConfig("sa", rgRef, "Standard_LRS", ""), Exists())
+		})
 
-	It("rejects a name other than \"default\"", func() {
-		ws.Resource("azapi_storage_account_blob_service", "invalid").ApplyExpectError(`
-resource "azapi_storage_account_blob_service" "invalid" {
-  name               = "notdefault"
-  storage_account_id = azapi_resource.sa.id
-  properties = {
-    is_versioning_enabled = true
-  }
-}
-`, `name value must be one of`)
+		It("creates the singleton default blob service, then imports it", func() {
+			// Apply asserts existence and no post-apply drift; ImportVerify (co-located,
+			// not a separate It) re-imports and confirms the read path has no drift. The
+			// change_feed value set in config round-trips, so it needs no explicit Key check.
+			blob.Apply(blobServiceConfig("test", saRef, "default", changeFeed(true)), Exists()).
+				ImportVerify()
+		})
+
+		It("toggles change feed and versioning in place", func() {
+			// Each Apply re-plans for drift, covering both in-place property changes.
+			blob.Apply(blobServiceConfig("test", saRef, "default", changeFeed(false)))
+			blob.Apply(blobServiceConfig("test", saRef, "default", versioning(true)))
+		})
+
+		It("rejects a blob service name other than \"default\"", func() {
+			acct.Resource("azapi_storage_account_blob_service", "invalid").ApplyExpectError(
+				blobServiceConfig("invalid", saRef, "notdefault", versioning(true)),
+				`name value must be one of`,
+			)
+		})
 	})
 })

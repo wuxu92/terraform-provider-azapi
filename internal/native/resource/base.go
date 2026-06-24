@@ -336,6 +336,11 @@ func (b *Base) Read(ctx context.Context, req resource.ReadRequest, resp *resourc
 }
 
 func (b *Base) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	if b.hooks != nil && b.hooks.SkipARMDelete {
+		// No ARM delete operation for this resource (e.g. a singleton child like
+		// blobServices/default); the framework removes it from state on return.
+		return
+	}
 	if b.provider == nil {
 		resp.Diagnostics.AddError("Provider not configured", "the azapi provider was not configured")
 		return

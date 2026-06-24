@@ -2,22 +2,20 @@ package nativeacc
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
 	gomega "github.com/onsi/gomega"
 )
 
-// Resource is a resource-under-test handle within a Workspace. Each It drives one
-// Resource: Apply a full resource-block config and assert, ImportVerify it, or
-// ApplyExpectError. The resource lives in the shared workspace and is torn down
-// with it.
+// Resource is a resource-under-test handle owned by a Scope. Each It drives one
+// Resource: Apply a full resource-block config (which also asserts no post-apply
+// drift), Check the current state, ImportVerify it, or ApplyExpectError. The resource
+// is destroyed when its owning scope tears down.
 type Resource struct {
-	w *Workspace
+	scope *Scope
 
 	tfType     string
 	label      string
@@ -25,52 +23,54 @@ type Resource struct {
 	apiVersion string
 }
 
-// Resource declares the resource-under-test (Terraform type + state label) in the
-// workspace. The ARM type and API version are read from the resource's generated
-// descriptor, so the test always targets the version the provider ships and the
-// Azure existence check GETs at the matching API version. The config passed to
-// Apply is a complete `resource "<type>" "<label>" { ... }` block.
-func (w *Workspace) Resource(tfType, label string) *Resource {
-	d, ok := generated.Registry[tfType]
-	if !ok {
-		panic(fmt.Sprintf("nativeacc: no generated descriptor for %q", tfType))
-	}
-	return &Resource{
-		w:          w,
-		tfType:     tfType,
-		label:      label,
-		armType:    d.ARMType,
-		apiVersion: d.APIVersion,
-	}
-}
-
-// Apply writes the resource's config block, applies the workspace, and runs the
-// checks against the resulting state / Azure. The resource is created on first
-// Apply and updated in place on subsequent Applies (same label); pass an updated
-// config to drive an update.
-func (r *Resource) Apply(config string, checks ...Check) {
+// Apply writes the resource's config block, applies the workspace, and then re-plans
+// to assert the apply left no drift: a refresh-backed plan must be empty, proving the
+// config round-trips through the provider (Create/Update -> Read -> plan is stable).
+// This generic drift check catches the bulk of round-trip regressions, so the checks
+// argument is reserved for facts the plan can't prove — Azure-side existence (Exists)
+// and computed defaults (a value the provider, not the config, supplies). The resource
+// is created on first Apply and updated in place on subsequent Applies (same label).
+func (r *Resource) Apply(config string, checks ...Check) *Resource {
+	ctx := context.Background()
+	r.scope.own(r.label)
 	r.write(config)
-	gomega.Expect(r.w.tf.Apply(context.Background(), tfexec.Reattach(r.w.reattach))).
+	gomega.Expect(r.scope.ws.tf.Apply(ctx, tfexec.Reattach(r.scope.ws.reattach))).
 		NotTo(gomega.HaveOccurred(), "terraform apply (%s)", r.address())
-	r.runChecks(checks)
+	hasChanges, err := r.scope.ws.tf.Plan(ctx, tfexec.Reattach(r.scope.ws.reattach))
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "plan after apply (%s)", r.address())
+	gomega.Expect(hasChanges).To(gomega.BeFalse(), "plan after apply shows drift for %s", r.address())
+	r.verify(checks, true)
+	return r
 }
 
-// ImportVerify removes the resource from state, re-imports it by ID, and asserts
-// the subsequent plan is empty — i.e. the read/import path reproduces the
-// configured state with no drift.
-func (r *Resource) ImportVerify() {
+// Check runs checks against the resource's current state / Azure without re-applying.
+// Use it in an It that asserts a facet of a resource provisioned in the container's
+// BeforeAll.
+func (r *Resource) Check(checks ...Check) *Resource {
+	r.verify(checks, false)
+	return r
+}
+
+// ImportVerify removes the resource from state, re-imports it by ID, and asserts the
+// subsequent plan is empty — i.e. the read/import path reproduces the configured state
+// with no drift. Call it in the same It/BeforeAll immediately after the Apply it
+// verifies (like azurerm's data.ImportStep, which is the step right after the apply
+// step) — never in a separate It, which would silently depend on another spec having
+// applied the resource first.
+func (r *Resource) ImportVerify() *Resource {
 	ctx := context.Background()
 	id := r.currentID()
 	gomega.Expect(id).NotTo(gomega.BeEmpty(), "resource %s has no id to import", r.address())
 
-	gomega.Expect(r.w.tf.StateRm(ctx, r.address())).
+	gomega.Expect(r.scope.ws.tf.StateRm(ctx, r.address())).
 		NotTo(gomega.HaveOccurred(), "state rm %s", r.address())
-	gomega.Expect(r.w.tf.Import(ctx, r.address(), id, tfexec.Reattach(r.w.reattach))).
+	gomega.Expect(r.scope.ws.tf.Import(ctx, r.address(), id, tfexec.Reattach(r.scope.ws.reattach))).
 		NotTo(gomega.HaveOccurred(), "import %s", r.address())
 
-	hasChanges, err := r.w.tf.Plan(ctx, tfexec.Reattach(r.w.reattach))
+	hasChanges, err := r.scope.ws.tf.Plan(ctx, tfexec.Reattach(r.scope.ws.reattach))
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "plan after import")
 	gomega.Expect(hasChanges).To(gomega.BeFalse(), "plan after import shows drift for %s", r.address())
+	return r
 }
 
 // ApplyExpectError writes config and expects terraform plan to fail with an error
@@ -80,28 +80,34 @@ func (r *Resource) ImportVerify() {
 // that was (or will be) applied.
 func (r *Resource) ApplyExpectError(config, errRegex string) {
 	r.write(config)
-	_, err := r.w.tf.Plan(context.Background(), tfexec.Reattach(r.w.reattach))
+	// Remove the config even if an assertion below fails (gomega panics on failure),
+	// so a regressed negative case cannot leave an invalid .tf that poisons teardown.
+	defer func() { _ = os.Remove(filepath.Join(r.scope.ws.dir, resourceFileName(r.label))) }()
+	_, err := r.scope.ws.tf.Plan(context.Background(), tfexec.Reattach(r.scope.ws.reattach))
 	gomega.Expect(err).To(gomega.HaveOccurred(), "expected plan to fail for %s", r.address())
 	gomega.Expect(err.Error()).To(gomega.MatchRegexp(errRegex))
-	_ = os.Remove(filepath.Join(r.w.dir, r.fileName()))
 }
 
 func (r *Resource) write(config string) {
-	r.w.writeFile(r.fileName(), r.w.render(config))
+	r.scope.ws.writeFile(resourceFileName(r.label), r.scope.ws.render(config))
 }
 
-func (r *Resource) runChecks(checks []Check) {
+// verify reads the resource from state, optionally records it for post-teardown
+// existence verification, and runs the checks.
+func (r *Resource) verify(checks []Check, track bool) {
 	res := r.stateResource()
 	gomega.Expect(res).NotTo(gomega.BeNil(), "resource %s not found in state", r.address())
 
 	id, _ := res.AttributeValues["id"].(string)
-	r.w.track(r.armType, r.apiVersion, id)
+	if track {
+		r.scope.track(trackedResource{armType: r.armType, apiVersion: r.apiVersion, id: id})
+	}
 
 	c := &checkCtx{
 		attrs: res.AttributeValues,
 		id:    id,
 		exists: func() (bool, error) {
-			return azureExists(r.w.client, r.armType, r.apiVersion, id)
+			return azureExists(r.scope.ws.client, r.armType, r.apiVersion, id)
 		},
 	}
 	for _, ch := range checks {
@@ -119,7 +125,7 @@ func (r *Resource) currentID() string {
 }
 
 func (r *Resource) stateResource() *tfjson.StateResource {
-	st, err := r.w.tf.Show(context.Background(), tfexec.Reattach(r.w.reattach))
+	st, err := r.scope.ws.tf.Show(context.Background(), tfexec.Reattach(r.scope.ws.reattach))
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "terraform show")
 	if st == nil || st.Values == nil || st.Values.RootModule == nil {
 		return nil
@@ -132,5 +138,4 @@ func (r *Resource) stateResource() *tfjson.StateResource {
 	return nil
 }
 
-func (r *Resource) fileName() string { return "resource_" + r.label + ".tf" }
-func (r *Resource) address() string  { return r.tfType + "." + r.label }
+func (r *Resource) address() string { return r.tfType + "." + r.label }

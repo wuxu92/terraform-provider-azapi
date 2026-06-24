@@ -176,3 +176,35 @@ func TestLoadStorageBody(t *testing.T) {
 		t.Error("loadBody not cached")
 	}
 }
+
+func TestBlobServiceSkipARMDelete(t *testing.T) {
+	// blobServices/default is a singleton with no ARM delete operation, so its
+	// overlay registers a state-only delete (SkipARMDelete) to avoid a 405.
+	h, ok := hookRegistry["azapi_storage_account_blob_service"]
+	if !ok || h == nil {
+		t.Fatal("blob service hooks not registered")
+	}
+	if !h.SkipARMDelete {
+		t.Error("blob service SkipARMDelete should be true")
+	}
+
+	ctx := context.Background()
+
+	// With SkipARMDelete, Delete returns before touching the provider (nil here) and
+	// records no error — the framework then removes the resource from state.
+	skip := &Base{hooks: &Hooks{SkipARMDelete: true}}
+	resp := &resource.DeleteResponse{}
+	skip.Delete(ctx, resource.DeleteRequest{}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("SkipARMDelete Delete should not error, got: %v", resp.Diagnostics)
+	}
+
+	// Without the flag the same nil-provider Delete reaches the provider check and
+	// errors — confirming the early return is what bypasses the ARM delete path.
+	plain := &Base{}
+	resp2 := &resource.DeleteResponse{}
+	plain.Delete(ctx, resource.DeleteRequest{}, resp2)
+	if !resp2.Diagnostics.HasError() {
+		t.Error("Delete without SkipARMDelete and nil provider should error")
+	}
+}

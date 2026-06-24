@@ -1,0 +1,103 @@
+package nativeacc
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
+	"github.com/hashicorp/terraform-exec/tfexec"
+	gomega "github.com/onsi/gomega"
+)
+
+// Scope is the set of resources owned by one Ordered Ginkgo container. Resources in a
+// scope are applied into the shared workspace and may reference resources from
+// ancestor scopes by Terraform address. Teardown destroys only this scope's resources
+// — removing their config and re-applying, which leaves ancestor (outer) resources
+// running. This lets a nested container reuse the base resources of the containers
+// that enclose it, and lets sibling containers each exercise a fresh resource on the
+// same shared base.
+//
+// Nest scopes so that a resource's dependents live in DEEPER scopes than it: Ginkgo
+// runs inner AfterAll (teardown) before outer, so dependents are destroyed first.
+type Scope struct {
+	ws      *Workspace
+	labels  []string          // resource labels owned by this scope, in apply order
+	tracked []trackedResource // applied resources, verified absent on Teardown
+}
+
+// Scope returns a child scope. Wire its Teardown to the nested container's AfterAll.
+func (s *Scope) Scope() *Scope { return &Scope{ws: s.ws} }
+
+// Resource declares a resource-under-test owned by this scope. The ARM type and API
+// version come from the generated descriptor, so the test targets the version the
+// provider ships and the Azure existence check GETs at the matching API version.
+func (s *Scope) Resource(tfType, label string) *Resource {
+	return newResource(s, tfType, label)
+}
+
+func newResource(s *Scope, tfType, label string) *Resource {
+	d, ok := generated.Registry[tfType]
+	if !ok {
+		panic(fmt.Sprintf("nativeacc: no generated descriptor for %q", tfType))
+	}
+	return &Resource{
+		scope:      s,
+		tfType:     tfType,
+		label:      label,
+		armType:    d.ARMType,
+		apiVersion: d.APIVersion,
+	}
+}
+
+// own records that this scope owns the file for label (idempotent), so Teardown
+// removes exactly the resources this scope created.
+func (s *Scope) own(label string) {
+	for _, l := range s.labels {
+		if l == label {
+			return
+		}
+	}
+	s.labels = append(s.labels, label)
+}
+
+// track records a resource for post-teardown existence verification, deduplicated by
+// id so repeated Applies of the same resource are counted once.
+func (s *Scope) track(tr trackedResource) {
+	for _, t := range s.tracked {
+		if t.id == tr.id {
+			return
+		}
+	}
+	s.tracked = append(s.tracked, tr)
+}
+
+func resourceFileName(label string) string { return "resource_" + label + ".tf" }
+
+// Teardown destroys the resources this scope owns and asserts they are gone from
+// Azure, leaving ancestor resources running. Intended for a nested container's
+// AfterAll. It is a no-op when the workspace never started (a skipped run).
+func (s *Scope) Teardown() {
+	if s.ws == nil || !s.ws.started || s.ws.tf == nil {
+		return
+	}
+	for _, label := range s.labels {
+		_ = os.Remove(filepath.Join(s.ws.dir, resourceFileName(label)))
+	}
+	// Re-apply the remaining config: Terraform destroys the resources whose files we
+	// just removed and no-ops everything still present (ancestor / sibling scopes).
+	gomega.Expect(s.ws.tf.Apply(context.Background(), tfexec.Reattach(s.ws.reattach))).
+		NotTo(gomega.HaveOccurred(), "scoped teardown apply")
+
+	for _, tr := range s.tracked {
+		if tr.id == "" {
+			continue
+		}
+		ok, err := azureExists(s.ws.client, tr.armType, tr.apiVersion, tr.id)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred(), "post-teardown GET %s", tr.id)
+		gomega.Expect(ok).To(gomega.BeFalse(), "%s still exists after scope teardown", tr.id)
+	}
+	s.labels = nil
+	s.tracked = nil
+}

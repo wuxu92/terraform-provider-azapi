@@ -1,87 +1,58 @@
 package nativeacc
 
 import (
-	"fmt"
-
 	. "github.com/onsi/ginkgo/v2"
 )
 
-// Azure Storage groups the storage-account scenarios. The shared base is a single
-// resource group; the storage account is the resource-under-test, created once and
-// mutated by the ordered scenarios below, then destroyed with the workspace.
+// Azure Storage demonstrates the scoped model: the resource group is a root-scope
+// base, and a nested container owns the storage account under test on that shared
+// base. The account is created once in the nested BeforeAll, asserted and mutated by
+// the ordered scenarios, and destroyed once when the nested container ends — the
+// resource group survives for any sibling container.
 var _ = Describe("Azure Storage", Ordered, func() {
-	ws := NewWorkspace(`
-resource "azapi_resource" "rg" {
-  type      = "Microsoft.Resources/resourceGroups@2021-04-01"
-  name      = "acctest-rg-{{.RandomInteger}}"
-  parent_id = "/subscriptions/{{.SubscriptionID}}"
-  location  = "{{.Location}}"
-}
-`)
+	ws := NewWorkspace()
 	BeforeAll(ws.Start)
 	AfterAll(ws.Destroy)
 
-	sa := ws.Resource("azapi_storage_account", "test")
+	// Root scope: the resource group, created once and reused by every nested scope.
+	rg := ws.Resource("azapi_resource_group", "rg")
+	BeforeAll(func() { rg.Apply(resourceGroupConfig("rg"), Exists()) })
 
-	It("creates a basic Standard_LRS StorageV2 account", func() {
-		sa.Apply(storageAccountConfig("Standard_LRS", ""),
-			Exists(),
-			Key("kind").HasValue("StorageV2"),
-			Key("sku.name").HasValue("Standard_LRS"),
-			// minimum_tls_version has an azwise verified default of TLS1_2; omitting
-			// it surfaces that default in state (Optional+Computed+Default).
-			Key("properties.minimum_tls_version").HasValue("TLS1_2"),
-		)
-	})
+	Describe("a StorageV2 account", Ordered, func() {
+		// Child scope: owns the storage account, torn down after this container while
+		// the resource group base (rgRef) stays. rgRef is the injected dependency.
+		const rgRef = "azapi_resource_group.rg.id"
+		acct := ws.Scope()
+		AfterAll(acct.Teardown)
+		sa := acct.Resource("azapi_storage_account", "test")
 
-	It("imports cleanly with no drift", func() {
-		sa.ImportVerify()
-	})
+		BeforeAll(func() {
+			sa.Apply(storageAccountConfig("test", rgRef, "Standard_LRS", ""), Exists()).ImportVerify()
+		})
 
-	It("sets the access tier to Hot", func() {
-		sa.Apply(storageAccountConfig("Standard_LRS", `
-  properties = {
-    access_tier = "Hot"
-  }`),
-			Exists(),
-			Key("properties.access_tier").HasValue("Hot"),
-		)
-	})
+		// The create above also import-verifies (StateRm + re-import, no drift) and, via
+		// Apply, asserts existence and no post-apply drift — so the StorageV2/Standard_LRS
+		// config echoes need no explicit checks.
 
-	It("updates the access tier to Cool in place", func() {
-		sa.Apply(storageAccountConfig("Standard_LRS", `
-  properties = {
-    access_tier = "Cool"
-  }`),
-			Exists(),
-			Key("properties.access_tier").HasValue("Cool"),
-		)
-	})
+		It("applies the azwise verified TLS 1.2 default", func() {
+			// A computed default the plan can't prove: minimum_tls_version is omitted
+			// from config, so the provider (not the config) supplies TLS1_2 — the kind
+			// of fact that still warrants an explicit Key check.
+			sa.Check(Key("properties.minimum_tls_version").HasValue("TLS1_2"))
+		})
 
-	It("replaces the account when migrating Standard_LRS to Standard_ZRS", func() {
-		// Exercises the storage overlay's azwise.CheckForceNew SKU zone-migration
-		// rule: Standard_LRS -> Standard_ZRS forces a replace.
-		sa.Apply(storageAccountConfig("Standard_ZRS", ""),
-			Exists(),
-			Key("sku.name").HasValue("Standard_ZRS"),
-		)
+		It("updates the access tier in place", func() {
+			// Each Apply re-plans for drift, so the in-place Hot -> Cool transition
+			// round-trips are verified without per-value assertions.
+			sa.Apply(storageAccountConfig("test", rgRef, "Standard_LRS", accessTier("Hot")))
+			sa.Apply(storageAccountConfig("test", rgRef, "Standard_LRS", accessTier("Cool")))
+		})
+
+		It("replaces the account when migrating Standard_LRS to Standard_ZRS", func() {
+			// Exercises the storage overlay's azwise.CheckForceNew SKU zone-migration
+			// rule: Standard_LRS -> Standard_ZRS forces a replace. Exists confirms the
+			// replacement account is present in Azure.
+			sa.Apply(storageAccountConfig("test", rgRef, "Standard_ZRS", ""), Exists())
+		})
 	})
 })
-
-// storageAccountConfig renders a StorageV2 account block with the given SKU name
-// and an optional extra fragment (e.g. a `properties = { ... }` block, leading
-// newline + 2-space indent). The name is stable for the workspace lifetime so
-// successive Applies update the same account in place.
-func storageAccountConfig(sku, extra string) string {
-	return fmt.Sprintf(`
-resource "azapi_storage_account" "test" {
-  name              = "acctestsa{{.RandomString}}"
-  resource_group_id = azapi_resource.rg.id
-  location          = "{{.Location}}"
-  kind              = "StorageV2"
-  sku = {
-    name = %q
-  }%s
-}
-`, sku, extra)
-}

@@ -40,6 +40,12 @@ type Hooks struct {
 	AfterRead    func(*CrudCtx)
 	BeforeDelete func(*CrudCtx)
 
+	// SkipARMDelete marks a resource that has no ARM delete operation — e.g. a
+	// singleton child such as Microsoft.Storage/storageAccounts/blobServices/default
+	// that exists for the lifetime of its parent and would 405 on DELETE. When true,
+	// Delete removes the resource from Terraform state without calling ARM.
+	SkipARMDelete bool
+
 	// Full overrides of the framework lifecycle methods. When set, the base
 	// invokes these after its own default work (for ModifyPlan/ValidateConfig)
 	// or instead of nothing (ImportState extension).
