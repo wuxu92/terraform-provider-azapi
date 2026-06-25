@@ -1,46 +1,38 @@
 # Azapin Developer Guide
 
-This is the **task-oriented playbook** for working on azapin static resources. It
-covers three workflows end to end:
+Task-oriented playbook for azapin static resources. Three workflows:
 
-1. [Add a new native resource from the ground up](#1-add-a-new-resource-from-the-ground-up) — including extracting AzureRM knowledge with azwise.
-2. [Update / regenerate an existing resource](#2-update--regenerate-an-existing-resource) — when bicep types, azwise knowledge, or a customizer changes.
+1. [Add a new resource from the ground up](#1-add-a-new-resource-from-the-ground-up) — incl. azwise knowledge extraction.
+2. [Update / regenerate an existing resource](#2-update--regenerate-an-existing-resource) — bicep/azwise/customizer changed, same API version.
 3. [Upgrade the API version of an existing resource](#3-upgrade-the-api-version-of-an-existing-resource).
 
-It complements — not replaces — the reference docs:
-
-- **DESIGN.md** — architecture, naming, project scope.
+Reference docs cover the *why*; this covers the *how*:
+- **DESIGN.md** — architecture, naming, scope.
 - **GENERATOR.md** — the 17 generator rules (flags, defaults, validators, envelope, customizers).
-- **RESOURCE.md** — the runtime `Base`, the mapper, and hooks.
-
-Read those for *why*; read this for *how*.
+- **RESOURCE.md** — the runtime `Base`, mapper, hooks.
 
 ## Mental model
 
-A generated resource is assembled at **generation time** from four layered inputs,
-each able to override the one before it:
+A resource is assembled at **generation time** from four layers, each overriding the prior:
 
 ```
-bicep flags (types.json)         base: Required/ReadOnly/WriteOnly → schema flags
-  └─ description mining          defaults & validators scraped from ARM descriptions
-       └─ azwise overlay         curated AzureRM knowledge (authoritative; Rule 9b)
-            └─ customizers        hand-written Go, runs last, final say (Rule 9d)
+bicep flags (types.json)    Required/ReadOnly/WriteOnly → schema flags
+ └ description mining        defaults & validators scraped from ARM descriptions
+   └ azwise overlay          curated AzureRM knowledge (authoritative; Rule 9b)
+     └ customizers           hand-written Go, runs last, final say (Rule 9d)
 ```
 
 The result is baked into `internal/native/generated/<service>/<name>_gen.go`. The
-**runtime never mutates the schema** — it serves the generated `Schema()` and adds
-only a `timeouts` block. Per-resource runtime *behavior* (not schema) is a separate
-hook layer (`resource/overlay_<name>.go`); see **Runtime behavior hooks** below.
+**runtime never mutates the schema** — it serves the generated `Schema()` plus a
+`timeouts` block. Per-resource runtime *behavior* (not schema) is a separate hook
+layer (`resource/overlay_<name>.go`); see [Runtime behavior hooks](#runtime-behavior-hooks).
 
-Two failure modes worth internalizing before you start:
-
-- **Customizer paths fail loudly.** `generator.FindProperty` / `IsolateArrayElement`
-  **panic** on an ARM path that doesn't resolve — a typo or a renamed property
-  crashes generation immediately. Good: you can't ship a stale customizer.
-- **azwise paths fail silently.** `ApplyAzwise` **skips** a path that doesn't
-  resolve in the body (so ListKeys-only fields, etc. are harmless). The net for a
-  *lost* rule is the azwise overlay tests (`TestApplyAzwise*`), which parse the
-  live `types.json` and assert the overlay actually baked in.
+Two failure modes to internalize:
+- **Customizer paths panic.** `FindProperty` / `IsolateArrayElement` crash generation
+  on an unresolvable ARM path — a typo or renamed property can't ship silently.
+- **azwise paths fail silently.** `ApplyAzwise` skips an unresolved path; a *lost* rule
+  is caught only by the overlay tests (`TestApplyAzwise*`), which parse live
+  `types.json` and assert the rule baked in.
 
 ## Where things live
 
@@ -60,7 +52,7 @@ Two failure modes worth internalizing before you start:
 
 ## The verification gate
 
-Every workflow ends with the same gate. Run it from the repo root:
+Every workflow ends here (repo root):
 
 ```bash
 # 1. format + compile + vet
@@ -81,34 +73,28 @@ go test ./internal/native/... ./internal/azure/azwise/...
 TF_ACC=1 go test ./internal/native/generated/<service>/ -run <TestXxxAcceptance>
 ```
 
-`azapin-validate` is the load-bearing check: it confirms the emitted schema covers
-every bicep body property and vice versa. `INVARIANT …` lines mean a `Default`
-violates the framework's `Optional+Computed`/validator rules (GENERATOR.md
-"Schema Flag Invariants") — fix before shipping.
+`azapin-validate` is load-bearing: it confirms the schema covers every bicep body
+property and vice versa. `INVARIANT …` lines mean a `Default` violates the framework's
+Optional+Computed/validator rules (GENERATOR.md "Schema Flag Invariants") — fix before
+shipping.
 
 ---
 
 ## Runtime behavior hooks
 
-Customizers (workflow 1, Step 4) shape the **schema** at generation time. Hooks
-shape runtime **behavior** — what happens during a CRUD/plan operation — and
-touch the schema not at all. The two never overlap: never validate, default, or
-`RequiresReplace` a fixed attribute from a hook (bake it into the generated schema
-instead), and never reach for ARM state from a customizer.
+Customizers shape the **schema** at generation time; hooks shape runtime **behavior**
+and touch the schema not at all. Never validate/default/`RequiresReplace` a fixed
+attribute from a hook (bake it into the schema); never read ARM state from a customizer.
 
-A hook bundle is registered per Terraform resource name from an overlay file's
-`init()`. Overlays live in package `resource`, so they compile in automatically —
-**no blank import** (unlike customizers and the generated packages):
+Register per Terraform name from an overlay `init()`. Overlays live in package
+`resource`, so they compile in automatically — **no blank import**:
 
 ```go
 // internal/native/resource/overlay_<name>.go
 package resource
 
 func init() {
-    RegisterHooks("azapi_<name>", &Hooks{
-        BeforeCreate: ...,
-        ModifyPlan:   ...,
-    })
+    RegisterHooks("azapi_<name>", &Hooks{BeforeCreate: ..., ModifyPlan: ...})
 }
 ```
 
@@ -119,27 +105,23 @@ field — means "use the base behavior".
 
 | Hook | Fires | Use it to |
 |---|---|---|
-| `BeforeCreate` | create, after the ARM body is composed, before PUT | mutate `ctx.Body` before it is sent |
-| `AfterCreate` | create, after the GET that follows the PUT | inspect `ctx.Response`; raise diagnostics |
-| `BeforeUpdate` | update, after the body is composed, before PUT | mutate `ctx.Body` |
+| `BeforeCreate` | create, after body composed, before PUT | mutate `ctx.Body` before send |
+| `AfterCreate` | create, after the GET following PUT | inspect `ctx.Response`; raise diagnostics |
+| `BeforeUpdate` | update, after body composed, before PUT | mutate `ctx.Body` |
 | `AfterUpdate` | update, after the follow-up GET | inspect `ctx.Response` |
-| `AfterRead` | read, after the GET, before the response maps into state | massage `ctx.Response` before flatten |
+| `AfterRead` | read, after GET, before mapping into state | massage `ctx.Response` before flatten |
 | `BeforeDelete` | delete, before the DELETE call | preflight/guard using `ctx.State` |
-| `ValidateConfig` | config validation (plan-time; values may be unknown) | cross-field rules a single-attribute validator can't express |
+| `ValidateConfig` | config validation (plan-time; values may be unknown) | cross-field rules one validator can't express |
 | `ModifyPlan` | plan, **after** the base's default work | conditional `RequiresReplace`, plan-time derivation |
 
-`Before/AfterCreate` vs `Before/AfterUpdate` are dispatched by whether the op is a
-create — both flow through the same body-composition path. `ValidateConfig` and
-`ModifyPlan` use the framework signatures and run *in addition* to the base (the
-base applies schema-level `RequiresReplace` first, then calls your `ModifyPlan`).
+`Before/AfterCreate` vs `Before/AfterUpdate` dispatch by whether the op is a create
+(same body-composition path). `ValidateConfig`/`ModifyPlan` use framework signatures and
+run *after* the base (base applies schema `RequiresReplace` first, then your `ModifyPlan`).
 
-> `Hooks.BeforeRead` exists in the struct but the `Read` path currently invokes
-> only `AfterRead` — registering `BeforeRead` is a **no-op today**. Wire it in
-> `base.go`'s `Read` before relying on it.
+> `Hooks.BeforeRead` exists in the struct but `Read` invokes only `AfterRead` —
+> `BeforeRead` is a **no-op today**. Wire it in `base.go`'s `Read` before relying on it.
 
 ### What a hook sees — `CrudCtx`
-
-Every `Before*`/`After*` hook receives a `*CrudCtx`:
 
 | Field | What | Notes |
 |---|---|---|
@@ -150,38 +132,30 @@ Every `Before*`/`After*` hook receives a `*CrudCtx`:
 | `State` | typed prior-state object | set on read/update/delete, null otherwise |
 | `Body` | `map[string]interface{}` — ARM body being composed | **mutate in `Before*`** |
 | `Response` | `map[string]interface{}` — ARM GET response | **read in `After*`** |
-| `Diags` | `*diag.Diagnostics` | append an error + `return` to abort the op |
+| `Diags` | `*diag.Diagnostics` | append an error + `return` to abort |
 
-The contract is directional: `Before*` hooks mutate `Body`, `After*` hooks read
-`Response`. The base checks `HasError()` after each hook — append a diagnostic and
-return to stop the operation.
+`Before*` mutate `Body`; `After*` read `Response`. The base checks `HasError()` after
+each hook — append a diagnostic and `return` to stop the operation.
 
 ### Example — conditional ForceNew (shipped)
 
-The storage account's declarative ForceNew (`RequiresReplace`) is already baked
-into the schema by azwise. What a static plan modifier *can't* express is "replace
-only when migrating between zonal and non-zonal SKUs" — so that lives in a
-`ModifyPlan` hook that consults `azwise.CheckForceNew`:
+A static plan modifier can't express "replace only when migrating between zonal and
+non-zonal SKUs", so it lives in a `ModifyPlan` hook consulting `azwise.CheckForceNew`:
 
 ```go
 // internal/native/resource/overlay_storage_account.go
-func init() {
-    RegisterHooks("azapi_storage_account", &Hooks{ModifyPlan: storageAccountModifyPlan})
-}
-
 func storageAccountModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
     if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-        return // only relevant for updates
+        return // updates only
     }
-    var oldName, newName types.String
     skuName := path.Root("sku").AtName("name")
+    var oldName, newName types.String
     resp.Diagnostics.Append(req.State.GetAttribute(ctx, skuName, &oldName)...)
     resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, skuName, &newName)...)
     if resp.Diagnostics.HasError() {
         return
     }
-    // Pull ARMType/APIVersion from the shipped descriptor so the rule stays correct
-    // when the generator rolls the resource forward to a newer version.
+    // ARMType/APIVersion from the shipped descriptor — stays correct across version upgrades.
     d := generated.Registry["azapi_storage_account"]
     oldBody := map[string]interface{}{"sku": map[string]interface{}{"name": oldName.ValueString()}}
     newBody := map[string]interface{}{"sku": map[string]interface{}{"name": newName.ValueString()}}
@@ -194,31 +168,21 @@ func storageAccountModifyPlan(ctx context.Context, req resource.ModifyPlanReques
 ### Example — body / response massaging (template)
 
 ```go
-// internal/native/resource/overlay_<name>.go (package resource)
-func init() {
-    RegisterHooks("azapi_<name>", &Hooks{
-        BeforeCreate: func(c *CrudCtx) {
-            // inject/normalize a field the mapper can't derive; it is then PUT
-            c.Body["someField"] = derive(c)
-        },
-        AfterRead: func(c *CrudCtx) {
-            // massage c.Response before it flattens into state, or abort:
-            // c.Diags.AddError("title", "detail")
-        },
-    })
-}
+RegisterHooks("azapi_<name>", &Hooks{
+    BeforeCreate: func(c *CrudCtx) { c.Body["someField"] = derive(c) },        // injected, then PUT
+    AfterRead:    func(c *CrudCtx) { /* massage c.Response before flatten, or c.Diags.AddError(…) */ },
+})
 ```
 
 ### Hook rules
 
 - Schema concerns (validators, defaults, ForceNew on a fixed attribute) → generated
   schema via customizers/azwise, **never** a hook.
-- Keyed by the **Terraform** name (`azapi_…`); same-package `init()` registration,
-  so no import wiring — just drop `overlay_<name>.go` into `resource/`.
-- Read ARM type/version from `generated.Registry[name]`, never hardcode — keeps the
-  hook correct across version upgrades.
-- Append to `Diags` (or `resp.Diagnostics`) and `return` to abort; the base checks
-  after every hook.
+- Keyed by the **Terraform** name; same-package `init()`, no import wiring — just drop
+  `overlay_<name>.go` into `resource/`.
+- Read ARM type/version from `generated.Registry[name]`, never hardcode.
+- Append to `Diags`/`resp.Diagnostics` and `return` to abort; the base checks after each hook.
+
 ---
 
 ## 1. Add a new resource from the ground up
@@ -228,9 +192,6 @@ Worked example: `Microsoft.Storage/storageAccounts/blobServices` →
 
 ### Step 1 — Register the ARM type
 
-Add the bare ARM type (no API version) to the catalog so it is spelled once and
-referenced everywhere by constant:
-
 ```go
 // internal/native/armtypes/armtypes.go
 const StorageAccountBlobService = "Microsoft.Storage/storageAccounts/blobServices"
@@ -238,63 +199,49 @@ const StorageAccountBlobService = "Microsoft.Storage/storageAccounts/blobService
 
 ### Step 2 — Extract AzureRM knowledge with azwise
 
-**Do not skip this.** Without azwise the schema carries only bicep-derived flags and
-loses curated ForceNew / validation / defaults / timeouts.
+**Don't skip this** — without azwise the schema carries only bicep-derived flags and
+loses curated ForceNew / validation / defaults / timeouts. Use the **azwise agent**
+(`skill://azwise`), which drives `azwise_extract` over `terraform-provider-azurerm`:
 
-Use the **azwise agent** (`.omp/agents/azwise.md`, skill `skill://azwise`), which
-drives the `azwise_extract` tool over the `terraform-provider-azurerm` source. Its
-workflow (see the agent file for the full contract):
-
-1. `azwise_extract category=schema resource_name=azurerm_storage_account` → fields
-   classified computed/default/forceNew/sensitive/required/optional + API version + blocks.
-2. `azwise_extract category=automap …` → ARM body paths for each field.
-3. `azwise_extract category=validation …` → every `ValidateFunc` (enums, ranges,
-   lengths, regexes, UUID, custom). **Transfer all of them — never silently drop one.**
+1. `category=schema resource_name=azurerm_storage_account` → fields classified
+   (computed/default/forceNew/sensitive/required/optional) + API version + blocks.
+2. `category=automap` → ARM body paths per field.
+3. `category=validation` → every `ValidateFunc` (enum/range/length/regex/UUID/custom).
+   **Transfer all — never silently drop one.**
 4. `category=timeouts` / `category=softdelete`.
 5. `read`/`search` azurerm source only for paths automap couldn't verify.
 6. Write **one** `internal/azure/azwise/<resource>.go` embedding `BaseKnowledge`:
 
 ```go
-// internal/azure/azwise/storage_account_blob_service.go
 type StorageAccountBlobService struct{ BaseKnowledge }
 
 var _ ResourceKnowledge = (*StorageAccountBlobService)(nil)
 
 func NewStorageAccountBlobService() *StorageAccountBlobService {
-    return &StorageAccountBlobService{
-        BaseKnowledge: BaseKnowledge{
-            ResourceType:   "Microsoft.Storage/storageAccounts/blobServices",
-            ApiVersions:    []string{"2025-08-01"},
-            TimeoutsConfig: &Timeouts{Create: 30 * time.Minute, /* … */},
-            StringRules:    []StringRule{ /* enum/regex/length, by ARM path */ },
-            IntRules:       []IntRule{ /* numeric ranges */ },
-            ArrayRules:     []ArrayRule{ /* MaxItems */ },
-            DefaultValues:  []DefaultValue{ /* {PropertyPath, Value} */ },
-            // ForceNew / ComputedFields / SensitiveFields / RequiredFields as needed
-        },
-    }
+    return &StorageAccountBlobService{BaseKnowledge: BaseKnowledge{
+        ResourceType:   "Microsoft.Storage/storageAccounts/blobServices",
+        ApiVersions:    []string{"2025-08-01"},
+        TimeoutsConfig: &Timeouts{Create: 30 * time.Minute /* … */},
+        StringRules:    []StringRule{ /* enum/regex/length, by ARM path */ },
+        IntRules:       []IntRule{ /* numeric ranges */ },
+        ArrayRules:     []ArrayRule{ /* MaxItems */ },
+        DefaultValues:  []DefaultValue{ /* {PropertyPath, Value} */ },
+        // ForceNew / ComputedFields / SensitiveFields / RequiredFields as needed
+    }}
 }
 ```
 
-7. Register it:
+7. Register in `register.go`'s `RegisterAll()`: `Register(NewStorageAccountBlobService())`.
 
-```go
-// internal/azure/azwise/register.go — RegisterAll()
-Register(NewStorageAccountBlobService())
-```
+**Sub-service separation (critical).** Settings AzureRM bundles into a parent block —
+`blob_properties`, `share_properties`, `queue_properties` in `azurerm_storage_account` —
+are *separate* ARM resources (`…/blobServices/default`). Their knowledge goes in the
+**sub-service's** file, never the parent's.
 
-**Sub-service API separation (critical).** Settings AzureRM bundles into a parent
-block — `blob_properties`, `share_properties`, `queue_properties` inside
-`azurerm_storage_account` — are *separate* ARM resources
-(`…/blobServices/default`, …). Their knowledge goes in the **sub-service's** file,
-never the parent's.
+**Field-type discipline.** `StringRules` → string/enum fields, `IntRules` → numeric.
+Cross-check the go-azure-sdk model struct; cite source file/line in the doc comment.
 
-**Field-type discipline.** `StringRules` target string/enum fields, `IntRules`
-target numeric fields. Cross-check the go-azure-sdk model struct; cite source
-file/line in the struct doc comment.
-
-The generator overlays this automatically via `ApplyAzwise` (Rule 9b) — declarative
-rules become baked validators/defaults/plan-modifiers.
+The generator overlays this via `ApplyAzwise` (Rule 9b).
 
 ### Step 3 — Add a generation target
 
@@ -306,53 +253,38 @@ var targets = []string{
 }
 ```
 
-The version and `types.json` path are resolved from `index.json` automatically — you
-name only the bare ARM type.
+Version + `types.json` path resolve from `index.json`; you name only the bare ARM type.
 
 ### Step 4 — Add a customizer (only if needed)
 
-Skip this when bicep + azwise already suffice. Add a customizer for rules **neither
-bicep nor azwise can express**. Each resource gets its own file; `register.go` owns
-the single `init()`:
+Skip when bicep + azwise suffice. Add a customizer for rules **neither can express**.
+One file per resource; `register.go` owns the single `init()`:
 
 ```go
 // internal/native/generator/customizers/storage_account_blob_service.go
 func customizeStorageAccountBlobService(def *generator.ResourceDefinition) {
-    // blobServices is a singleton: ARM name is always "default", and name is not
-    // in the body graph — so pin it on the envelope name attribute.
+    // blobServices name is always "default" and isn't in the body graph → pin on envelope.
     def.Envelope.Name.Validators = []generator.DescriptionValidator{
-        generator.OneOfValidator(`blob service name must be "default" …`, "default"),
+        generator.OneOfValidator(`blob service name must be "default"`, "default"),
     }
 }
+// register.go init(): Register(armtypes.StorageAccountBlobService, customizeStorageAccountBlobService)
 ```
 
-```go
-// internal/native/generator/customizers/register.go — init()
-func init() {
-    Register(armtypes.StorageAccountBlobService, customizeStorageAccountBlobService)
-}
-```
-
-Customizers mutate `*Property` fields by ARM dot path and run **last**, so they win
-over azwise and description-mining. Common moves:
-
-- **Body property** — `generator.FindProperty(def, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"`
-  (sets `DefaultValue` / `ForceNew` / `Sensitive` / `Validators`).
+Customizers mutate `*Property` by ARM dot path and run **last** (win over azwise +
+description-mining). Common moves:
+- **Body property** — `FindProperty(def, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"`
+  (also sets `ForceNew` / `Sensitive` / `Validators`).
 - **Envelope name** — `def.Envelope.Name.Validators = …` (name isn't in the body).
-- **Semantic validator the declarative rules can't express** — attach a
-  `validator.String`, picking its home by reusability:
-  - **Generic / cross-resource** → `generator.SharedValidator("UUID()")`, constructor
-    in `internal/native/schema/validator_<rule>.go` (emitted `nativeschema.UUID()`).
-    Reuse `UUID()`, `AzureResourceID()`, … before writing a new one.
-  - **Resource-specific** → `generator.CustomValidator("StorageAccountIPRule()")`,
-    constructor in `internal/native/generated/<service>/validators/<rule>.go`
-    (emitted `validators.StorageAccountIPRule()`).
-- **Array element shared with a sibling** (e.g. `ipRules` vs `ipv6Rules`) — call
-  `generator.IsolateArrayElement(def, "<array path>")` **first** so the validator
-  doesn't leak to the sibling.
+- **Semantic validator** — attach a `validator.String`, home by reusability:
+  - Generic/cross-resource → `SharedValidator("UUID()")`, ctor in
+    `schema/validator_<rule>.go`. Reuse `UUID()`, `AzureResourceID()`, … before adding one.
+  - Resource-specific → `CustomValidator("StorageAccountIPRule()")`, ctor in
+    `generated/<service>/validators/<rule>.go`.
+- **Array element shared with a sibling** (`ipRules` vs `ipv6Rules`) — call
+  `IsolateArrayElement(def, "<path>")` **first** so the validator doesn't leak to the sibling.
 
-`FindProperty` / `IsolateArrayElement` **panic** on a bad path — that is the
-intended guard; fix the path, don't suppress it.
+`FindProperty` / `IsolateArrayElement` **panic** on a bad path — fix the path, don't suppress.
 
 ### Step 5 — Regenerate
 
@@ -360,9 +292,8 @@ intended guard; fix the path, don't suppress it.
 go run ./internal/native/generator/cmd/generate_poc.go
 ```
 
-The new `<name>_gen.go` self-registers via `init()`. If this is a **new service**,
-add one blank import to `internal/native/generated/all/all.go` so the registry is
-populated. No provider edits — `provider.go` iterates `generated.Registry`.
+`<name>_gen.go` self-registers via `init()`. A **new service** → add one blank import to
+`generated/all/all.go`. No provider edits (`provider.go` iterates `generated.Registry`).
 
 ### Step 6 — Validate
 
@@ -372,56 +303,50 @@ go run ./internal/native/cmd/azapin-validate/   # → "0 mismatches", no INVARIA
 
 ### Step 7 — Test
 
-Add three test surfaces (model them on the storage account / blob service tests):
+Three surfaces (model on storage account / blob service):
 
 | Test | File | Asserts |
 |---|---|---|
 | Runtime composition | `resource/base_test.go` (`TestBlobServiceSchemaComposition`) | schema composes (envelope + body + timeouts), parent attr resolves |
 | azwise overlay | `generator/azwise_overlay_test.go` (`TestApplyAzwiseBlobService`) | the overlay baked into the live-parsed body |
-| Acceptance | `generated/<service>/<resource>_test.go` (a `Describe` block) + `<resource>_config.go` (a `<Resource>Cfg` config builder) | live create/read/update against Azure |
+| Acceptance | `generated/<service>/<resource>_test.go` (a `Describe`) + `<resource>_config.go` (a `<Resource>` config builder) | live create/read/update against Azure |
 
-> **Config builders** live in `<resource>_config.go` beside the schema: a
-> `<Resource>Cfg` struct (e.g. `StorageAccountCfg`) embedding `generated.ResourceConfigBase`,
-> constructed via `New<Resource>Cfg(label, …parentRefs)`, exposing `Basic()` /
-> `Update()` / `Complete()` / `Named(…)` that return HCL. The **`Cfg` suffix** keeps the builder
-> distinct from the runtime resource model; the Terraform type is set once from a
-> `generated.Type*` constant in the constructor. A test passes a config to
-> `ws.ResourceFor(cfg)` / `scope.ResourceFor(cfg)` to get the handle it applies.
->
-> **Each service package has one Ginkgo `RunSpecs`** (`generated/<service>/suite_test.go`,
-> e.g. `TestStorageAcceptance`). Add a `Describe(...)` block in a new `<resource>_test.go`
-> — do **not** add a second `RunSpecs` / `TestXxx` entry point (Ginkgo panics on more
-> than one per binary).
+**Config builders** live in `<resource>_config.go` beside the schema: a `<Resource>`
+struct (e.g. `StorageAccount`) embedding `generated.ResourceConfigBase`, constructed via
+`New<Resource>(label, …parentRefs)`, exposing `Basic()` / `Update()` / `Complete()` /
+`Named(…)` that return HCL; the Terraform type is set once from a `generated.Type*`
+constant. Tests pass a config to `ws.ResourceFor(cfg)` / `scope.ResourceFor(cfg)` for the
+handle they apply. **One Ginkgo `RunSpecs` per service** (`generated/<service>/suite_test.go`,
+e.g. `TestStorageAcceptance`); add a `Describe(...)` in a new `<resource>_test.go`, never a
+second `RunSpecs` (Ginkgo panics on more than one per binary).
 
-> **Config method convention** (mirrors azurerm). `Basic()` is the minimal **create
-> baseline**: the resource's required fields, plus a *present* (often empty `{}`) block
-> for every all-optional nested object that carries computed/azwise defaults. That empty
-> block is load-bearing, not noise — the framework applies a nested default only when the
-> parent object is non-null (`tftypes.Transform` does not descend into a null object), so
-> omitting `properties = {}` silently drops every nested default (e.g.
-> `minimum_tls_version=TLS1_2`) from the PUT body and the server keeps its own, often less
-> safe, default. `Complete()` sets as many optional properties as one valid in-place
-> configuration covers, to exercise the whole resource surface. `Update()` is an
-> intermediate state that proves the update path. Chain them in one `Ordered` container —
-> `Basic` in a `BeforeAll`/first `It`, then `Update`, then `Complete` — so a single
-> resource is created once and mutated through each state, every `Apply` re-planning for
-> drift. Keep ForceNew knobs (a SKU that forces replacement, a `RequiresReplace` field)
-> out of `Update`/`Complete` and in their own scenario so the chain stays in-place. Some
-> optionals are not yet expressible (the generator models `tags` as an empty object, not a
-> map) — set what the schema accepts.
+**Config method convention** (mirrors azurerm):
+- `Basic()` — minimal **create baseline**: required fields **plus a present (often empty
+  `{}`) block for every all-optional nested object that carries computed/azwise defaults**.
+  That block is load-bearing: the framework applies a nested default only when its parent
+  object is non-null (`tftypes.Transform` does not descend into a null object), so omitting
+  `properties = {}` silently drops every nested default (e.g. `minimum_tls_version=TLS1_2`)
+  from the PUT body and the server keeps its own, often less safe, default.
+- `Complete()` — as many optional properties as one valid in-place configuration covers,
+  exercising the whole resource surface.
+- `Update()` — an intermediate state that proves the update path.
+- Chain them in one `Ordered` container (`Basic` → `Update` → `Complete`) so a single
+  resource is created once and mutated through each state, every `Apply` re-planning for
+  drift. Keep ForceNew knobs (a replacing SKU, a `RequiresReplace` field) out of
+  `Update`/`Complete` and in their own scenario so the chain stays in-place. `tags` is
+  modeled as an empty object, not a map — set what the schema accepts.
 
-> **Template placeholders.** A config builder returns HCL with Go-template fields that
-> the framework renders once per workspace (`acceptance/render.go`, `tmplData`). They are
-> fixed for the workspace's lifetime, so the shared base and every resource-under-test
-> agree on names and placement. Reference them as `{{.Field}}` in the HCL you return:
->
-> | Placeholder | Type | Source | Use it for |
-> |---|---|---|---|
-> | `{{.RandomInteger}}` | `int` | `acceptance.RandTimeInt()` | unique numeric names, e.g. `acctest-rg-{{.RandomInteger}}` |
-> | `{{.RandomString}}` | `string` (5 lowercase alnum) | `acctest.RandStringFromCharSet` | unique names under tight length/charset limits, e.g. a 24-char storage account `acctestsa{{.RandomString}}` |
-> | `{{.Location}}` | `string` | `ARM_TEST_LOCATION` (default `westeurope`), normalized | the primary region (`location = "{{.Location}}"`) |
-> | `{{.LocationAlt}}` | `string` | `ARM_TEST_LOCATION_ALT` (default `eastus`), normalized | a second region for cross-region scenarios |
-> | `{{.SubscriptionID}}` | `string` | `ARM_SUBSCRIPTION_ID` | subscription-scoped IDs, e.g. `subscription_id = "/subscriptions/{{.SubscriptionID}}"` |
+**Template placeholders** — HCL Go-template fields rendered once per workspace
+(`acceptance/render.go`, `tmplData`), fixed for its lifetime so the shared base and every
+resource-under-test agree on names/placement:
+
+| Placeholder | Type | Source | Use it for |
+|---|---|---|---|
+| `{{.RandomInteger}}` | `int` | `acceptance.RandTimeInt()` | unique numeric names, e.g. `acctest-rg-{{.RandomInteger}}` |
+| `{{.RandomString}}` | `string` (5 lowercase alnum) | `acctest.RandStringFromCharSet` | tight length/charset names, e.g. `acctestsa{{.RandomString}}` |
+| `{{.Location}}` | `string` | `ARM_TEST_LOCATION` (default `westeurope`), normalized | the primary region |
+| `{{.LocationAlt}}` | `string` | `ARM_TEST_LOCATION_ALT` (default `eastus`), normalized | a second region for cross-region scenarios |
+| `{{.SubscriptionID}}` | `string` | `ARM_SUBSCRIPTION_ID` | subscription-scoped IDs |
 
 ### Step 8 — Document
 
@@ -444,63 +369,47 @@ status changed.
 
 ## 2. Update / regenerate an existing resource
 
-Use this when the schema needs to change **without** moving the API version: a
-corrected azwise rule, a new validator, a customizer tweak, or a re-vendored
-`types.json` at the *same* version.
+Schema change **without** moving the API version: a corrected azwise rule, a new
+validator, a customizer tweak, or a re-vendored `types.json` at the *same* version.
 
-The golden rule: **never hand-edit `<name>_gen.go`** (it carries
-`// Code generated by azapin; DO NOT EDIT.`). Edit the *source layer*, then
-regenerate.
+Golden rule: **never hand-edit `<name>_gen.go`** (it carries
+`// Code generated by azapin; DO NOT EDIT.`). Edit the source layer, then regenerate.
 
 | You want to change… | Edit this layer | Then |
 |---|---|---|
 | A ForceNew / default / validator / enum from AzureRM | azwise `<resource>.go` | regenerate |
-| A name constraint, semantic validator, or a rule bicep+azwise can't express | customizer `<resource>.go` | regenerate |
+| A name constraint, semantic validator, or rule bicep+azwise can't express | customizer `<resource>.go` | regenerate |
 | A cross-resource validator | `internal/native/schema/validator_<rule>.go` | regenerate |
 | Runtime behavior (mutate body before PUT, normalize on read) | `resource/overlay_<name>.go` (`RegisterHooks`) | no regenerate (runtime) |
 
-Workflow:
-
-1. Edit the appropriate source layer above.
+1. Edit the source layer.
 2. Regenerate: `go run ./internal/native/generator/cmd/generate_poc.go`.
-3. **Sanity-check the diff is intentional.** A source change should move
-   `<name>_gen.go` in exactly the way you expect; a *no-op* edit must leave it
-   **byte-identical**:
-   ```bash
-   git diff --stat internal/native/generated/   # only the files you meant to change
-   ```
-4. Run the verification gate. `azapin-validate` must stay at `0 mismatches`; the
-   azwise overlay test must still assert your rule baked in.
+3. **Sanity-check the diff is intentional** — a *no-op* edit must leave `<name>_gen.go`
+   byte-identical: `git diff --stat internal/native/generated/`.
+4. Run the verification gate. `azapin-validate` stays at `0 mismatches`; the azwise overlay
+   test still asserts your rule baked in.
 
-Note on runtime-only changes: hooks in `resource/overlay_<name>.go` (registered via
-`RegisterHooks`) customize CRUD *behavior*, not schema, so they need no regeneration
-— just `go build` + tests.
+Runtime-only changes (hooks in `overlay_<name>.go`) need no regeneration — just `go build`
++ tests.
 
 ---
 
 ## 3. Upgrade the API version of an existing resource
 
-**Key fact:** generation always targets the **latest stable** (non-preview) version
-for each ARM type, resolved from `index.json` (`generator.Index`, GENERATOR.md
-Rule 16). There is no per-target version pin. So "upgrading" means *making a newer
-stable version available*, then regenerating to follow it — and reconciling the
-overlay/customizer against the new body.
+**Key fact:** generation always targets the **latest stable** (non-preview) version per
+ARM type, resolved from `index.json` (GENERATOR.md Rule 16). No per-target pin — "upgrading"
+means *making a newer stable version available*, then regenerating to follow it and
+reconciling the overlay/customizer against the new body.
 
 ### Step 1 — Vendor newer bicep types
-
-The embedded manifest is the single source of version truth. Refresh it from an
-updated `bicep-types-az` checkout:
 
 ```bash
 scripts/bicep-types-update.sh <path-to-bicep-types/generated-parent>
 ```
 
-This wholesale-replaces `internal/azure/generated/` (all `types.json` + `index.json`).
-After it runs, `index.json` lists the new version for the type, and
-`LatestStableVersion` will return it (preview versions are ignored).
-
-> If a newer version isn't published upstream yet, there is nothing to upgrade to —
-> the generator already pins the newest stable that exists.
+Wholesale-replaces `internal/azure/generated/` (all `types.json` + `index.json`);
+`LatestStableVersion` then returns the new version (previews ignored). If nothing newer is
+published upstream, there's nothing to upgrade to.
 
 ### Step 2 — Confirm latest-stable advanced
 
@@ -508,7 +417,7 @@ After it runs, `index.json` lists the new version for the type, and
 grep -o 'Microsoft.Storage/storageAccounts@[0-9-]*' internal/azure/generated/index.json | sort -u
 ```
 
-The newest non-preview entry is what generation will select.
+The newest non-preview entry is what generation selects.
 
 ### Step 3 — Regenerate
 
@@ -516,34 +425,24 @@ The newest non-preview entry is what generation will select.
 go run ./internal/native/generator/cmd/generate_poc.go
 ```
 
-The descriptor's `APIVersion` updates automatically (it comes from the resolved tag).
-Expect `<name>_gen.go` to change: added/removed/renamed body properties flow through.
+`APIVersion` updates from the resolved tag; added/removed/renamed body properties flow through.
 
 ### Step 4 — Reconcile azwise (the silent layer)
 
-`ApplyAzwise` calls `azwise.Get(armType, newVersion)`, which resolves
-**exact version → catch-all (empty `ApiVersions`) → first registered entry**. So the
-overlay keeps applying even when `ApiVersions` doesn't list the new version (storage
-already relies on this — its `ApiVersions` is `["2025-08-01"]` while it generates at
-`2025-06-01`).
-
-But a property **renamed or moved** in the new body means the azwise path no longer
-resolves and the rule is **silently dropped**. Reconcile:
-
-- Run the azwise overlay tests — they parse the *live* `types.json` and assert each
-  rule baked in, so a dropped rule fails the test:
-  ```bash
-  go test ./internal/native/generator/ -run TestApplyAzwise
-  ```
-- For any path that moved, update the ARM dot path in the azwise `<resource>.go`.
-- Optionally add the new version to `ApiVersions` so `Get` returns an **exact** match
-  and coverage is explicit (recommended once you've verified the overlay against it).
+`ApplyAzwise` resolves **exact version → catch-all (empty `ApiVersions`) → first registered
+entry**, so the overlay keeps applying even when `ApiVersions` doesn't list the new version
+(storage relies on this: `ApiVersions` is `["2025-08-01"]` while it generates at `2025-06-01`).
+But a **renamed/moved** property means the path no longer resolves and the rule is **silently
+dropped**. Reconcile:
+- Run the overlay tests (parse live `types.json`, fail on a dropped rule):
+  `go test ./internal/native/generator/ -run TestApplyAzwise`.
+- Update the ARM dot path for anything that moved.
+- Optionally add the new version to `ApiVersions` for an **exact** match (recommended once verified).
 
 ### Step 5 — Reconcile customizers (the loud layer)
 
-If a customizer references a property that moved, `FindProperty` / `IsolateArrayElement`
-**panic** and regeneration fails with the offending path named — fix the path in the
-customizer. (This is why customizer breakage can't ship silently.)
+A moved property makes `FindProperty` / `IsolateArrayElement` **panic** with the offending
+path named, and regeneration fails — fix the path in the customizer.
 
 ### Step 6 — Validate
 
@@ -551,16 +450,13 @@ customizer. (This is why customizer breakage can't ship silently.)
 go run ./internal/native/cmd/azapin-validate/   # → "0 mismatches"
 ```
 
-This catches body properties added or removed at the new version (schema ↔ bicep
-parity). Resolve every mismatch before continuing.
+Catches body properties added/removed at the new version. Resolve every mismatch.
 
 ### Step 7 — Test
 
-Renamed/added properties commonly break assertions:
-
 - Runtime composition (`resource/base_test.go`) — update expected attribute paths.
-- Acceptance (`acceptance/<resource>_test.go`) — update body fields that changed
-  shape; run live with `TF_ACC=1`.
+- Acceptance (`acceptance/<resource>_test.go`) — update body fields that changed shape; run
+  live with `TF_ACC=1`.
 
 ### API-version-upgrade checklist
 
