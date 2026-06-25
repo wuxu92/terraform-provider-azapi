@@ -257,7 +257,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 									),
 								},
 								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.UseNonNullStateForUnknown(),
 								},
 							},
 							"tracking_granularity_in_days": schema.Int64Attribute{

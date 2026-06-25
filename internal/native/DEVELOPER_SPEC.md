@@ -603,7 +603,7 @@ go run ./internal/native/cmd/azapin-validate/ -r azapi_storage_account
 TF_ACC= go test ./internal/native/... ./internal/azure/azwise/...
 
 # acceptance (creates real Azure resources)
-TF_ACC=1 go test ./internal/native/acceptance/ -run TestStorageAccount \
+TF_ACC=1 go test ./internal/native/generated/storage/ -run TestStorageAcceptance \
   -ginkgo.focus "creates a basic account and imports it" -timeout 900s
 
 # build the dev provider for manual workspaces

@@ -426,11 +426,18 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 // emitForceNew writes per-attribute plan modifiers:
 //   - UseStateForUnknown for computed attributes without a Default, so their
 //     server-populated value persists across plans instead of re-planning as
-//     "(known after apply)" (which causes a perpetual diff).
+//     "(known after apply)" (which causes a perpetual diff). This is the safe
+//     default: it keeps fields the server legitimately leaves null idempotent.
+//   - UseNonNullStateForUnknown when prop.NonNullStateForUnknown is set (by a
+//     customizer) for server-controlled read-only fields that transition
+//     null -> non-null: a null prior plans as "(known after apply)" so the
+//     server may supply the value, instead of pinning the stale null and
+//     producing an inconsistent-result error on apply.
+//   - RequiresReplace for ForceNew settable attributes.
 func emitForceNew(b *strings.Builder, prop *Property, computed bool, tabs string) {
 	// Computed is emitted for every non-Required attribute without a Default
-	// (read-only and Optional+Computed alike); all of them need UseStateForUnknown
-	// to persist their value across plans.
+	// (read-only and Optional+Computed alike); all of them get a state-reuse
+	// modifier to persist their value across plans.
 	useState := !prop.Flags.IsRequired() && prop.DefaultValue == ""
 	forceNew := prop.ForceNew && !computed
 	if !useState && !forceNew {
@@ -442,7 +449,11 @@ func emitForceNew(b *strings.Builder, prop *Property, computed bool, tabs string
 	}
 	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.%s{\n", tabs, typ))
 	if useState {
-		b.WriteString(fmt.Sprintf("%s\t\t%s.UseStateForUnknown(),\n", tabs, pkg))
+		stateMod := "UseStateForUnknown"
+		if prop.NonNullStateForUnknown {
+			stateMod = "UseNonNullStateForUnknown"
+		}
+		b.WriteString(fmt.Sprintf("%s\t\t%s.%s(),\n", tabs, pkg, stateMod))
 	}
 	if forceNew {
 		b.WriteString(fmt.Sprintf("%s\t\t%s.RequiresReplace(),\n", tabs, pkg))

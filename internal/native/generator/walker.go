@@ -37,6 +37,10 @@ const (
 	KindUnion
 	KindAny
 	KindResource
+	// KindMap is an open dictionary: a bicep ObjectType with no declared
+	// properties but an additionalProperties schema (e.g. ARM "tags"). The keys
+	// are arbitrary strings; ElementType is the resolved value type.
+	KindMap
 )
 
 // Type represents a resolved node in the bicep type graph.
@@ -60,6 +64,15 @@ type Property struct {
 	ForceNew      bool // emit a RequiresReplace plan modifier
 	Sensitive     bool // emit Sensitive: true
 	ForceComputed bool // force Computed-only (azwise ComputedFields)
+	// NonNullStateForUnknown opts a computed attribute out of the default
+	// UseStateForUnknown in favour of UseNonNullStateForUnknown: a null prior
+	// plans as "(known after apply)" so the server may populate it, instead of
+	// pinning the stale null over a value the server later supplies. Set by a
+	// customizer for server-controlled read-only fields that transition
+	// null -> non-null when a sibling/parent is configured (e.g. blobServices
+	// lastAccessTimeTrackingPolicy.name). Off by default: a blanket switch
+	// breaks idempotency for fields the server legitimately leaves null.
+	NonNullStateForUnknown bool
 }
 
 // DescriptionValidator is a validation rule extracted from a property description
@@ -138,6 +151,9 @@ type rawEntry struct {
 	Body           *rawRef                 `json:"body,omitempty"`
 	Properties     map[string]*rawProperty `json:"properties,omitempty"`
 	ItemType       *rawRef                 `json:"itemType,omitempty"`
+	// AdditionalProperties is the value schema of an open dictionary ObjectType
+	// (a map[string]T such as ARM "tags"); nil for a closed object.
+	AdditionalProperties *rawRef `json:"additionalProperties,omitempty"`
 	// Elements is json.RawMessage because its shape is type-dependent:
 	// UnionType uses an array ([]rawRef); DiscriminatedObjectType uses an
 	// object (map[string]rawRef). Decoding it lazily in resolve() avoids
@@ -242,7 +258,7 @@ func (w *walker) resolve(idx int, depth int) *Type {
 	case "AnyType":
 		t = &Type{Kind: KindAny}
 	case "ObjectType":
-		t = &Type{Kind: KindObject, Name: entry.Name, Properties: make(map[string]*Property)}
+		obj := &Type{Kind: KindObject, Name: entry.Name, Properties: make(map[string]*Property)}
 		for name, prop := range entry.Properties {
 			propIdx, err := parseRef(&prop.Type)
 			if err != nil {
@@ -252,12 +268,28 @@ func (w *walker) resolve(idx int, depth int) *Type {
 			if resolved == nil {
 				resolved = &Type{Kind: KindAny}
 			}
-			t.Properties[name] = &Property{
+			obj.Properties[name] = &Property{
 				Name:        name,
 				Type:        resolved,
 				Flags:       PropertyFlag(prop.Flags),
 				Description: prop.Description,
 			}
+		}
+		// An ObjectType with no declared properties but an additionalProperties
+		// schema is an open dictionary (map[string]T) — e.g. ARM "tags". Model it
+		// as a KindMap keyed by string with the resolved value type. Emitting it
+		// as an empty KindObject (the old behavior) produced an unusable
+		// SingleNestedAttribute with zero attributes.
+		if len(obj.Properties) == 0 && entry.AdditionalProperties != nil {
+			elem := &Type{Kind: KindAny}
+			if elemIdx, err := parseRef(entry.AdditionalProperties); err == nil {
+				if resolved := w.resolve(elemIdx, depth+1); resolved != nil {
+					elem = resolved
+				}
+			}
+			t = &Type{Kind: KindMap, Name: entry.Name, ElementType: elem}
+		} else {
+			t = obj
 		}
 	case "ArrayType":
 		t = &Type{Kind: KindArray}

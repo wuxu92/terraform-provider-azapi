@@ -78,7 +78,7 @@ go run ./internal/native/cmd/azapin-validate/
 go test ./internal/native/... ./internal/azure/azwise/...
 
 # 5. acceptance (live Azure; needs TF_ACC=1 + ARM_SUBSCRIPTION_ID, else skips)
-TF_ACC=1 go test ./internal/native/acceptance/ -run <ResourceName>
+TF_ACC=1 go test ./internal/native/generated/<service>/ -run <TestXxxAcceptance>
 ```
 
 `azapin-validate` is the load-bearing check: it confirms the emitted schema covers
@@ -378,11 +378,44 @@ Add three test surfaces (model them on the storage account / blob service tests)
 |---|---|---|
 | Runtime composition | `resource/base_test.go` (`TestBlobServiceSchemaComposition`) | schema composes (envelope + body + timeouts), parent attr resolves |
 | azwise overlay | `generator/azwise_overlay_test.go` (`TestApplyAzwiseBlobService`) | the overlay baked into the live-parsed body |
-| Acceptance | `acceptance/<resource>_test.go` (a `Describe` block) | live create/read/update against Azure |
+| Acceptance | `generated/<service>/<resource>_test.go` (a `Describe` block) + `<resource>_config.go` (a `<Resource>Cfg` config builder) | live create/read/update against Azure |
 
-> **Acceptance suites use one Ginkgo `RunSpecs`** (`acceptance/suite_test.go`). Add a
-> `Describe(...)` block in a new `<resource>_test.go` — do **not** add a second
-> `RunSpecs` / `TestXxx` entry point (Ginkgo panics on more than one per binary).
+> **Config builders** live in `<resource>_config.go` beside the schema: a
+> `<Resource>Cfg` struct (e.g. `StorageAccountCfg`) embedding `generated.ResourceConfigBase`,
+> constructed via `New<Resource>Cfg(label, …parentRefs)`, exposing `Basic()` /
+> `Update()` / `Complete()` / `Named(…)` that return HCL. The **`Cfg` suffix** keeps the builder
+> distinct from the runtime resource model; the Terraform type is set once from a
+> `generated.Type*` constant in the constructor. A test passes a config to
+> `ws.ResourceFor(cfg)` / `scope.ResourceFor(cfg)` to get the handle it applies.
+>
+> **Each service package has one Ginkgo `RunSpecs`** (`generated/<service>/suite_test.go`,
+> e.g. `TestStorageAcceptance`). Add a `Describe(...)` block in a new `<resource>_test.go`
+> — do **not** add a second `RunSpecs` / `TestXxx` entry point (Ginkgo panics on more
+> than one per binary).
+
+> **Config method convention** (mirrors azurerm). `Basic()` sets only the resource's
+> **required** properties — the create baseline. `Complete()` sets as many optional
+> properties as one valid in-place configuration covers, to exercise the whole resource
+> surface. `Update()` is an intermediate state that proves the update path. Chain them in
+> one `Ordered` container — `Basic` in a `BeforeAll`/first `It`, then `Update`, then
+> `Complete` — so a single resource is created once and mutated through each state, every
+> `Apply` re-planning for drift. Keep ForceNew knobs (a SKU that forces replacement, a
+> `RequiresReplace` field) out of `Update`/`Complete` and in their own scenario so the
+> chain stays in-place. Some optionals are not yet expressible (the generator models
+> `tags` as an empty object, not a map) — set what the schema accepts.
+
+> **Template placeholders.** A config builder returns HCL with Go-template fields that
+> the framework renders once per workspace (`acceptance/render.go`, `tmplData`). They are
+> fixed for the workspace's lifetime, so the shared base and every resource-under-test
+> agree on names and placement. Reference them as `{{.Field}}` in the HCL you return:
+>
+> | Placeholder | Type | Source | Use it for |
+> |---|---|---|---|
+> | `{{.RandomInteger}}` | `int` | `acceptance.RandTimeInt()` | unique numeric names, e.g. `acctest-rg-{{.RandomInteger}}` |
+> | `{{.RandomString}}` | `string` (5 lowercase alnum) | `acctest.RandStringFromCharSet` | unique names under tight length/charset limits, e.g. a 24-char storage account `acctestsa{{.RandomString}}` |
+> | `{{.Location}}` | `string` | `ARM_TEST_LOCATION` (default `westeurope`), normalized | the primary region (`location = "{{.Location}}"`) |
+> | `{{.LocationAlt}}` | `string` | `ARM_TEST_LOCATION_ALT` (default `eastus`), normalized | a second region for cross-region scenarios |
+> | `{{.SubscriptionID}}` | `string` | `ARM_SUBSCRIPTION_ID` | subscription-scoped IDs, e.g. `subscription_id = "/subscriptions/{{.SubscriptionID}}"` |
 
 ### Step 8 — Document
 

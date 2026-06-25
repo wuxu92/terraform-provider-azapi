@@ -94,3 +94,55 @@ func TestRegisterRejectsDuplicate(t *testing.T) {
 	}()
 	Register(armType, func(*generator.ResourceDefinition) {})
 }
+
+// fakeBlobServiceDef builds a minimal def carrying the
+// lastAccessTimeTrackingPolicy.name property the blob-service customizer targets.
+func fakeBlobServiceDef() *generator.ResourceDefinition {
+	body := &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+		"properties": {Name: "properties", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+			"lastAccessTimeTrackingPolicy": {Name: "lastAccessTimeTrackingPolicy", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+				"name":     {Name: "name", Type: &generator.Type{Kind: generator.KindString}},
+				"blobType": {Name: "blobType", Type: &generator.Type{Kind: generator.KindArray, ElementType: &generator.Type{Kind: generator.KindString}}},
+			}}},
+		}}},
+	}}
+	return &generator.ResourceDefinition{
+		Name:           "Microsoft.Storage/storageAccounts/blobServices@2025-06-01",
+		APIVersion:     "2025-06-01",
+		Body:           body,
+		WritableScopes: naming.ScopeResourceGroup,
+	}
+}
+
+// TestBlobServiceCustomizerMarksLastAccessName guards the fix for the
+// last_access_time_tracking_policy.name drift end to end: the registered
+// blob-service customizer flags that one read-only child for
+// UseNonNullStateForUnknown, and the emitter bakes it in - while siblings keep
+// the default UseStateForUnknown so fields the server leaves null stay idempotent.
+func TestBlobServiceCustomizerMarksLastAccessName(t *testing.T) {
+	def := fakeBlobServiceDef()
+	generator.PostProcess([]*generator.ResourceDefinition{def})
+	Apply([]*generator.ResourceDefinition{def})
+
+	name := generator.FindProperty(def, "properties.lastAccessTimeTrackingPolicy.name")
+	if !name.NonNullStateForUnknown {
+		t.Error("customizer did not set NonNullStateForUnknown on lastAccessTimeTrackingPolicy.name")
+	}
+	if blobType := generator.FindProperty(def, "properties.lastAccessTimeTrackingPolicy.blobType"); blobType.NonNullStateForUnknown {
+		t.Error("customizer must not flag sibling blobType (only name transitions null -> non-null)")
+	}
+
+	src, err := generator.EmitSchema(def)
+	if err != nil {
+		t.Fatalf("EmitSchema: %v", err)
+	}
+	if !strings.Contains(src, "stringplanmodifier.UseNonNullStateForUnknown()") {
+		t.Error("emitted source missing UseNonNullStateForUnknown for lastAccessTimeTrackingPolicy.name")
+	}
+	if strings.Count(src, "UseNonNullStateForUnknown") != 1 {
+		t.Errorf("expected exactly one UseNonNullStateForUnknown (name only), got %d", strings.Count(src, "UseNonNullStateForUnknown"))
+	}
+	if !strings.Contains(src, "listplanmodifier.UseStateForUnknown()") {
+		t.Error("sibling blob_type must keep the default UseStateForUnknown")
+	}
+}

@@ -136,6 +136,10 @@ func CollectExpectedPaths(typ *Type, prefix string, out map[string]*Property) {
 		if prop.Type.Kind == KindArray && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject {
 			CollectExpectedPaths(prop.Type.ElementType, path, out)
 		}
+		// Recurse into maps of objects (MapNestedAttribute element schema)
+		if prop.Type.Kind == KindMap && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject {
+			CollectExpectedPaths(prop.Type.ElementType, path, out)
+		}
 	}
 }
 

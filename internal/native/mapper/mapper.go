@@ -86,6 +86,17 @@ func expandValue(v attr.Value, t *generator.Type) (interface{}, bool) {
 			}
 			return arr, true
 		}
+	case generator.KindMap:
+		if m, ok := v.(types.Map); ok {
+			elems := m.Elements()
+			out := make(map[string]interface{}, len(elems))
+			for k, e := range elems {
+				if ev, ok := expandValue(e, t.ElementType); ok {
+					out[k] = ev
+				}
+			}
+			return out, true
+		}
 	default:
 		// KindAny → dynamic attribute
 		if d, ok := v.(types.Dynamic); ok {
@@ -190,6 +201,23 @@ func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *
 			diags.Append(d...)
 			return lv, diags
 		}
+	case basetypes.MapType:
+		if m, ok := armVal.(map[string]interface{}); ok {
+			elemType := t.ElementType()
+			var elemBicep *generator.Type
+			if bicep != nil && bicep.Kind == generator.KindMap {
+				elemBicep = bicep.ElementType
+			}
+			elems := make(map[string]attr.Value, len(m))
+			for k, item := range m {
+				ev, d := flattenValue(ctx, item, elemType, elemBicep)
+				diags.Append(d...)
+				elems[k] = ev
+			}
+			mv, d := types.MapValue(elemType, elems)
+			diags.Append(d...)
+			return mv, diags
+		}
 	case basetypes.DynamicType:
 		b, err := json.Marshal(armVal)
 		if err == nil {
@@ -245,6 +273,14 @@ func ResolveUnknowns(ctx context.Context, v attr.Value) attr.Value {
 		}
 		lv, _ := types.ListValue(t.ElementType(ctx), ne)
 		return lv
+	case types.Map:
+		elems := t.Elements()
+		ne := make(map[string]attr.Value, len(elems))
+		for k, e := range elems {
+			ne[k] = ResolveUnknowns(ctx, e)
+		}
+		mv, _ := types.MapValue(t.ElementType(ctx), ne)
+		return mv
 	default:
 		return v
 	}

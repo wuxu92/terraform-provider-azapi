@@ -31,7 +31,7 @@ func TestRoundTripStorageAccount(t *testing.T) {
 			"name": "Standard_LRS",
 			"tier": "Standard",
 		},
-		"tags": map[string]interface{}{}, // additionalProperties — not modeled, ignored
+		"tags": map[string]interface{}{"env": "prod", "team": "infra"}, // string-map, round-trips
 		"properties": map[string]interface{}{
 			"accessTier":               "Hot",
 			"minimumTlsVersion":        "TLS1_2",
@@ -70,6 +70,10 @@ func TestRoundTripStorageAccount(t *testing.T) {
 	sku, ok := out["sku"].(map[string]interface{})
 	if !ok || sku["name"] != "Standard_LRS" {
 		t.Errorf("sku round-trip: got %v", out["sku"])
+	}
+	tags, ok := out["tags"].(map[string]interface{})
+	if !ok || tags["env"] != "prod" || tags["team"] != "infra" {
+		t.Errorf("tags round-trip: got %v", out["tags"])
 	}
 	props, ok := out["properties"].(map[string]interface{})
 	if !ok {
@@ -132,6 +136,55 @@ func TestExpandSkipsNullAndUnknown(t *testing.T) {
 	}
 	if out["kind"] != "StorageV2" {
 		t.Errorf("kind: got %v", out["kind"])
+	}
+}
+
+// TestRoundTripObjectMap exercises a map-of-object body field (ARM
+// additionalProperties → an object schema), which the schema emits as a
+// MapNestedAttribute and the mapper must round-trip key-for-key. Here it is
+// identity.userAssignedIdentities, keyed by the identity's ARM resource ID.
+func TestRoundTripObjectMap(t *testing.T) {
+	ctx := context.Background()
+	body := loadStorageBody(t)
+	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+
+	const uaiID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai1"
+	arm := map[string]interface{}{
+		"kind": "StorageV2",
+		"identity": map[string]interface{}{
+			"type": "UserAssigned",
+			"userAssignedIdentities": map[string]interface{}{
+				uaiID: map[string]interface{}{
+					"clientId":    "11111111-1111-1111-1111-111111111111",
+					"principalId": "22222222-2222-2222-2222-222222222222",
+				},
+			},
+		},
+	}
+
+	stateObj, diags := Flatten(ctx, arm, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten diags: %v", diags)
+	}
+	out := Expand(stateObj, body)
+
+	identity, ok := out["identity"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("identity missing: %v", out["identity"])
+	}
+	uai, ok := identity["userAssignedIdentities"].(map[string]interface{})
+	if !ok || len(uai) != 1 {
+		t.Fatalf("userAssignedIdentities round-trip: got %v", identity["userAssignedIdentities"])
+	}
+	entry, ok := uai[uaiID].(map[string]interface{})
+	if !ok {
+		t.Fatalf("map key %q missing: got %v", uaiID, uai)
+	}
+	if entry["clientId"] != "11111111-1111-1111-1111-111111111111" {
+		t.Errorf("clientId round-trip: got %v", entry["clientId"])
+	}
+	if entry["principalId"] != "22222222-2222-2222-2222-222222222222" {
+		t.Errorf("principalId round-trip: got %v", entry["principalId"])
 	}
 }
 
