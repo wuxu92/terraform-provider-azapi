@@ -393,16 +393,22 @@ Add three test surfaces (model them on the storage account / blob service tests)
 > — do **not** add a second `RunSpecs` / `TestXxx` entry point (Ginkgo panics on more
 > than one per binary).
 
-> **Config method convention** (mirrors azurerm). `Basic()` sets only the resource's
-> **required** properties — the create baseline. `Complete()` sets as many optional
-> properties as one valid in-place configuration covers, to exercise the whole resource
-> surface. `Update()` is an intermediate state that proves the update path. Chain them in
-> one `Ordered` container — `Basic` in a `BeforeAll`/first `It`, then `Update`, then
-> `Complete` — so a single resource is created once and mutated through each state, every
-> `Apply` re-planning for drift. Keep ForceNew knobs (a SKU that forces replacement, a
-> `RequiresReplace` field) out of `Update`/`Complete` and in their own scenario so the
-> chain stays in-place. Some optionals are not yet expressible (the generator models
-> `tags` as an empty object, not a map) — set what the schema accepts.
+> **Config method convention** (mirrors azurerm). `Basic()` is the minimal **create
+> baseline**: the resource's required fields, plus a *present* (often empty `{}`) block
+> for every all-optional nested object that carries computed/azwise defaults. That empty
+> block is load-bearing, not noise — the framework applies a nested default only when the
+> parent object is non-null (`tftypes.Transform` does not descend into a null object), so
+> omitting `properties = {}` silently drops every nested default (e.g.
+> `minimum_tls_version=TLS1_2`) from the PUT body and the server keeps its own, often less
+> safe, default. `Complete()` sets as many optional properties as one valid in-place
+> configuration covers, to exercise the whole resource surface. `Update()` is an
+> intermediate state that proves the update path. Chain them in one `Ordered` container —
+> `Basic` in a `BeforeAll`/first `It`, then `Update`, then `Complete` — so a single
+> resource is created once and mutated through each state, every `Apply` re-planning for
+> drift. Keep ForceNew knobs (a SKU that forces replacement, a `RequiresReplace` field)
+> out of `Update`/`Complete` and in their own scenario so the chain stays in-place. Some
+> optionals are not yet expressible (the generator models `tags` as an empty object, not a
+> map) — set what the schema accepts.
 
 > **Template placeholders.** A config builder returns HCL with Go-template fields that
 > the framework renders once per workspace (`acceptance/render.go`, `tmplData`). They are
