@@ -23,7 +23,7 @@ import (
 // runs inner AfterAll (teardown) before outer, so dependents are destroyed first.
 type Scope struct {
 	ws      *Workspace
-	labels  []string          // resource labels owned by this scope, in apply order
+	owned   []string          // resource addresses (tfType.label) owned by this scope, in apply order
 	tracked []trackedResource // applied resources, verified absent on Teardown
 }
 
@@ -58,15 +58,18 @@ func newResource(s *Scope, tfType, label string) *Resource {
 	}
 }
 
-// own records that this scope owns the file for label (idempotent), so Teardown
-// removes exactly the resources this scope created.
-func (s *Scope) own(label string) {
-	for _, l := range s.labels {
-		if l == label {
+// own records that this scope owns the file for the resource's address (idempotent),
+// so Teardown removes exactly the resources this scope created. Keyed by the full
+// tfType.label address, not the label alone: distinct resource types may share a
+// label (azapi_storage_account.test and azapi_resource_group.test are different
+// resources that must not share a .tf file).
+func (s *Scope) own(address string) {
+	for _, a := range s.owned {
+		if a == address {
 			return
 		}
 	}
-	s.labels = append(s.labels, label)
+	s.owned = append(s.owned, address)
 }
 
 // track records a resource for post-teardown existence verification, deduplicated by
@@ -80,7 +83,11 @@ func (s *Scope) track(tr trackedResource) {
 	s.tracked = append(s.tracked, tr)
 }
 
-func resourceFileName(label string) string { return "resource_" + label + ".tf" }
+// resourceFileName is the per-resource .tf file, keyed by the full tfType.label
+// address so two resource types sharing a label get distinct files (the label alone
+// is not unique across types). Neither component contains a dot, so the address is an
+// injective, filesystem-safe file name.
+func resourceFileName(address string) string { return "resource_" + address + ".tf" }
 
 // Teardown destroys the resources this scope owns and asserts they are gone from
 // Azure, leaving ancestor resources running. Intended for a nested container's
@@ -89,8 +96,8 @@ func (s *Scope) Teardown() {
 	if s.ws == nil || !s.ws.started || s.ws.tf == nil {
 		return
 	}
-	for _, label := range s.labels {
-		_ = os.Remove(filepath.Join(s.ws.dir, resourceFileName(label)))
+	for _, address := range s.owned {
+		_ = os.Remove(filepath.Join(s.ws.dir, resourceFileName(address)))
 	}
 	// Re-apply the remaining config: Terraform destroys the resources whose files we
 	// just removed and no-ops everything still present (ancestor / sibling scopes).
@@ -105,6 +112,6 @@ func (s *Scope) Teardown() {
 		gomega.Expect(err).NotTo(gomega.HaveOccurred(), "post-teardown GET %s", tr.id)
 		gomega.Expect(ok).To(gomega.BeFalse(), "%s still exists after scope teardown", tr.id)
 	}
-	s.labels = nil
+	s.owned = nil
 	s.tracked = nil
 }

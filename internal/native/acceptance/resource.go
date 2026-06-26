@@ -30,17 +30,20 @@ type Resource struct {
 // the resource's generated Descriptor.Name in the builder's NewXxxCfg constructor —
 // not restated here.
 type ResourceConfig interface {
-	ResourceType() string  // Terraform type, e.g. "azapi_storage_account"
-	ResourceLabel() string // Terraform state label
-	IDRef() string // Terraform reference to the resource's id attribute, e.g. "azapi_resource_group.rg.id".
+	ResourceType() string     // Terraform type, e.g. "azapi_storage_account"
+	ResourceLabel() string    // Terraform state label
+	IDRef() string            // Terraform reference to the resource's id attribute, e.g. "azapi_resource_group.rg.id".
 	RefOf(path string) string // Terraform reference to an arbitrary attribute, e.g. "azapi_resource_group.rg.location" for RefOf("location"). It derives from the same type.label as the acceptance Resource handle's IDRef
-	Config() string // HCL config block for the resource, rendered by the builder
+	Config() string           // HCL config block for the resource, rendered by the builder
 }
 
 type DataSourceConfig interface {
-	ResourceConfig
+	DataSourceType() string   // Terraform type, e.g. "azapi_storage_account"
+	Label() string            // Terraform state label
+	IDRef() string            // Terraform reference to the resource's id attribute, e.g. "azapi_resource_group.rg.id".
+	RefOf(path string) string // Terraform reference to an arbitrary attribute, e.g. "azapi_resource_group.rg.location" for RefOf("location"). It derives from the same type.label as the acceptance Resource handle's IDRef
+	Config() string           // HCL config block for the resource, rendered by the builder
 }
-
 
 // Apply writes the resource's config block, applies the workspace, and then re-plans
 // to assert the apply left no drift: a refresh-backed plan must be empty, proving the
@@ -48,10 +51,10 @@ type DataSourceConfig interface {
 // This generic drift check catches the bulk of round-trip regressions, so the checks
 // argument is reserved for facts the plan can't prove — Azure-side existence (Exists)
 // and computed defaults (a value the provider, not the config, supplies). The resource
-// is created on first Apply and updated in place on subsequent Applies (same label).
+// is created on first Apply and updated in place on subsequent Applies (same address).
 func (r *Resource) Apply(config string, checks ...Check) *Resource {
 	ctx := context.Background()
-	r.scope.own(r.label)
+	r.scope.own(r.address())
 	r.write(config)
 	gomega.Expect(r.scope.ws.tf.Apply(ctx, tfexec.Reattach(r.scope.ws.reattach))).
 		NotTo(gomega.HaveOccurred(), "terraform apply (%s)", r.address())
@@ -101,14 +104,14 @@ func (r *Resource) ApplyExpectError(config, errRegex string) {
 	r.write(config)
 	// Remove the config even if an assertion below fails (gomega panics on failure),
 	// so a regressed negative case cannot leave an invalid .tf that poisons teardown.
-	defer func() { _ = os.Remove(filepath.Join(r.scope.ws.dir, resourceFileName(r.label))) }()
+	defer func() { _ = os.Remove(filepath.Join(r.scope.ws.dir, resourceFileName(r.address()))) }()
 	_, err := r.scope.ws.tf.Plan(context.Background(), tfexec.Reattach(r.scope.ws.reattach))
 	gomega.Expect(err).To(gomega.HaveOccurred(), "expected plan to fail for %s", r.address())
 	gomega.Expect(err.Error()).To(gomega.MatchRegexp(errRegex))
 }
 
 func (r *Resource) write(config string) {
-	r.scope.ws.writeFile(resourceFileName(r.label), r.scope.ws.render(config))
+	r.scope.ws.writeFile(resourceFileName(r.address()), r.scope.ws.render(config))
 }
 
 // verify reads the resource from state, optionally records it for post-teardown
