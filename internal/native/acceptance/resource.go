@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
@@ -56,16 +57,53 @@ type DataSourceConfig interface {
 // config is either a literal HCL string or a value exposing Config() string (e.g. a
 // generated config builder), so a spec can pass the builder instance directly.
 func (r *Resource) Apply(config any, checks ...Check) *Resource {
-	ctx := context.Background()
-	r.scope.own(r)
-	r.write(configHCL(config))
-	gomega.Expect(r.scope.ws.tf.Apply(ctx, tfexec.Reattach(r.scope.ws.reattach))).
-		NotTo(gomega.HaveOccurred(), "terraform apply (%s)", r.address())
-	hasChanges, err := r.scope.ws.tf.Plan(ctx, tfexec.Reattach(r.scope.ws.reattach))
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "plan after apply (%s)", r.address())
-	gomega.Expect(hasChanges).To(gomega.BeFalse(), "plan after apply shows drift for %s", r.address())
-	r.verify(checks, true)
+	applyAll(r.scope.ws, []Staged{r.Stage(config, checks...)})
 	return r
+}
+
+// Staged pairs a resource with the config and checks to apply for it. It is produced
+// by Resource.Stage and consumed by ApplyAll, which writes every staged config and
+// then runs a SINGLE terraform apply for the whole set.
+type Staged struct {
+	r      *Resource
+	config any
+	checks []Check
+}
+
+// Stage prepares this resource's config and checks for a batched apply via
+// Scope.ApplyAll / Workspace.ApplyAll, instead of Apply's one-terraform-apply-per-
+// resource. Use it to provision several resources — typically a dependent chain — in
+// one apply, e.g. a whole base in a single BeforeAll. The config is resolved exactly
+// as in Apply (a literal HCL string or a value exposing Config() string).
+func (r *Resource) Stage(config any, checks ...Check) Staged {
+	return Staged{r: r, config: config, checks: checks}
+}
+
+// applyAll writes every staged resource's config, runs ONE terraform apply to create
+// or update them together (Terraform orders them from the cross-resource .id
+// references in their configs), asserts the post-apply plan is empty for the whole
+// working directory, then runs each staged resource's checks. Apply is the single-
+// resource case; Scope.ApplyAll / Workspace.ApplyAll expose the batch to specs.
+func applyAll(w *Workspace, staged []Staged) {
+	gomega.Expect(staged).NotTo(gomega.BeEmpty(), "ApplyAll requires at least one staged resource")
+	ctx := context.Background()
+	addrs := make([]string, len(staged))
+	for i, s := range staged {
+		gomega.Expect(s.r.scope.ws).To(gomega.BeIdenticalTo(w),
+			"staged resource %s belongs to a different workspace", s.r.address())
+		s.r.scope.own(s.r)
+		s.r.write(configHCL(s.config))
+		addrs[i] = s.r.address()
+	}
+	label := strings.Join(addrs, ", ")
+	gomega.Expect(w.tf.Apply(ctx, tfexec.Reattach(w.reattach))).
+		NotTo(gomega.HaveOccurred(), "terraform apply (%s)", label)
+	hasChanges, err := w.tf.Plan(ctx, tfexec.Reattach(w.reattach))
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "plan after apply (%s)", label)
+	gomega.Expect(hasChanges).To(gomega.BeFalse(), "plan after apply shows drift for %s", label)
+	for _, s := range staged {
+		s.r.verify(s.checks, true)
+	}
 }
 
 // configHCL resolves Apply's config argument: a literal HCL string, or any value that

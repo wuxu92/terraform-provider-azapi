@@ -45,6 +45,17 @@ func (s *Scope) ResourceFor(c ResourceConfig) *Resource {
 	return s.Resource(c.ResourceType(), c.ResourceLabel())
 }
 
+// ApplyAll provisions several staged resources (Resource.Stage) in a SINGLE terraform
+// apply, rather than one apply per resource. Terraform orders them from the
+// cross-resource .id references in their configs, so a dependent chain can be created
+// together — e.g. a resource group, its storage account and that account's blob
+// service in one BeforeAll. One post-apply drift plan covers the whole set, then each
+// staged resource's checks run. Each resource is recorded in its own scope (Stage
+// carries the handle), so the receiver scope is just where the call reads naturally.
+func (s *Scope) ApplyAll(staged ...Staged) {
+	applyAll(s.ws, staged)
+}
+
 func newResource(s *Scope, tfType, label string) *Resource {
 	d, ok := generated.Registry[tfType]
 	if !ok {

@@ -72,3 +72,23 @@ func TestConfigHCL(t *testing.T) {
 	}()
 	configHCL(42)
 }
+
+// TestStageBundlesConfigAndChecks guards Resource.Stage, the batched-apply building
+// block: it must bundle the handle, config and checks verbatim so ApplyAll writes the
+// right config and runs the right checks per resource. The apply itself drives
+// Terraform and is exercised by the Azure-gated acceptance suite.
+func TestStageBundlesConfigAndChecks(t *testing.T) {
+	var s Scope
+	r := &Resource{scope: &s, tfType: "azapi_resource_group", label: "rg"}
+	chk := func(*checkCtx) {}
+	st := r.Stage("cfg-hcl", chk, chk)
+	if st.r != r {
+		t.Errorf("Stage dropped the resource handle")
+	}
+	if st.config != "cfg-hcl" {
+		t.Errorf("Stage config = %v, want %q", st.config, "cfg-hcl")
+	}
+	if len(st.checks) != 2 {
+		t.Errorf("Stage checks = %d, want 2", len(st.checks))
+	}
+}

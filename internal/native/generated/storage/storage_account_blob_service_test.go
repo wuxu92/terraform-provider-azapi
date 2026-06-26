@@ -39,14 +39,24 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 		blob := acct.ResourceFor(blobCfg)
 
 		BeforeAll(func() {
-			sa.Apply(saCfg.Basic(), acc.Exists())
+			// sa and blob share this scope and tear down together, so provision the
+			// dependent chain in ONE terraform apply instead of an apply each: Stage
+			// bundles each resource's config + checks and ApplyAll writes both files,
+			// applies once (Terraform orders blob after sa from the storage_account_id
+			// reference), asserts a single empty post-apply plan for the set, then runs
+			// every staged check (Exists for both).
+			acct.ApplyAll(
+				sa.Stage(saCfg.Basic(), acc.Exists()),
+				blob.Stage(blobCfg.Basic(), acc.Exists()),
+			)
 		})
 
-		It("creates the singleton default blob service, then imports it", func() {
-			// Apply asserts existence and no post-apply drift; ImportVerify (co-located,
-			// not a separate It) re-imports and confirms the read path has no drift. The
-			// change_feed value set in config round-trips, so it needs no explicit check.
-			blob.Apply(blobCfg.Basic(), acc.Exists()).ImportVerify()
+		It("imports the singleton default blob service with no drift", func() {
+			// ApplyAll already asserted existence and a stable plan for the batch;
+			// ImportVerify (co-located, not a separate It) re-imports blob and confirms
+			// the read path reproduces the configured state. The change_feed value set
+			// in config round-trips via the batch's drift plan, so it needs no check.
+			blob.ImportVerify()
 		})
 
 		It("toggles change feed and versioning in place", func() {

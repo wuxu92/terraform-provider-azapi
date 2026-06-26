@@ -75,6 +75,12 @@ func (w *Workspace) ResourceFor(c ResourceConfig) *Resource {
 	return w.root.ResourceFor(c)
 }
 
+// ApplyAll provisions several staged resources in a SINGLE terraform apply (see
+// Scope.ApplyAll). The resources may live in any scope; each is recorded in its own.
+func (w *Workspace) ApplyAll(staged ...Staged) {
+	applyAll(w, staged)
+}
+
 // Scope returns a child of the root scope. Wire its Teardown to a nested container's
 // AfterAll so the container's own resources are destroyed while the base survives.
 func (w *Workspace) Scope() *Scope {
