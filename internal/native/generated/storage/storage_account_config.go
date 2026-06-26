@@ -30,6 +30,63 @@ func NewStorageAccountCfg(label string, resourceGroup resources.ResourceGroupCfg
 	}
 }
 
+func (r StorageAccountCfg) Config() string {
+  return fmt.Sprintf(`
+resource %q %q {
+  name              = "acctestsa{{.RandomString}}"
+  resource_group_id = %s
+  location          = "{{.Location}}"
+  kind              = "StorageV2"
+  sku = {
+    name = "Standard_LRS"
+  }
+  properties = {}
+}
+`, r.ResourceType(), r.ResourceLabel(), r.resourceGroup.IDRef(), )
+}
+
+
+type StorageAccountCfg_Complete StorageAccountCfg
+func (r StorageAccountCfg_Complete) Config() string {
+  return fmt.Sprintf(`
+resource %q %q {
+  name              = "acctestsa{{.RandomString}}"
+  resource_group_id = %s
+  location          = "{{.Location}}"
+  kind              = "StorageV2"
+  sku = {
+    name = "Standard_LRS"
+  }
+  properties = {
+    access_tier                      = "Cool"
+    allow_blob_public_access         = false
+    allow_cross_tenant_replication   = false
+    allow_shared_key_access          = true
+    allowed_copy_scope               = "AAD"
+    default_to_o_auth_authentication = false
+    large_file_shares_state          = "Enabled"
+    minimum_tls_version              = "TLS1_2"
+    public_network_access            = "Enabled"
+    supports_https_traffic_only      = true
+    network_acls = {
+      bypass         = "AzureServices"
+      default_action = "Allow"
+    }
+    sas_policy = {
+      expiration_action     = "Log"
+      sas_expiration_period = "1.00:00:00"
+    }
+    key_policy = {
+      key_expiration_period_in_days = 7
+    }
+  }
+}
+`, r.ResourceType(), r.ResourceLabel(), r.resourceGroup.IDRef())
+}
+
+type StorageAccountCfg_Premium StorageAccountCfg
+
+
 // Basic is a StorageV2 Standard_LRS account with no caller-set properties. The
 // empty properties block is deliberate, not noise: it makes properties a present
 // (non-null) object so the framework descends into it and applies azwise's nested

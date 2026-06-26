@@ -32,7 +32,6 @@ func (b ResourceConfigBase) ResourceLabel() string { return b.label }
 // "azapi_resource_group.rg.id".
 func (b ResourceConfigBase) IDRef() string { return b.tfType + "." + b.label + ".id" }
 
-
 // RefOf is the Terraform reference to this resource's arbitrary attribute, e.g.
 // "azapi_resource_group.rg.location" for RefOf("location"). It derives from the same type.label as the acceptance Resource
 func (b ResourceConfigBase) RefOf(path string) string { return b.tfType + "." + b.label + "." + path }
@@ -40,3 +39,36 @@ func (b ResourceConfigBase) RefOf(path string) string { return b.tfType + "." + 
 func (r *ResourceConfigBase) Config() string {
 	return "resource " + r.tfType + " " + r.label + " {}"
 }
+
+type DataSourceConfigBase struct {
+	tfType string
+	label  string
+}
+
+// DataSourceType implements [nativeacc.DataSourceConfig].
+func (b *DataSourceConfigBase) DataSourceType() string {
+	return b.tfType
+}
+
+// Label implements [nativeacc.DataSourceConfig].
+func (b *DataSourceConfigBase) Label() string {
+	return b.label
+}
+
+func (b DataSourceConfigBase) IDRef() string { return "data." + b.tfType + "." + b.label + ".id" }
+
+// RefOf is the Terraform reference to this resource's arbitrary attribute, e.g.
+// "azapi_resource_group.rg.location" for RefOf("location"). It derives from the same type.label as the acceptance Resource
+func (b DataSourceConfigBase) RefOf(path string) string {
+	return "data." + b.tfType + "." + b.label + "." + path
+}
+
+func (r *DataSourceConfigBase) Config() string {
+	return "data " + r.tfType + " " + r.label + " {}"
+}
+func (r *DataSourceConfigBase) IsDataSourceConfig() {}
+
+
+var (
+	ClientConfig = DataSourceConfigBase{tfType: "azapi_client_config", label: "current"}
+)
