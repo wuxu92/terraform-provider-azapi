@@ -17,11 +17,11 @@ type ResourceGroupCfg struct {
 	generated.ResourceConfigBase
 }
 
-// NewResourceGroupCfg builds a resource-group config with the given Terraform state
-// label. The resource type is read from the ResourceGroup descriptor, so the caller
-// never restates it.
-func NewResourceGroupCfg(label string) ResourceGroupCfg {
-	return ResourceGroupCfg{generated.NewResourceConfigBase(ResourceGroup.Name, label)}
+// NewResourceGroupCfg builds a resource-group config. The label is optional — omit it
+// for the single-instance default ("test"), or pass an explicit label when a scope
+// holds more than one. The resource type is read from the ResourceGroup descriptor.
+func NewResourceGroupCfg(label ...string) ResourceGroupCfg {
+	return ResourceGroupCfg{generated.NewResourceConfigBase(ResourceGroup.Name, label...)}
 }
 
 // Basic is a minimal resource group named acctest-rg-<n>.

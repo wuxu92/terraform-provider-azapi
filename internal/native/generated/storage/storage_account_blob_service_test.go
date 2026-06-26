@@ -33,9 +33,9 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 		acct := ws.Scope()
 		AfterAll(acct.Teardown)
 
-		saCfg := storage.NewStorageAccountCfg("sa", rgCfg)
+		saCfg := storage.NewStorageAccountCfg(rgCfg, "sa")
 		sa := acct.ResourceFor(saCfg)
-		blobCfg := storage.NewBlobServiceCfg("test", saCfg)
+		blobCfg := storage.NewBlobServiceCfg(saCfg)
 		blob := acct.ResourceFor(blobCfg)
 
 		BeforeAll(func() {
@@ -56,7 +56,7 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 		})
 
 		It("rejects a blob service name other than \"default\"", func() {
-			invalid := storage.NewBlobServiceCfg("invalid", saCfg)
+			invalid := storage.NewBlobServiceCfg(saCfg, "invalid")
 			acct.ResourceFor(invalid).ApplyExpectError(
 				invalid.Named("notdefault"),
 				`name value must be one of`,

@@ -31,7 +31,7 @@ var _ = Describe("Azure Storage", Ordered, func() {
 		// Terraform address (rg.IDRef) as its parent reference.
 		acct := ws.Scope()
 		AfterAll(acct.Teardown)
-		cfg := storage.NewStorageAccountCfg("test", rgCfg)
+		cfg := storage.NewStorageAccountCfg(rgCfg)
 		sa := acct.ResourceFor(cfg)
 
 		BeforeAll(func() {

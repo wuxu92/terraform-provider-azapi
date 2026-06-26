@@ -2,6 +2,7 @@ package nativeacc
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -52,10 +53,12 @@ type DataSourceConfig interface {
 // argument is reserved for facts the plan can't prove — Azure-side existence (Exists)
 // and computed defaults (a value the provider, not the config, supplies). The resource
 // is created on first Apply and updated in place on subsequent Applies (same address).
-func (r *Resource) Apply(config string, checks ...Check) *Resource {
+// config is either a literal HCL string or a value exposing Config() string (e.g. a
+// generated config builder), so a spec can pass the builder instance directly.
+func (r *Resource) Apply(config any, checks ...Check) *Resource {
 	ctx := context.Background()
-	r.scope.own(r.address())
-	r.write(config)
+	r.scope.own(r)
+	r.write(configHCL(config))
 	gomega.Expect(r.scope.ws.tf.Apply(ctx, tfexec.Reattach(r.scope.ws.reattach))).
 		NotTo(gomega.HaveOccurred(), "terraform apply (%s)", r.address())
 	hasChanges, err := r.scope.ws.tf.Plan(ctx, tfexec.Reattach(r.scope.ws.reattach))
@@ -63,6 +66,20 @@ func (r *Resource) Apply(config string, checks ...Check) *Resource {
 	gomega.Expect(hasChanges).To(gomega.BeFalse(), "plan after apply shows drift for %s", r.address())
 	r.verify(checks, true)
 	return r
+}
+
+// configHCL resolves Apply's config argument: a literal HCL string, or any value that
+// renders its own block via Config() string — e.g. a generated config builder, letting
+// a spec pass the builder instance directly instead of builder.Basic().
+func configHCL(config any) string {
+	switch c := config.(type) {
+	case string:
+		return c
+	case interface{ Config() string }:
+		return c.Config()
+	default:
+		panic(fmt.Sprintf("nativeacc: Apply config must be a string or implement Config() string, got %T", config))
+	}
 }
 
 // Check runs checks against the resource's current state / Azure without re-applying.

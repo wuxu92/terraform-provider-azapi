@@ -23,8 +23,9 @@ import (
 // runs inner AfterAll (teardown) before outer, so dependents are destroyed first.
 type Scope struct {
 	ws      *Workspace
-	owned   []string          // resource addresses (tfType.label) owned by this scope, in apply order
-	tracked []trackedResource // applied resources, verified absent on Teardown
+	owned   []string             // resource addresses (tfType.label) owned by this scope, in apply order
+	ownedBy map[string]*Resource // address -> owning resource, for collision detection
+	tracked []trackedResource    // applied resources, verified absent on Teardown
 }
 
 // Scope returns a child scope. Wire its Teardown to the nested container's AfterAll.
@@ -58,18 +59,28 @@ func newResource(s *Scope, tfType, label string) *Resource {
 	}
 }
 
-// own records that this scope owns the file for the resource's address (idempotent),
-// so Teardown removes exactly the resources this scope created. Keyed by the full
-// tfType.label address, not the label alone: distinct resource types may share a
-// label (azapi_storage_account.test and azapi_resource_group.test are different
-// resources that must not share a .tf file).
-func (s *Scope) own(address string) {
-	for _, a := range s.owned {
-		if a == address {
-			return
+// own records that this scope owns the file for the resource's address, so Teardown
+// removes exactly the resources this scope created. Keyed by the full tfType.label
+// address, not the label alone: distinct resource types may share a label
+// (azapi_storage_account.test and azapi_resource_group.test are different resources
+// that must not share a .tf file). Re-applying the SAME resource (create -> update) is
+// idempotent; a DIFFERENT resource on an address this scope already owns is a label
+// collision — a second instance of a type built without a distinct label — and panics
+// loudly rather than silently clobbering the first resource's .tf file.
+func (s *Scope) own(r *Resource) {
+	addr := r.address()
+	if prev, ok := s.ownedBy[addr]; ok {
+		if prev != r {
+			panic(fmt.Sprintf("nativeacc: two resources share the address %q in one scope; "+
+				"give the second instance an explicit label, e.g. NewXxxCfg(parent, \"primary\")", addr))
 		}
+		return
 	}
-	s.owned = append(s.owned, address)
+	if s.ownedBy == nil {
+		s.ownedBy = map[string]*Resource{}
+	}
+	s.ownedBy[addr] = r
+	s.owned = append(s.owned, addr)
 }
 
 // track records a resource for post-teardown existence verification, deduplicated by
@@ -113,5 +124,6 @@ func (s *Scope) Teardown() {
 		gomega.Expect(ok).To(gomega.BeFalse(), "%s still exists after scope teardown", tr.id)
 	}
 	s.owned = nil
+	s.ownedBy = nil
 	s.tracked = nil
 }

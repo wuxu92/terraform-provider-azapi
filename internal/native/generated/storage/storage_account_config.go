@@ -19,13 +19,14 @@ type StorageAccountCfg struct {
 	resourceGroup resources.ResourceGroupCfg
 }
 
-// NewStorageAccountCfg builds a storage-account config with the given Terraform state
-// label, depending on the parent resource-group config (e.g. the one applied as the
-// base). The account holds it and references its IDRef as resource_group_id. The
-// resource type is read from the StorageAccount descriptor.
-func NewStorageAccountCfg(label string, resourceGroup resources.ResourceGroupCfg) StorageAccountCfg {
+// NewStorageAccountCfg builds a storage-account config depending on the parent
+// resource-group config (e.g. the one applied as the base): the account holds it and
+// references its IDRef as resource_group_id. The label is optional — omit it for the
+// single-instance default ("test"), or pass an explicit label when a scope holds more
+// than one. The resource type is read from the StorageAccount descriptor.
+func NewStorageAccountCfg(resourceGroup resources.ResourceGroupCfg, label ...string) StorageAccountCfg {
 	return StorageAccountCfg{
-		ResourceConfigBase: generated.NewResourceConfigBase(StorageAccount.Name, label),
+		ResourceConfigBase: generated.NewResourceConfigBase(StorageAccount.Name, label...),
 		resourceGroup:      resourceGroup,
 	}
 }

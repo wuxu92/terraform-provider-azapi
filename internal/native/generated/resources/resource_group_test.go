@@ -16,7 +16,7 @@ var _ = Describe("Azure Resource Group", Ordered, func() {
 	BeforeAll(ws.Start)
 	AfterAll(ws.Destroy)
 
-	cfg := resources.NewResourceGroupCfg("test")
+	cfg := resources.NewResourceGroupCfg()
 	rg := ws.ResourceFor(cfg)
 
 	It("creates a resource group, then imports it with no drift", func() {

@@ -16,10 +16,26 @@ type ResourceConfigBase struct {
 	label  string
 }
 
+// defaultLabel is the Terraform state label a config builder gets when it omits one —
+// the common single-instance case. Supply an explicit, meaningful label only when a
+// scope holds more than one instance of a type (e.g. "primary"/"secondary") or for a
+// validation config that must differ from the resource-under-test ("invalid").
+const defaultLabel = "test"
+
 // NewResourceConfigBase builds the embedded base for a config builder's NewXxxCfg
-// constructor: tfType is the generated Descriptor's Name, label is the state label.
-func NewResourceConfigBase(tfType, label string) ResourceConfigBase {
-	return ResourceConfigBase{tfType: tfType, label: label}
+// constructor: tfType is the generated Descriptor's Name. The label is optional —
+// omit it for the single-instance default ("test"), or pass exactly one explicit
+// label for a multi-instance scope. More than one label is a programming error.
+func NewResourceConfigBase(tfType string, label ...string) ResourceConfigBase {
+	l := defaultLabel
+	switch len(label) {
+	case 0:
+	case 1:
+		l = label[0]
+	default:
+		panic("generated: NewResourceConfigBase accepts at most one label")
+	}
+	return ResourceConfigBase{tfType: tfType, label: l}
 }
 
 // ResourceType returns the Terraform type (implements nativeacc.ResourceConfig).
@@ -36,8 +52,8 @@ func (b ResourceConfigBase) IDRef() string { return b.tfType + "." + b.label + "
 // "azapi_resource_group.rg.location" for RefOf("location"). It derives from the same type.label as the acceptance Resource
 func (b ResourceConfigBase) RefOf(path string) string { return b.tfType + "." + b.label + "." + path }
 
-func (r *ResourceConfigBase) Config() string {
-	return "resource " + r.tfType + " " + r.label + " {}"
+func (b ResourceConfigBase) Config() string {
+	return "resource " + b.tfType + " " + b.label + " {}"
 }
 
 type DataSourceConfigBase struct {
@@ -46,12 +62,12 @@ type DataSourceConfigBase struct {
 }
 
 // DataSourceType implements [nativeacc.DataSourceConfig].
-func (b *DataSourceConfigBase) DataSourceType() string {
+func (b DataSourceConfigBase) DataSourceType() string {
 	return b.tfType
 }
 
 // Label implements [nativeacc.DataSourceConfig].
-func (b *DataSourceConfigBase) Label() string {
+func (b DataSourceConfigBase) Label() string {
 	return b.label
 }
 
@@ -63,10 +79,10 @@ func (b DataSourceConfigBase) RefOf(path string) string {
 	return "data." + b.tfType + "." + b.label + "." + path
 }
 
-func (r *DataSourceConfigBase) Config() string {
+func (r DataSourceConfigBase) Config() string {
 	return "data " + r.tfType + " " + r.label + " {}"
 }
-func (r *DataSourceConfigBase) IsDataSourceConfig() {}
+func (r DataSourceConfigBase) IsDataSourceConfig() {}
 
 
 var (

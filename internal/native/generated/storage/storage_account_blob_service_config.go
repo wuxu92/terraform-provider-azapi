@@ -18,13 +18,14 @@ type BlobServiceCfg struct {
 	storageAccount StorageAccountCfg
 }
 
-// NewBlobServiceCfg builds a blob-service config with the given Terraform state
-// label, depending on the parent storage-account config. The blob service holds it
-// and references its IDRef as storage_account_id. The resource type is read from the
+// NewBlobServiceCfg builds a blob-service config depending on the parent storage-account
+// config: the blob service holds it and references its IDRef as storage_account_id. The
+// label is optional — omit it for the single-instance default ("test"), or pass an
+// explicit label when a scope holds more than one. The resource type is read from the
 // StorageAccountBlobService descriptor.
-func NewBlobServiceCfg(label string, storageAccount StorageAccountCfg) BlobServiceCfg {
+func NewBlobServiceCfg(storageAccount StorageAccountCfg, label ...string) BlobServiceCfg {
 	return BlobServiceCfg{
-		ResourceConfigBase: generated.NewResourceConfigBase(StorageAccountBlobService.Name, label),
+		ResourceConfigBase: generated.NewResourceConfigBase(StorageAccountBlobService.Name, label...),
 		storageAccount:     storageAccount,
 	}
 }
