@@ -26,12 +26,21 @@ type Resource struct {
 // ResourceConfig is implemented by a generated config builder via the embedded
 // generated.ResourceConfigBase: it names the Terraform type and state label of the
 // resource it configures. A scope's ResourceFor takes one and vends the matching
-// Resource handle, so the literal type and label are spelled exactly once — set from a
-// generated.Type* constant in the builder's NewXxx constructor — not restated here.
+// Resource handle, so the literal type and label are spelled exactly once — set from
+// the resource's generated Descriptor.Name in the builder's NewXxxCfg constructor —
+// not restated here.
 type ResourceConfig interface {
 	ResourceType() string  // Terraform type, e.g. "azapi_storage_account"
 	ResourceLabel() string // Terraform state label
+	IDRef() string // Terraform reference to the resource's id attribute, e.g. "azapi_resource_group.rg.id".
+	RefOf(path string) string // Terraform reference to an arbitrary attribute, e.g. "azapi_resource_group.rg.location" for RefOf("location"). It derives from the same type.label as the acceptance Resource handle's IDRef
+	Config() string // HCL config block for the resource, rendered by the builder
 }
+
+type DataSourceConfig interface {
+	ResourceConfig
+}
+
 
 // Apply writes the resource's config block, applies the workspace, and then re-plans
 // to assert the apply left no drift: a refresh-backed plan must be empty, proving the

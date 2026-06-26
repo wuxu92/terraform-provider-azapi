@@ -6,56 +6,58 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 )
 
-// BlobService builds azapi_storage_account_blob_service acceptance-test
+// BlobServiceCfg builds azapi_storage_account_blob_service acceptance-test
 // configurations. blobServices is the singleton "default" child of a storage
-// account: construct it with NewBlobService. StorageAccountIDRef is the injected
-// parent reference — the Terraform address of a storage account applied as a base,
-// e.g. the acceptance Resource's IDRef "azapi_storage_account.sa.id". The returned
-// HCL is a template rendered by the acceptance framework.
-type BlobService struct {
+// account: construct it with NewBlobServiceCfg, passing the parent storage-account
+// config. It holds that StorageAccountCfg and renders its IDRef (e.g.
+// "azapi_storage_account.sa.id") as the blob service's storage_account_id, so the
+// dependency is config-to-config and the held parent is available for any further
+// derived fields. The returned HCL is a template rendered by the acceptance framework.
+type BlobServiceCfg struct {
 	generated.ResourceConfigBase
-	StorageAccountIDRef string
+	storageAccount StorageAccountCfg
 }
 
-// NewBlobService builds a blob-service config with the given Terraform state label
-// and parent storage-account address reference (storageAccountIDRef, e.g.
-// sa.IDRef()). The resource type is set from generated.TypeStorageAccountBlobService.
-func NewBlobService(label, storageAccountIDRef string) BlobService {
-	return BlobService{
-		ResourceConfigBase:  generated.NewResourceConfigBase(generated.TypeStorageAccountBlobService, label),
-		StorageAccountIDRef: storageAccountIDRef,
+// NewBlobServiceCfg builds a blob-service config with the given Terraform state
+// label, depending on the parent storage-account config. The blob service holds it
+// and references its IDRef as storage_account_id. The resource type is read from the
+// StorageAccountBlobService descriptor.
+func NewBlobServiceCfg(label string, storageAccount StorageAccountCfg) BlobServiceCfg {
+	return BlobServiceCfg{
+		ResourceConfigBase: generated.NewResourceConfigBase(StorageAccountBlobService.Name, label),
+		storageAccount:     storageAccount,
 	}
 }
 
 // Basic is the singleton default blob service with change feed enabled.
-func (r BlobService) Basic() string { return r.config("default", r.changeFeed(true)) }
+func (r BlobServiceCfg) Basic() string { return r.config("default", r.changeFeed(true)) }
 
 // Complete toggles versioning on the default blob service — a fuller configuration
 // used to exercise an in-place update from Basic.
-func (r BlobService) Complete() string { return r.config("default", r.versioning(true)) }
+func (r BlobServiceCfg) Complete() string { return r.config("default", r.versioning(true)) }
 
 // WithChangeFeed sets properties.change_feed.enabled.
-func (r BlobService) WithChangeFeed(enabled bool) string {
+func (r BlobServiceCfg) WithChangeFeed(enabled bool) string {
 	return r.config("default", r.changeFeed(enabled))
 }
 
 // Named builds a blob service with a non-default name, for validation scenarios
 // (the schema requires the name "default").
-func (r BlobService) Named(name string) string { return r.config(name, r.versioning(true)) }
+func (r BlobServiceCfg) Named(name string) string { return r.config(name, r.versioning(true)) }
 
-func (r BlobService) config(name, body string) string {
+func (r BlobServiceCfg) config(name, body string) string {
 	return fmt.Sprintf(`
 resource %q %q {
   name               = %q
   storage_account_id = %s%s
 }
-`, r.ResourceType(), r.ResourceLabel(), name, r.StorageAccountIDRef, body)
+`, r.ResourceType(), r.ResourceLabel(), name, r.storageAccount.IDRef(), body)
 }
 
-// changeFeed is a BlobService properties fragment toggling change feed. Defined as a
-// method (not a package function) so the name stays scoped to BlobService and cannot
-// collide with another resource's helpers in this shared package.
-func (r BlobService) changeFeed(enabled bool) string {
+// changeFeed is a BlobServiceCfg properties fragment toggling change feed. Defined as
+// a method (not a package function) so the name stays scoped to BlobServiceCfg and
+// cannot collide with another resource's helpers in this shared package.
+func (r BlobServiceCfg) changeFeed(enabled bool) string {
 	return fmt.Sprintf(`
   properties = {
     change_feed = {
@@ -64,9 +66,9 @@ func (r BlobService) changeFeed(enabled bool) string {
   }`, enabled)
 }
 
-// versioning is a BlobService properties fragment toggling versioning. Defined as a
-// method so its name stays scoped to BlobService (see changeFeed).
-func (r BlobService) versioning(enabled bool) string {
+// versioning is a BlobServiceCfg properties fragment toggling versioning. Defined as
+// a method so its name stays scoped to BlobServiceCfg (see changeFeed).
+func (r BlobServiceCfg) versioning(enabled bool) string {
 	return fmt.Sprintf(`
   properties = {
     is_versioning_enabled = %t

@@ -120,19 +120,25 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	b.WriteString("\t}\n")
 	b.WriteString("}\n\n")
 
-	// Registration
-	b.WriteString("func init() {\n")
-	b.WriteString("\tgenerated.Register(generated.Descriptor{\n")
-	b.WriteString(fmt.Sprintf("\t\tName:       %q,\n", tfName))
-	b.WriteString(fmt.Sprintf("\t\tARMType:    %q,\n", armType))
-	b.WriteString(fmt.Sprintf("\t\tAPIVersion: %q,\n", def.APIVersion))
-	b.WriteString(fmt.Sprintf("\t\tSchema:     %sSchema,\n", structName))
+	// Registration. Expose the descriptor as a package var — the single source of
+	// truth for the resource's Name/ARMType/APIVersion, referenced from the config
+	// builder (e.g. StorageAccount.Name) — then register it at init.
+	descName := strings.TrimPrefix(structName, "Azapi")
+	b.WriteString(fmt.Sprintf("// %s is the static description of the %s resource: its\n", descName, tfName))
+	b.WriteString("// Terraform name, ARM type, API version, and body schema. It is the single source\n")
+	b.WriteString(fmt.Sprintf("// of truth for those values (referenced as %s.Name from the config builder)\n", descName))
+	b.WriteString("// and is registered at init.\n")
+	b.WriteString(fmt.Sprintf("var %s = generated.Descriptor{\n", descName))
+	b.WriteString(fmt.Sprintf("\tName:       %q,\n", tfName))
+	b.WriteString(fmt.Sprintf("\tARMType:    %q,\n", armType))
+	b.WriteString(fmt.Sprintf("\tAPIVersion: %q,\n", def.APIVersion))
+	b.WriteString(fmt.Sprintf("\tSchema:     %sSchema,\n", structName))
 	if def.WritableScopes != 0 {
-		b.WriteString(fmt.Sprintf("\t\tWritableScopes: %d,\n", def.WritableScopes))
+		b.WriteString(fmt.Sprintf("\tWritableScopes: %d,\n", def.WritableScopes))
 	}
-	b.WriteString(fmt.Sprintf("\t\tParentAttr: %q,\n", def.Envelope.Parent.Name))
-	b.WriteString("\t})\n")
-	b.WriteString("}\n")
+	b.WriteString(fmt.Sprintf("\tParentAttr: %q,\n", def.Envelope.Parent.Name))
+	b.WriteString("}\n\n")
+	b.WriteString(fmt.Sprintf("func init() { generated.Register(%s) }\n", descName))
 
 	formatted, err := format.Source([]byte(b.String()))
 	if err != nil {

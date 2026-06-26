@@ -23,7 +23,7 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 	AfterAll(ws.Destroy)
 
 	// Root scope: the resource group base, reused by the account scope below.
-	rgCfg := resources.NewResourceGroup("rg")
+	rgCfg := resources.NewResourceGroupCfg("rg")
 	rg := ws.ResourceFor(rgCfg)
 	BeforeAll(func() { rg.Apply(rgCfg.Basic(), acc.Exists()) })
 
@@ -33,9 +33,9 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 		acct := ws.Scope()
 		AfterAll(acct.Teardown)
 
-		saCfg := storage.NewStorageAccount("sa", rg.IDRef())
+		saCfg := storage.NewStorageAccountCfg("sa", rgCfg)
 		sa := acct.ResourceFor(saCfg)
-		blobCfg := storage.NewBlobService("test", sa.IDRef())
+		blobCfg := storage.NewBlobServiceCfg("test", saCfg)
 		blob := acct.ResourceFor(blobCfg)
 
 		BeforeAll(func() {
@@ -56,7 +56,7 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 		})
 
 		It("rejects a blob service name other than \"default\"", func() {
-			invalid := storage.NewBlobService("invalid", sa.IDRef())
+			invalid := storage.NewBlobServiceCfg("invalid", saCfg)
 			acct.ResourceFor(invalid).ApplyExpectError(
 				invalid.Named("notdefault"),
 				`name value must be one of`,

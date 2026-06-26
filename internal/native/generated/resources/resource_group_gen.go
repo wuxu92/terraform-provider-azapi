@@ -93,13 +93,17 @@ func AzapiResourceGroupSchema() schema.Schema {
 	}
 }
 
-func init() {
-	generated.Register(generated.Descriptor{
-		Name:           "azapi_resource_group",
-		ARMType:        "Microsoft.Resources/resourceGroups",
-		APIVersion:     "2025-04-01",
-		Schema:         AzapiResourceGroupSchema,
-		WritableScopes: 4,
-		ParentAttr:     "subscription_id",
-	})
+// ResourceGroup is the static description of the azapi_resource_group resource: its
+// Terraform name, ARM type, API version, and body schema. It is the single source
+// of truth for those values (referenced as ResourceGroup.Name from the config builder)
+// and is registered at init.
+var ResourceGroup = generated.Descriptor{
+	Name:           "azapi_resource_group",
+	ARMType:        "Microsoft.Resources/resourceGroups",
+	APIVersion:     "2025-04-01",
+	Schema:         AzapiResourceGroupSchema,
+	WritableScopes: 4,
+	ParentAttr:     "subscription_id",
 }
+
+func init() { generated.Register(ResourceGroup) }

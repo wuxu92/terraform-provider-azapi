@@ -4,26 +4,29 @@ import (
 	"fmt"
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
+	"github.com/Azure/terraform-provider-azapi/internal/native/generated/resources"
 )
 
-// StorageAccount builds azapi_storage_account acceptance-test configurations.
-// Construct it with NewStorageAccount. ResourceGroupIDRef is the injected parent
-// reference — the Terraform address of a resource group applied as a base, e.g.
-// the acceptance Resource's IDRef "azapi_resource_group.rg.id". The returned HCL
-// is a template rendered by the acceptance framework ({{.RandomString}},
-// {{.Location}}).
-type StorageAccount struct {
+// StorageAccountCfg builds azapi_storage_account acceptance-test configurations.
+// Construct it with NewStorageAccountCfg, passing the parent resource-group config:
+// it holds that ResourceGroupCfg and renders its IDRef (e.g.
+// "azapi_resource_group.rg.id") as the account's resource_group_id, so the dependency
+// is config-to-config and the held parent is available for any further derived
+// fields. The returned HCL is a template rendered by the acceptance framework
+// ({{.RandomString}}, {{.Location}}).
+type StorageAccountCfg struct {
 	generated.ResourceConfigBase
-	ResourceGroupIDRef string
+	resourceGroup resources.ResourceGroupCfg
 }
 
-// NewStorageAccount builds a storage-account config with the given Terraform state
-// label and parent resource-group address reference (resourceGroupIDRef, e.g.
-// rg.IDRef()). The resource type is set from generated.TypeStorageAccount.
-func NewStorageAccount(label, resourceGroupIDRef string) StorageAccount {
-	return StorageAccount{
-		ResourceConfigBase: generated.NewResourceConfigBase(generated.TypeStorageAccount, label),
-		ResourceGroupIDRef: resourceGroupIDRef,
+// NewStorageAccountCfg builds a storage-account config with the given Terraform state
+// label, depending on the parent resource-group config (e.g. the one applied as the
+// base). The account holds it and references its IDRef as resource_group_id. The
+// resource type is read from the StorageAccount descriptor.
+func NewStorageAccountCfg(label string, resourceGroup resources.ResourceGroupCfg) StorageAccountCfg {
+	return StorageAccountCfg{
+		ResourceConfigBase: generated.NewResourceConfigBase(StorageAccount.Name, label),
+		resourceGroup:      resourceGroup,
 	}
 }
 
@@ -33,7 +36,7 @@ func NewStorageAccount(label, resourceGroupIDRef string) StorageAccount {
 // computed defaults (e.g. minimum_tls_version=TLS1_2). Omitting the block entirely
 // leaves properties null, and tftypes.Transform never reaches the children, so
 // their defaults never reach the ARM payload.
-func (r StorageAccount) Basic() string { return r.config("Standard_LRS", "\n  properties = {}") }
+func (r StorageAccountCfg) Basic() string { return r.config("Standard_LRS", "\n  properties = {}") }
 
 // Complete sets as many optional properties as one valid in-place configuration
 // covers — scalars across the access/security/network surface plus the network,
@@ -41,15 +44,15 @@ func (r StorageAccount) Basic() string { return r.config("Standard_LRS", "\n  pr
 // from Basic. ForceNew knobs (is_hns_enabled, dns_endpoint_type, encryption, SKU)
 // are deliberately excluded so the update chain stays in-place; the SKU replace
 // lives in WithSKU.
-func (r StorageAccount) Complete() string { return r.config("Standard_LRS", r.completeProps()) }
+func (r StorageAccountCfg) Complete() string { return r.config("Standard_LRS", r.completeProps()) }
 
 // WithSKU overrides the SKU, e.g. Standard_ZRS to exercise the storage overlay's
 // zone-migration (Standard_LRS -> Standard_ZRS) ForceNew rule. Like Basic it carries
 // a present (empty) properties block so the replacement account still receives
 // azwise's nested computed defaults.
-func (r StorageAccount) WithSKU(sku string) string { return r.config(sku, "\n  properties = {}") }
+func (r StorageAccountCfg) WithSKU(sku string) string { return r.config(sku, "\n  properties = {}") }
 
-func (r StorageAccount) config(sku, extra string) string {
+func (r StorageAccountCfg) config(sku, extra string) string {
 	return fmt.Sprintf(`
 resource %q %q {
   name              = "acctestsa{{.RandomString}}"
@@ -60,14 +63,15 @@ resource %q %q {
     name = %q
   }%s
 }
-`, r.ResourceType(), r.ResourceLabel(), r.ResourceGroupIDRef, sku, extra)
+`, r.ResourceType(), r.ResourceLabel(), r.resourceGroup.IDRef(), sku, extra)
 }
 
-// completeProps is the StorageAccount properties fragment for Complete: a broad set
-// of in-place-updatable optional settings plus a few nested policy blocks. Defined
-// as a method (not a package function) so the name stays scoped to StorageAccount
-// and cannot collide with another resource's helpers in this shared package.
-func (r StorageAccount) completeProps() string {
+// completeProps is the StorageAccountCfg properties fragment for Complete: a broad
+// set of in-place-updatable optional settings plus a few nested policy blocks.
+// Defined as a method (not a package function) so the name stays scoped to
+// StorageAccountCfg and cannot collide with another resource's helpers in this
+// shared package.
+func (r StorageAccountCfg) completeProps() string {
 	return `
   properties = {
     access_tier                      = "Cool"

@@ -309,13 +309,14 @@ Three surfaces (model on storage account / blob service):
 |---|---|---|
 | Runtime composition | `resource/base_test.go` (`TestBlobServiceSchemaComposition`) | schema composes (envelope + body + timeouts), parent attr resolves |
 | azwise overlay | `generator/azwise_overlay_test.go` (`TestApplyAzwiseBlobService`) | the overlay baked into the live-parsed body |
-| Acceptance | `generated/<service>/<resource>_test.go` (a `Describe`) + `<resource>_config.go` (a `<Resource>` config builder) | live create/read/update against Azure |
+| Acceptance | `generated/<service>/<resource>_test.go` (a `Describe`) + `<resource>_config.go` (a `<Resource>Cfg` config builder) | live create/read/update against Azure |
 
-**Config builders** live in `<resource>_config.go` beside the schema: a `<Resource>`
-struct (e.g. `StorageAccount`) embedding `generated.ResourceConfigBase`, constructed via
-`New<Resource>(label, …parentRefs)`, exposing `Basic()` / `Update()` / `Complete()` /
-`Named(…)` that return HCL; the Terraform type is set once from a `generated.Type*`
-constant. Tests pass a config to `ws.ResourceFor(cfg)` / `scope.ResourceFor(cfg)` for the
+**Config builders** live in `<resource>_config.go` beside the schema: a `<Resource>Cfg`
+struct (e.g. `StorageAccountCfg`) embedding `generated.ResourceConfigBase`, constructed via
+`New<Resource>Cfg(label, …parentCfgs)`, exposing `Basic()` / `Update()` / `Complete()` /
+`Named(…)` that return HCL; the Terraform type is set once from the resource's generated
+`Descriptor` (e.g. `StorageAccount.Name`, the `var` the `_gen.go` exposes and registers).
+Tests pass a config to `ws.ResourceFor(cfg)` / `scope.ResourceFor(cfg)` for the
 handle they apply. **One Ginkgo `RunSpecs` per service** (`generated/<service>/suite_test.go`,
 e.g. `TestStorageAcceptance`); add a `Describe(...)` in a new `<resource>_test.go`, never a
 second `RunSpecs` (Ginkgo panics on more than one per binary).

@@ -2194,13 +2194,17 @@ func AzapiStorageAccountSchema() schema.Schema {
 	}
 }
 
-func init() {
-	generated.Register(generated.Descriptor{
-		Name:           "azapi_storage_account",
-		ARMType:        "Microsoft.Storage/storageAccounts",
-		APIVersion:     "2025-06-01",
-		Schema:         AzapiStorageAccountSchema,
-		WritableScopes: 8,
-		ParentAttr:     "resource_group_id",
-	})
+// StorageAccount is the static description of the azapi_storage_account resource: its
+// Terraform name, ARM type, API version, and body schema. It is the single source
+// of truth for those values (referenced as StorageAccount.Name from the config builder)
+// and is registered at init.
+var StorageAccount = generated.Descriptor{
+	Name:           "azapi_storage_account",
+	ARMType:        "Microsoft.Storage/storageAccounts",
+	APIVersion:     "2025-06-01",
+	Schema:         AzapiStorageAccountSchema,
+	WritableScopes: 8,
+	ParentAttr:     "resource_group_id",
 }
+
+func init() { generated.Register(StorageAccount) }

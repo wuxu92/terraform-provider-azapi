@@ -452,13 +452,17 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 	}
 }
 
-func init() {
-	generated.Register(generated.Descriptor{
-		Name:           "azapi_storage_account_blob_service",
-		ARMType:        "Microsoft.Storage/storageAccounts/blobServices",
-		APIVersion:     "2025-06-01",
-		Schema:         AzapiStorageAccountBlobServiceSchema,
-		WritableScopes: 8,
-		ParentAttr:     "storage_account_id",
-	})
+// StorageAccountBlobService is the static description of the azapi_storage_account_blob_service resource: its
+// Terraform name, ARM type, API version, and body schema. It is the single source
+// of truth for those values (referenced as StorageAccountBlobService.Name from the config builder)
+// and is registered at init.
+var StorageAccountBlobService = generated.Descriptor{
+	Name:           "azapi_storage_account_blob_service",
+	ARMType:        "Microsoft.Storage/storageAccounts/blobServices",
+	APIVersion:     "2025-06-01",
+	Schema:         AzapiStorageAccountBlobServiceSchema,
+	WritableScopes: 8,
+	ParentAttr:     "storage_account_id",
 }
+
+func init() { generated.Register(StorageAccountBlobService) }

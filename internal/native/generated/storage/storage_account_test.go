@@ -21,7 +21,7 @@ var _ = Describe("Azure Storage", Ordered, func() {
 
 	// Root scope: the resource group base, reused by every nested scope. Its config
 	// comes from the resources package's ResourceGroup builder.
-	rgCfg := resources.NewResourceGroup("rg")
+	rgCfg := resources.NewResourceGroupCfg("rg")
 	rg := ws.ResourceFor(rgCfg)
 	BeforeAll(func() { rg.Apply(rgCfg.Basic(), acc.Exists()) })
 
@@ -31,7 +31,7 @@ var _ = Describe("Azure Storage", Ordered, func() {
 		// Terraform address (rg.IDRef) as its parent reference.
 		acct := ws.Scope()
 		AfterAll(acct.Teardown)
-		cfg := storage.NewStorageAccount("test", rg.IDRef())
+		cfg := storage.NewStorageAccountCfg("test", rgCfg)
 		sa := acct.ResourceFor(cfg)
 
 		BeforeAll(func() {
