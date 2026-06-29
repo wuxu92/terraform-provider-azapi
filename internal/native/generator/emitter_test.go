@@ -102,13 +102,7 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 	t.Logf("Generated schema (%d lines total):\n%s\n...", len(lines), strings.Join(lines[:maxLines], "\n"))
 }
 
-// TestEmitForceNewHonorsNonNullStateForUnknown guards the per-field opt-out the
-// fix for the last_access_time_tracking_policy.name drift relies on: a computed
-// attribute emits the bare UseStateForUnknown by default (idempotent for fields
-// the server leaves null), but UseNonNullStateForUnknown when the property is
-// flagged - so a null prior plans as "(known after apply)" and the server may
-// populate it instead of the plan pinning a stale null that apply contradicts.
-func TestEmitForceNewHonorsNonNullStateForUnknown(t *testing.T) {
+func TestEmitPlanModifiersHonorsNonNullStateForUnknown(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		nonNull bool
@@ -125,13 +119,13 @@ func TestEmitForceNewHonorsNonNullStateForUnknown(t *testing.T) {
 				NonNullStateForUnknown: tc.nonNull,
 			}
 			var b strings.Builder
-			emitForceNew(&b, prop, true, "")
+			emitPlanModifiers(&b, prop, true, "")
 			got := b.String()
 			if !strings.Contains(got, tc.want) {
-				t.Errorf("emitForceNew(nonNull=%v) = %q, want substring %q", tc.nonNull, got, tc.want)
+				t.Errorf("emitPlanModifiers(nonNull=%v) = %q, want substring %q", tc.nonNull, got, tc.want)
 			}
 			if strings.Contains(got, tc.notWant) {
-				t.Errorf("emitForceNew(nonNull=%v) = %q, must not contain %q", tc.nonNull, got, tc.notWant)
+				t.Errorf("emitPlanModifiers(nonNull=%v) = %q, must not contain %q", tc.nonNull, got, tc.notWant)
 			}
 		})
 	}
