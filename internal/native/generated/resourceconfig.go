@@ -52,10 +52,6 @@ func (b ResourceConfigBase) IDRef() string { return b.tfType + "." + b.label + "
 // "azapi_resource_group.rg.location" for RefOf("location"). It derives from the same type.label as the acceptance Resource
 func (b ResourceConfigBase) RefOf(path string) string { return b.tfType + "." + b.label + "." + path }
 
-func (b ResourceConfigBase) Config() string {
-	return "resource " + b.tfType + " " + b.label + " {}"
-}
-
 type DataSourceConfigBase struct {
 	tfType string
 	label  string
@@ -79,11 +75,7 @@ func (b DataSourceConfigBase) RefOf(path string) string {
 	return "data." + b.tfType + "." + b.label + "." + path
 }
 
-func (r DataSourceConfigBase) Config() string {
-	return "data " + r.tfType + " " + r.label + " {}"
-}
 func (r DataSourceConfigBase) IsDataSourceConfig() {}
-
 
 var (
 	ClientConfig = DataSourceConfigBase{tfType: "azapi_client_config", label: "current"}

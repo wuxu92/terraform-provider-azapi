@@ -2,7 +2,6 @@ package nativeacc
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,28 +24,6 @@ type Resource struct {
 	apiVersion string
 }
 
-// ResourceConfig is implemented by a generated config builder via the embedded
-// generated.ResourceConfigBase: it names the Terraform type and state label of the
-// resource it configures. A scope's ResourceFor takes one and vends the matching
-// Resource handle, so the literal type and label are spelled exactly once — set from
-// the resource's generated Descriptor.Name in the builder's NewXxxCfg constructor —
-// not restated here.
-type ResourceConfig interface {
-	ResourceType() string     // Terraform type, e.g. "azapi_storage_account"
-	ResourceLabel() string    // Terraform state label
-	IDRef() string            // Terraform reference to the resource's id attribute, e.g. "azapi_resource_group.rg.id".
-	RefOf(path string) string // Terraform reference to an arbitrary attribute, e.g. "azapi_resource_group.rg.location" for RefOf("location"). It derives from the same type.label as the acceptance Resource handle's IDRef
-	Config() string           // HCL config block for the resource, rendered by the builder
-}
-
-type DataSourceConfig interface {
-	DataSourceType() string   // Terraform type, e.g. "azapi_storage_account"
-	Label() string            // Terraform state label
-	IDRef() string            // Terraform reference to the resource's id attribute, e.g. "azapi_resource_group.rg.id".
-	RefOf(path string) string // Terraform reference to an arbitrary attribute, e.g. "azapi_resource_group.rg.location" for RefOf("location"). It derives from the same type.label as the acceptance Resource handle's IDRef
-	Config() string           // HCL config block for the resource, rendered by the builder
-}
-
 // Apply writes the resource's config block, applies the workspace, and then re-plans
 // to assert the apply left no drift: a refresh-backed plan must be empty, proving the
 // config round-trips through the provider (Create/Update -> Read -> plan is stable).
@@ -54,9 +31,8 @@ type DataSourceConfig interface {
 // argument is reserved for facts the plan can't prove — Azure-side existence (Exists)
 // and computed defaults (a value the provider, not the config, supplies). The resource
 // is created on first Apply and updated in place on subsequent Applies (same address).
-// config is either a literal HCL string or a value exposing Config() string (e.g. a
-// generated config builder), so a spec can pass the builder instance directly.
-func (r *Resource) Apply(config any, checks ...Check) *Resource {
+// config is a Configure scenario value. Use StringConfigure for one-off literal HCL.
+func (r *Resource) Apply(config Configure, checks ...Check) *Resource {
 	applyAll(r.scope.ws, []Staged{r.Stage(config, checks...)})
 	return r
 }
@@ -66,7 +42,7 @@ func (r *Resource) Apply(config any, checks ...Check) *Resource {
 // then runs a SINGLE terraform apply for the whole set.
 type Staged struct {
 	r      *Resource
-	config any
+	config Configure
 	checks []Check
 }
 
@@ -74,8 +50,8 @@ type Staged struct {
 // Scope.ApplyAll / Workspace.ApplyAll, instead of Apply's one-terraform-apply-per-
 // resource. Use it to provision several resources — typically a dependent chain — in
 // one apply, e.g. a whole base in a single BeforeAll. The config is resolved exactly
-// as in Apply (a literal HCL string or a value exposing Config() string).
-func (r *Resource) Stage(config any, checks ...Check) Staged {
+// as in Apply (a Configure scenario value; use StringConfigure for one-off literal HCL).
+func (r *Resource) Stage(config Configure, checks ...Check) Staged {
 	return Staged{r: r, config: config, checks: checks}
 }
 
@@ -92,7 +68,7 @@ func applyAll(w *Workspace, staged []Staged) {
 		gomega.Expect(s.r.scope.ws).To(gomega.BeIdenticalTo(w),
 			"staged resource %s belongs to a different workspace", s.r.address())
 		s.r.scope.own(s.r)
-		s.r.write(configHCL(s.config))
+		s.r.write(s.config.Config())
 		addrs[i] = s.r.address()
 	}
 	label := strings.Join(addrs, ", ")
@@ -103,20 +79,6 @@ func applyAll(w *Workspace, staged []Staged) {
 	gomega.Expect(hasChanges).To(gomega.BeFalse(), "plan after apply shows drift for %s", label)
 	for _, s := range staged {
 		s.r.verify(s.checks, true)
-	}
-}
-
-// configHCL resolves Apply's config argument: a literal HCL string, or any value that
-// renders its own block via Config() string — e.g. a generated config builder, letting
-// a spec pass the builder instance directly instead of builder.Basic().
-func configHCL(config any) string {
-	switch c := config.(type) {
-	case string:
-		return c
-	case interface{ Config() string }:
-		return c.Config()
-	default:
-		panic(fmt.Sprintf("nativeacc: Apply config must be a string or implement Config() string, got %T", config))
 	}
 }
 
@@ -155,8 +117,8 @@ func (r *Resource) ImportVerify() *Resource {
 // during plan and never reaches Azure; the config file is removed afterward so it
 // does not affect later scenarios. Use a label distinct from any resource-under-test
 // that was (or will be) applied.
-func (r *Resource) ApplyExpectError(config, errRegex string) {
-	r.write(config)
+func (r *Resource) ApplyExpectError(config Configure, errRegex string) {
+	r.write(config.Config())
 	// Remove the config even if an assertion below fails (gomega panics on failure),
 	// so a regressed negative case cannot leave an invalid .tf that poisons teardown.
 	defer func() { _ = os.Remove(filepath.Join(r.scope.ws.dir, resourceFileName(r.address()))) }()

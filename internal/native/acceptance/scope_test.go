@@ -1,10 +1,6 @@
 package nativeacc
 
-import (
-	"testing"
-
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
-)
+import "testing"
 
 // TestResourceFileNameKeyedByAddress guards against resource .tf files colliding when
 // two resource types share a Terraform label: the file name is keyed by the full
@@ -53,24 +49,14 @@ func TestScopeOwnRejectsLabelCollision(t *testing.T) {
 	s.own(dup)
 }
 
-// TestConfigHCL guards Apply's config resolver: a literal HCL string passes through, a
-// value exposing Config() string is rendered via that method (so a spec can pass a
-// builder instance directly), and anything else panics loudly.
-func TestConfigHCL(t *testing.T) {
-	const literal = "resource azapi_resource_group rg { name = \"x\" }"
-	if got := configHCL(literal); got != literal {
-		t.Errorf("literal string: got %q, want %q", got, literal)
+// TestStringConfigure adapts raw HCL into the Configure interface without keeping a
+// separate config resolver in Resource.Apply.
+func TestStringConfigure(t *testing.T) {
+	const hcl = "resource azapi_resource_group rg {}"
+	var cfg Configure = StringConfigure(hcl)
+	if got := cfg.Config(); got != hcl {
+		t.Errorf("StringConfigure.Config() = %q, want %q", got, hcl)
 	}
-	cfg := generated.NewResourceConfigBase("azapi_resource_group", "rg")
-	if got, want := configHCL(cfg), "resource azapi_resource_group rg {}"; got != want {
-		t.Errorf("Config() builder: got %q, want %q", got, want)
-	}
-	defer func() {
-		if recover() == nil {
-			t.Fatal("configHCL should panic on an unsupported config type")
-		}
-	}()
-	configHCL(42)
 }
 
 // TestStageBundlesConfigAndChecks guards Resource.Stage, the batched-apply building
@@ -81,12 +67,13 @@ func TestStageBundlesConfigAndChecks(t *testing.T) {
 	var s Scope
 	r := &Resource{scope: &s, tfType: "azapi_resource_group", label: "rg"}
 	chk := func(*checkCtx) {}
-	st := r.Stage("cfg-hcl", chk, chk)
+	cfg := StringConfigure("cfg-hcl")
+	st := r.Stage(cfg, chk, chk)
 	if st.r != r {
 		t.Errorf("Stage dropped the resource handle")
 	}
-	if st.config != "cfg-hcl" {
-		t.Errorf("Stage config = %v, want %q", st.config, "cfg-hcl")
+	if st.config != cfg {
+		t.Errorf("Stage config = %v, want %q", st.config, cfg)
 	}
 	if len(st.checks) != 2 {
 		t.Errorf("Stage checks = %d, want 2", len(st.checks))

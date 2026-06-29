@@ -23,7 +23,7 @@ var _ = Describe("Azure Storage", Ordered, func() {
 	// comes from the resources package's ResourceGroup builder.
 	rgCfg := resources.NewResourceGroupCfg("rg")
 	rg := ws.ResourceFor(rgCfg)
-	BeforeAll(func() { rg.Apply(rgCfg.Basic(), acc.Exists()) })
+	BeforeAll(func() { rg.Apply(resources.ResourceGroupCfg_Basic(rgCfg), acc.Exists()) })
 
 	Describe("a StorageV2 account", Ordered, func() {
 		// Child scope: owns the storage account, torn down after this container while
@@ -35,7 +35,7 @@ var _ = Describe("Azure Storage", Ordered, func() {
 		sa := acct.ResourceFor(cfg)
 
 		BeforeAll(func() {
-			sa.Apply(cfg.Basic(), acc.Exists()).ImportVerify()
+			sa.Apply(storage.StorageAccountCfg_Basic(cfg), acc.Exists()).ImportVerify()
 		})
 
 		It("applies the azwise verified TLS 1.2 default", func() {
@@ -48,14 +48,14 @@ var _ = Describe("Azure Storage", Ordered, func() {
 		It("updates to a complete configuration in place", func() {
 			// Complete adds an access tier; each Apply re-plans for drift, so the
 			// in-place update round-trips without per-value assertions.
-			sa.Apply(cfg.Complete())
+			sa.Apply(storage.StorageAccountCfg_Complete(cfg))
 		})
 
 		It("replaces the account when migrating Standard_LRS to Standard_ZRS", func() {
 			// Exercises the storage overlay's azwise.CheckForceNew SKU zone-migration
 			// rule: Standard_LRS -> Standard_ZRS forces a replace. Exists confirms the
 			// replacement account is present in Azure.
-			sa.Apply(cfg.WithSKU("Standard_ZRS"), acc.Exists())
+			sa.Apply(storage.StorageAccountCfg_SKU{StorageAccountCfg: cfg, SKU: "Standard_ZRS"}, acc.Exists())
 		})
 	})
 })

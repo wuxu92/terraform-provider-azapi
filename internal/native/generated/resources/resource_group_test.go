@@ -20,13 +20,13 @@ var _ = Describe("Azure Resource Group", Ordered, func() {
 	rg := ws.ResourceFor(cfg)
 
 	It("creates a resource group, then imports it with no drift", func() {
-		rg.Apply(cfg.Basic(), acc.Exists()).ImportVerify()
+		rg.Apply(resources.ResourceGroupCfg_Basic(cfg), acc.Exists()).ImportVerify()
 	})
 
 	It("rejects a name ending with a period", func() {
 		invalid := resources.NewResourceGroupCfg("invalid")
 		ws.ResourceFor(invalid).ApplyExpectError(
-			invalid.Named("acctest-rg-{{.RandomInteger}}."),
+			resources.ResourceGroupCfg_Named{ResourceGroupCfg: invalid, Name: "acctest-rg-{{.RandomInteger}}."},
 			`may not end with a period`,
 		)
 	})

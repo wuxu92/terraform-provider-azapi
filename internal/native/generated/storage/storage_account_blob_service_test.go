@@ -25,7 +25,7 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 	// Root scope: the resource group base, reused by the account scope below.
 	rgCfg := resources.NewResourceGroupCfg("rg")
 	rg := ws.ResourceFor(rgCfg)
-	BeforeAll(func() { rg.Apply(rgCfg.Basic(), acc.Exists()) })
+	BeforeAll(func() { rg.Apply(resources.ResourceGroupCfg_Basic(rgCfg), acc.Exists()) })
 
 	Describe("on a storage account", Ordered, func() {
 		// Child scope: the storage account plus its blob service, torn down together
@@ -46,29 +46,29 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 			// reference), asserts a single empty post-apply plan for the set, then runs
 			// every staged check (Exists for both).
 			acct.ApplyAll(
-				sa.Stage(saCfg.Basic(), acc.Exists()),
-				blob.Stage(blobCfg.Basic(), acc.Exists()),
+				sa.Stage(storage.StorageAccountCfg_Basic(saCfg), acc.Exists()),
+				blob.Stage(storage.BlobServiceCfg_Basic(blobCfg), acc.Exists()),
 			)
 		})
 
 		It("imports the singleton default blob service with no drift", func() {
 			// ApplyAll already asserted existence and a stable plan for the batch;
 			// ImportVerify (co-located, not a separate It) re-imports blob and confirms
-			// the read path reproduces the configured state. The change_feed value set
-			// in config round-trips via the batch's drift plan, so it needs no check.
+			// the read path reproduces the configured Basic state. The Basic change_feed
+			// value round-trips via the batch's drift plan, so it needs no check.
 			blob.ImportVerify()
 		})
 
-		It("toggles change feed and versioning in place", func() {
-			// Each Apply re-plans for drift, covering both in-place property changes.
-			blob.Apply(blobCfg.WithChangeFeed(false))
-			blob.Apply(blobCfg.Complete())
+		It("toggles change feed, then applies a complete blob-service configuration", func() {
+			// Each Apply re-plans for drift, covering both the focused update and the broad Complete scenario.
+			blob.Apply(storage.BlobServiceCfg_ChangeFeed{BlobServiceCfg: blobCfg, Enabled: false})
+			blob.Apply(storage.BlobServiceCfg_Complete(blobCfg))
 		})
 
 		It("rejects a blob service name other than \"default\"", func() {
 			invalid := storage.NewBlobServiceCfg(saCfg, "invalid")
 			acct.ResourceFor(invalid).ApplyExpectError(
-				invalid.Named("notdefault"),
+				storage.BlobServiceCfg_Named{BlobServiceCfg: invalid, Name: "notdefault"},
 				`name value must be one of`,
 			)
 		})

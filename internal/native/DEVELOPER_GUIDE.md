@@ -311,31 +311,50 @@ Three surfaces (model on storage account / blob service):
 | azwise overlay | `generator/azwise_overlay_test.go` (`TestApplyAzwiseBlobService`) | the overlay baked into the live-parsed body |
 | Acceptance | `generated/<service>/<resource>_test.go` (a `Describe`) + `<resource>_config.go` (a `<Resource>Cfg` config builder) | live create/read/update against Azure |
 
-**Config builders** live in `<resource>_config.go` beside the schema: a `<Resource>Cfg`
-struct (e.g. `StorageAccountCfg`) embedding `generated.ResourceConfigBase`, constructed via
-`New<Resource>Cfg(label, …parentCfgs)`, exposing `Basic()` / `Update()` / `Complete()` /
-`Named(…)` that return HCL; the Terraform type is set once from the resource's generated
-`Descriptor` (e.g. `StorageAccount.Name`, the `var` the `_gen.go` exposes and registers).
-Tests pass a config to `ws.ResourceFor(cfg)` / `scope.ResourceFor(cfg)` for the
-handle they apply. **One Ginkgo `RunSpecs` per service** (`generated/<service>/suite_test.go`,
-e.g. `TestStorageAcceptance`); add a `Describe(...)` in a new `<resource>_test.go`, never a
-second `RunSpecs` (Ginkgo panics on more than one per binary).
+**Config builders** live in `<resource>_config.go` beside the schema. Split address
+metadata from scenario HCL:
 
-**Config method convention** (mirrors azurerm):
-- `Basic()` — minimal **create baseline**: required fields **plus a present (often empty
-  `{}`) block for every all-optional nested object that carries computed/azwise defaults**.
-  That block is load-bearing: the framework applies a nested default only when its parent
-  object is non-null (`tftypes.Transform` does not descend into a null object), so omitting
-  `properties = {}` silently drops every nested default (e.g. `minimum_tls_version=TLS1_2`)
-  from the PUT body and the server keeps its own, often less safe, default.
-- `Complete()` — as many optional properties as one valid in-place configuration covers,
+- `<Resource>Cfg` (e.g. `StorageAccountCfg`) embeds `generated.ResourceConfigBase`, is
+  constructed via `New<Resource>Cfg(parentCfgs..., optionalLabel)`, and carries only
+  the Terraform type/label plus dependencies needed by every scenario. Pass this to
+  `ws.ResourceFor(cfg)` / `scope.ResourceFor(cfg)` to get the acceptance handle.
+- Each scenario is a named type implementing `nativeacc.Configure` (`Config() string`).
+  Use a new defined type over the base config when the scenario needs no extra inputs
+  (`type FooCfg_Basic FooCfg`); use a struct embedding the base only when the scenario
+  has scenario-specific fields (e.g. `SKU string`, `Name string`, `Enabled bool`).
+  Apply the scenario value, not a `Basic()` / `Update()` / `WithXXX()` method call.
+- For ad-hoc raw HCL, wrap the string with `acc.StringConfigure(...)`; `Apply`,
+  `Stage` and `ApplyExpectError` intentionally accept `Configure`, not `any`.
+
+Example:
+
+```go
+cfg := storage.NewStorageAccountCfg(rgCfg)
+sa := scope.ResourceFor(cfg)
+sa.Apply(storage.StorageAccountCfg_Basic(cfg), acc.Exists())
+sa.Apply(storage.StorageAccountCfg_Complete(cfg))
+sa.Apply(storage.StorageAccountCfg_SKU{StorageAccountCfg: cfg, SKU: "Standard_ZRS"})
+```
+
+**Scenario convention**:
+- `*_Basic` — minimal **create baseline**: required fields **plus a present (often
+  empty `{}`) block for every all-optional nested object that carries computed/azwise
+  defaults**. That block is load-bearing: the framework applies a nested default only
+  when its parent object is non-null (`tftypes.Transform` does not descend into a null
+  object), so omitting `properties = {}` silently drops every nested default (e.g.
+  `minimum_tls_version=TLS1_2`) from the PUT body and the server keeps its own, often
+  less safe, default.
+- `*_Complete` — as many optional properties as one valid in-place configuration covers,
   exercising the whole resource surface.
-- `Update()` — an intermediate state that proves the update path.
-- Chain them in one `Ordered` container (`Basic` → `Update` → `Complete`) so a single
-  resource is created once and mutated through each state, every `Apply` re-planning for
-  drift. Keep ForceNew knobs (a replacing SKU, a `RequiresReplace` field) out of
-  `Update`/`Complete` and in their own scenario so the chain stays in-place. `tags` is
-  modeled as an empty object, not a map — set what the schema accepts.
+- Additional named scenarios encode their dependency/input explicitly in fields (e.g.
+  `StorageAccountCfg_SKU{SKU: "Standard_ZRS"}` or
+  `BlobServiceCfg_ChangeFeed{Enabled: false}`).
+- Chain them in one `Ordered` container (`*_Basic` → intermediate scenarios →
+  `*_Complete`) so a single resource is created once and mutated through each state,
+  every `Apply` re-planning for drift. Keep ForceNew knobs (a replacing SKU, a
+  `RequiresReplace` field) out of `*_Complete` and in their own scenario so the chain
+  stays in-place. `tags` is modeled as an empty object, not a map — set what the schema
+  accepts.
 
 **Template placeholders** — HCL Go-template fields rendered once per workspace
 (`acceptance/render.go`, `tmplData`), fixed for its lifetime so the shared base and every

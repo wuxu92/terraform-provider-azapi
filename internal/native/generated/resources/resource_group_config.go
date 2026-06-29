@@ -6,13 +6,11 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 )
 
-// ResourceGroupCfg builds azapi_resource_group acceptance-test configurations.
-// Construct it with NewResourceGroupCfg. The returned HCL is a template —
-// {{.RandomInteger}}, {{.Location}} and {{.SubscriptionID}} are filled by the
-// acceptance framework's renderer. A dependent resource (e.g. a storage account)
-// reuses a resource group as its base by calling Basic here and injecting the
-// group's Terraform address (the acceptance Resource's IDRef) as its parent
-// reference.
+// ResourceGroupCfg carries the Terraform address metadata for azapi_resource_group
+// acceptance-test scenarios. Construct it with NewResourceGroupCfg, then wrap it in a
+// scenario type (ResourceGroupCfg_Basic, ResourceGroupCfg_Named) when applying. The
+// returned HCL is a template — {{.RandomInteger}}, {{.Location}} and
+// {{.SubscriptionID}} are filled by the acceptance framework's renderer.
 type ResourceGroupCfg struct {
 	generated.ResourceConfigBase
 }
@@ -24,18 +22,26 @@ func NewResourceGroupCfg(label ...string) ResourceGroupCfg {
 	return ResourceGroupCfg{generated.NewResourceConfigBase(ResourceGroup.Name, label...)}
 }
 
-// Basic is a minimal resource group named acctest-rg-<n>.
-func (r ResourceGroupCfg) Basic() string {
-	return r.named("acctest-rg-{{.RandomInteger}}")
+// ResourceGroupCfg_Basic is a minimal resource group named acctest-rg-<n>.
+type ResourceGroupCfg_Basic ResourceGroupCfg
+
+func (r ResourceGroupCfg_Basic) Config() string {
+	return ResourceGroupCfg(r).config("acctest-rg-{{.RandomInteger}}")
 }
 
-// Named builds a resource group with an explicit name, for validation scenarios
-// (e.g. asserting a name that violates the schema regex is rejected at plan time).
-func (r ResourceGroupCfg) Named(name string) string {
-	return r.named(name)
+// ResourceGroupCfg_Named renders a resource group with an explicit name, for
+// validation scenarios (e.g. asserting a name that violates the schema regex is
+// rejected at plan time).
+type ResourceGroupCfg_Named struct {
+	ResourceGroupCfg
+	Name string
 }
 
-func (r ResourceGroupCfg) named(name string) string {
+func (r ResourceGroupCfg_Named) Config() string {
+	return r.config(r.Name)
+}
+
+func (r ResourceGroupCfg) config(name string) string {
 	return fmt.Sprintf(`
 resource %q %q {
   name            = %q

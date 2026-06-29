@@ -6,13 +6,12 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 )
 
-// BlobServiceCfg builds azapi_storage_account_blob_service acceptance-test
-// configurations. blobServices is the singleton "default" child of a storage
-// account: construct it with NewBlobServiceCfg, passing the parent storage-account
-// config. It holds that StorageAccountCfg and renders its IDRef (e.g.
-// "azapi_storage_account.sa.id") as the blob service's storage_account_id, so the
-// dependency is config-to-config and the held parent is available for any further
-// derived fields. The returned HCL is a template rendered by the acceptance framework.
+// BlobServiceCfg carries the Terraform address metadata and storage-account
+// dependency for azapi_storage_account_blob_service acceptance-test scenarios.
+// blobServices is the singleton "default" child of a storage account: construct this
+// with NewBlobServiceCfg, then wrap it in a scenario type when applying. The parent
+// StorageAccountCfg is held so every scenario renders the same storage_account_id
+// reference (e.g. "azapi_storage_account.sa.id").
 type BlobServiceCfg struct {
 	generated.ResourceConfigBase
 	storageAccount StorageAccountCfg
@@ -30,21 +29,48 @@ func NewBlobServiceCfg(storageAccount StorageAccountCfg, label ...string) BlobSe
 	}
 }
 
-// Basic is the singleton default blob service with change feed enabled.
-func (r BlobServiceCfg) Basic() string { return r.config("default", r.changeFeed(true)) }
+// BlobServiceCfg_Basic is the singleton default blob service with change feed enabled.
+type BlobServiceCfg_Basic BlobServiceCfg
 
-// Complete toggles versioning on the default blob service — a fuller configuration
-// used to exercise an in-place update from Basic.
-func (r BlobServiceCfg) Complete() string { return r.config("default", r.versioning(true)) }
-
-// WithChangeFeed sets properties.change_feed.enabled.
-func (r BlobServiceCfg) WithChangeFeed(enabled bool) string {
-	return r.config("default", r.changeFeed(enabled))
+func (r BlobServiceCfg_Basic) Config() string {
+	base := BlobServiceCfg(r)
+	return base.config("default", base.changeFeed(true))
 }
 
-// Named builds a blob service with a non-default name, for validation scenarios
-// (the schema requires the name "default").
-func (r BlobServiceCfg) Named(name string) string { return r.config(name, r.versioning(true)) }
+// BlobServiceCfg_Complete sets a broad valid blob-service configuration to exercise
+// the resource surface in one in-place update from Basic. It includes the independent
+// service version, CORS, delete-retention, container-retention, change-feed,
+// versioning, last-access tracking and restore-policy settings. Read-only children of
+// last_access_time_tracking_policy are deliberately omitted; enabling the policy makes
+// Azure populate them and covers the non-null-state plan modifier without sending
+// server-controlled fields.
+type BlobServiceCfg_Complete BlobServiceCfg
+
+func (r BlobServiceCfg_Complete) Config() string {
+	base := BlobServiceCfg(r)
+	return base.config("default", base.completeProps())
+}
+
+// BlobServiceCfg_ChangeFeed sets properties.change_feed.enabled.
+type BlobServiceCfg_ChangeFeed struct {
+	BlobServiceCfg
+	Enabled bool
+}
+
+func (r BlobServiceCfg_ChangeFeed) Config() string {
+	return r.config("default", r.changeFeed(r.Enabled))
+}
+
+// BlobServiceCfg_Named renders a blob service with a non-default name, for validation
+// scenarios (the schema requires the name "default").
+type BlobServiceCfg_Named struct {
+	BlobServiceCfg
+	Name string
+}
+
+func (r BlobServiceCfg_Named) Config() string {
+	return r.config(r.Name, r.versioning(true))
+}
 
 func (r BlobServiceCfg) config(name, body string) string {
 	return fmt.Sprintf(`
@@ -74,4 +100,47 @@ func (r BlobServiceCfg) versioning(enabled bool) string {
   properties = {
     is_versioning_enabled = %t
   }`, enabled)
+}
+
+// completeProps is the BlobServiceCfg properties fragment for Complete. Values stay
+// inside the generated validators and Azure semantic constraints: point-in-time
+// restore requires versioning, change feed and blob soft delete to be enabled, and
+// restore days must be lower than delete-retention days.
+func (r BlobServiceCfg) completeProps() string {
+	return `
+  properties = {
+    automatic_snapshot_policy_enabled = false
+    change_feed = {
+      enabled           = true
+      retention_in_days = 7
+    }
+    container_delete_retention_policy = {
+      allow_permanent_delete = false
+      days                   = 14
+      enabled                = true
+    }
+    cors = {
+      cors_rules = [{
+        allowed_headers    = ["x-ms-*", "content-type"]
+        allowed_methods    = ["GET", "PUT"]
+        allowed_origins    = ["https://example.com"]
+        exposed_headers    = ["x-ms-*"]
+        max_age_in_seconds = 3600
+      }]
+    }
+    default_service_version = "2023-11-03"
+    delete_retention_policy = {
+      allow_permanent_delete = false
+      days                   = 14
+      enabled                = true
+    }
+    is_versioning_enabled = true
+    last_access_time_tracking_policy = {
+      enable = true
+    }
+    restore_policy = {
+      days    = 7
+      enabled = true
+    }
+  }`
 }
