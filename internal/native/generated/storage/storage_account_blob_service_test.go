@@ -59,11 +59,13 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 			blob.ImportVerify()
 		})
 
-		It("toggles change feed, then applies a complete blob-service configuration", func() {
+		When("toggles change feed", func() {
 			// Each Apply re-plans for drift, covering both the focused update and the broad Complete scenario.
-			blob.Apply(storage.BlobServiceCfg_ChangeFeed{BlobServiceCfg: blobCfg, Enabled: false})
-			blob.Apply(storage.BlobServiceCfg_Complete(blobCfg))
+			It("disable", func() { blob.Apply(storage.BlobServiceCfg_ChangeFeed{BlobServiceCfg: blobCfg, Enabled: false}) })
+			It("enable", func() { blob.Apply(storage.BlobServiceCfg_ChangeFeed{BlobServiceCfg: blobCfg, Enabled: true}) })
 		})
+
+		It("complete", func() { blob.Apply(storage.BlobServiceCfg_Complete(blobCfg)) })
 
 		It("rejects a blob service name other than \"default\"", func() {
 			invalid := storage.NewBlobServiceCfg(saCfg, "invalid")

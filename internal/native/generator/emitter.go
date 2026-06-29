@@ -399,9 +399,15 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 			b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
 		} else {
-			b.WriteString(fmt.Sprintf("%s%q: schema.ListAttribute{\n", tabs, tfName))
+			attrType := "ListAttribute"
+			if prop.UseSet {
+				attrType = "SetAttribute"
+			}
+			b.WriteString(fmt.Sprintf("%s%q: schema.%s{\n", tabs, tfName, attrType))
 			writeAttributeFlags(b, prop, computed, tabs)
-			emitForceNew(b, prop, computed, tabs)
+			if !prop.UseSet {
+				emitForceNew(b, prop, computed, tabs)
+			}
 			b.WriteString(fmt.Sprintf("%s\tElementType: %s,\n", tabs, listElementType(typ.ElementType)))
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
 		}

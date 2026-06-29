@@ -76,16 +76,22 @@ func expandValue(v attr.Value, t *generator.Type) (interface{}, bool) {
 			return expandObject(o, t), true
 		}
 	case generator.KindArray:
-		if l, ok := v.(types.List); ok {
-			elems := l.Elements()
-			arr := make([]interface{}, 0, len(elems))
-			for _, e := range elems {
-				if ev, ok := expandValue(e, t.ElementType); ok {
-					arr = append(arr, ev)
-				}
-			}
-			return arr, true
+		var elems []attr.Value
+		switch c := v.(type) {
+		case types.List:
+			elems = c.Elements()
+		case types.Set:
+			elems = c.Elements()
+		default:
+			return nil, false
 		}
+		arr := make([]interface{}, 0, len(elems))
+		for _, e := range elems {
+			if ev, ok := expandValue(e, t.ElementType); ok {
+				arr = append(arr, ev)
+			}
+		}
+		return arr, true
 	case generator.KindMap:
 		if m, ok := v.(types.Map); ok {
 			elems := m.Elements()
@@ -187,19 +193,20 @@ func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *
 	case basetypes.ListType:
 		if arr, ok := armVal.([]interface{}); ok {
 			elemType := t.ElementType()
-			var elemBicep *generator.Type
-			if bicep != nil && bicep.Kind == generator.KindArray {
-				elemBicep = bicep.ElementType
-			}
-			elems := make([]attr.Value, 0, len(arr))
-			for _, item := range arr {
-				ev, d := flattenValue(ctx, item, elemType, elemBicep)
-				diags.Append(d...)
-				elems = append(elems, ev)
-			}
+			elems, d := flattenArrayElements(ctx, arr, elemType, bicep)
+			diags.Append(d...)
 			lv, d := types.ListValue(elemType, elems)
 			diags.Append(d...)
 			return lv, diags
+		}
+	case basetypes.SetType:
+		if arr, ok := armVal.([]interface{}); ok {
+			elemType := t.ElementType()
+			elems, d := flattenArrayElements(ctx, arr, elemType, bicep)
+			diags.Append(d...)
+			sv, d := types.SetValue(elemType, elems)
+			diags.Append(d...)
+			return sv, diags
 		}
 	case basetypes.MapType:
 		if m, ok := armVal.(map[string]interface{}); ok {
@@ -229,6 +236,21 @@ func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *
 
 	// Type mismatch or unsupported → null of the target type.
 	return nullOf(ctx, at), diags
+}
+
+func flattenArrayElements(ctx context.Context, arr []interface{}, elemType attr.Type, bicep *generator.Type) ([]attr.Value, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var elemBicep *generator.Type
+	if bicep != nil && bicep.Kind == generator.KindArray {
+		elemBicep = bicep.ElementType
+	}
+	elems := make([]attr.Value, 0, len(arr))
+	for _, item := range arr {
+		ev, d := flattenValue(ctx, item, elemType, elemBicep)
+		diags.Append(d...)
+		elems = append(elems, ev)
+	}
+	return elems, diags
 }
 
 // nullOf returns the null value for an arbitrary attribute type.
@@ -273,6 +295,14 @@ func ResolveUnknowns(ctx context.Context, v attr.Value) attr.Value {
 		}
 		lv, _ := types.ListValue(t.ElementType(ctx), ne)
 		return lv
+	case types.Set:
+		elems := t.Elements()
+		ne := make([]attr.Value, len(elems))
+		for i, e := range elems {
+			ne[i] = ResolveUnknowns(ctx, e)
+		}
+		sv, _ := types.SetValue(t.ElementType(ctx), ne)
+		return sv
 	case types.Map:
 		elems := t.Elements()
 		ne := make(map[string]attr.Value, len(elems))

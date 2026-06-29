@@ -95,14 +95,27 @@ func TestRegisterRejectsDuplicate(t *testing.T) {
 	Register(armType, func(*generator.ResourceDefinition) {})
 }
 
-// fakeBlobServiceDef builds a minimal def carrying the
-// lastAccessTimeTrackingPolicy.name property the blob-service customizer targets.
+// fakeBlobServiceDef builds a minimal def carrying the server-populated read-only
+// blob service properties the customizer targets.
 func fakeBlobServiceDef() *generator.ResourceDefinition {
 	body := &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
 		"properties": {Name: "properties", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+			"cors": {Name: "cors", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+				"corsRules": {Name: "corsRules", Type: &generator.Type{Kind: generator.KindArray, ElementType: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+					"allowedHeaders": {Name: "allowedHeaders", Type: &generator.Type{Kind: generator.KindArray, ElementType: &generator.Type{Kind: generator.KindString}}, Flags: generator.FlagRequired},
+					"allowedMethods": {Name: "allowedMethods", Type: &generator.Type{Kind: generator.KindArray, ElementType: &generator.Type{Kind: generator.KindString}}, Flags: generator.FlagRequired},
+					"allowedOrigins": {Name: "allowedOrigins", Type: &generator.Type{Kind: generator.KindArray, ElementType: &generator.Type{Kind: generator.KindString}}, Flags: generator.FlagRequired},
+					"exposedHeaders": {Name: "exposedHeaders", Type: &generator.Type{Kind: generator.KindArray, ElementType: &generator.Type{Kind: generator.KindString}}, Flags: generator.FlagRequired},
+				}}}},
+			}}},
 			"lastAccessTimeTrackingPolicy": {Name: "lastAccessTimeTrackingPolicy", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
-				"name":     {Name: "name", Type: &generator.Type{Kind: generator.KindString}},
-				"blobType": {Name: "blobType", Type: &generator.Type{Kind: generator.KindArray, ElementType: &generator.Type{Kind: generator.KindString}}},
+				"name":                      {Name: "name", Type: &generator.Type{Kind: generator.KindString}},
+				"blobType":                  {Name: "blobType", Type: &generator.Type{Kind: generator.KindArray, ElementType: &generator.Type{Kind: generator.KindString}}},
+				"trackingGranularityInDays": {Name: "trackingGranularityInDays", Type: &generator.Type{Kind: generator.KindInt}},
+			}}},
+			"restorePolicy": {Name: "restorePolicy", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+				"minRestoreTime":  {Name: "minRestoreTime", Type: &generator.Type{Kind: generator.KindString}},
+				"lastEnabledTime": {Name: "lastEnabledTime", Type: &generator.Type{Kind: generator.KindString}},
 			}}},
 		}}},
 	}}
@@ -114,35 +127,59 @@ func fakeBlobServiceDef() *generator.ResourceDefinition {
 	}
 }
 
-// TestBlobServiceCustomizerMarksLastAccessName guards the fix for the
-// last_access_time_tracking_policy.name drift end to end: the registered
-// blob-service customizer flags that one read-only child for
-// UseNonNullStateForUnknown, and the emitter bakes it in - while siblings keep
-// the default UseStateForUnknown so fields the server leaves null stay idempotent.
-func TestBlobServiceCustomizerMarksLastAccessName(t *testing.T) {
+// TestBlobServiceCustomizerMarksServerPopulatedFields guards the fixes for apply-time
+// inconsistent-result drift: enabling last-access tracking / restore makes Azure
+// populate read-only children that were null in prior state, so those children must
+// use UseNonNullStateForUnknown while unrelated siblings keep the default state reuse.
+func TestBlobServiceCustomizerMarksServerPopulatedFields(t *testing.T) {
 	def := fakeBlobServiceDef()
 	generator.PostProcess([]*generator.ResourceDefinition{def})
 	Apply([]*generator.ResourceDefinition{def})
 
-	name := generator.FindProperty(def, "properties.lastAccessTimeTrackingPolicy.name")
-	if !name.NonNullStateForUnknown {
-		t.Error("customizer did not set NonNullStateForUnknown on lastAccessTimeTrackingPolicy.name")
+	for _, path := range []string{
+		"properties.lastAccessTimeTrackingPolicy.name",
+		"properties.lastAccessTimeTrackingPolicy.blobType",
+		"properties.lastAccessTimeTrackingPolicy.trackingGranularityInDays",
+		"properties.restorePolicy.minRestoreTime",
+	} {
+		if prop := generator.FindProperty(def, path); !prop.NonNullStateForUnknown {
+			t.Errorf("customizer did not set NonNullStateForUnknown on %s", path)
+		}
 	}
-	if blobType := generator.FindProperty(def, "properties.lastAccessTimeTrackingPolicy.blobType"); blobType.NonNullStateForUnknown {
-		t.Error("customizer must not flag sibling blobType (only name transitions null -> non-null)")
+	if lastEnabled := generator.FindProperty(def, "properties.restorePolicy.lastEnabledTime"); lastEnabled.NonNullStateForUnknown {
+		t.Error("customizer must not flag restorePolicy.lastEnabledTime without evidence it transitions null -> non-null")
+	}
+	for _, path := range []string{
+		"properties.cors.corsRules.allowedHeaders",
+		"properties.cors.corsRules.allowedMethods",
+		"properties.cors.corsRules.allowedOrigins",
+		"properties.cors.corsRules.exposedHeaders",
+	} {
+		if prop := generator.FindProperty(def, path); !prop.UseSet {
+			t.Errorf("customizer did not mark %s as a set", path)
+		}
 	}
 
 	src, err := generator.EmitSchema(def)
 	if err != nil {
 		t.Fatalf("EmitSchema: %v", err)
 	}
-	if !strings.Contains(src, "stringplanmodifier.UseNonNullStateForUnknown()") {
-		t.Error("emitted source missing UseNonNullStateForUnknown for lastAccessTimeTrackingPolicy.name")
+	if strings.Count(src, "schema.SetAttribute") != 4 {
+		t.Errorf("expected four CORS primitive arrays to emit SetAttribute, got %d", strings.Count(src, "schema.SetAttribute"))
 	}
-	if strings.Count(src, "UseNonNullStateForUnknown") != 1 {
-		t.Errorf("expected exactly one UseNonNullStateForUnknown (name only), got %d", strings.Count(src, "UseNonNullStateForUnknown"))
+	if strings.Count(src, "stringplanmodifier.UseNonNullStateForUnknown()") != 2 {
+		t.Errorf("expected two string UseNonNullStateForUnknown modifiers (name + min_restore_time), got %d", strings.Count(src, "stringplanmodifier.UseNonNullStateForUnknown()"))
 	}
-	if !strings.Contains(src, "listplanmodifier.UseStateForUnknown()") {
-		t.Error("sibling blob_type must keep the default UseStateForUnknown")
+	if !strings.Contains(src, "listplanmodifier.UseNonNullStateForUnknown()") {
+		t.Error("emitted source missing UseNonNullStateForUnknown for last_access_time_tracking_policy.blob_type")
+	}
+	if !strings.Contains(src, "int64planmodifier.UseNonNullStateForUnknown()") {
+		t.Error("emitted source missing UseNonNullStateForUnknown for last_access_time_tracking_policy.tracking_granularity_in_days")
+	}
+	if strings.Count(src, "UseNonNullStateForUnknown") != 4 {
+		t.Errorf("expected four UseNonNullStateForUnknown modifiers, got %d", strings.Count(src, "UseNonNullStateForUnknown"))
+	}
+	if !strings.Contains(src, "stringplanmodifier.UseStateForUnknown()") {
+		t.Error("restore_policy.last_enabled_time must keep the default UseStateForUnknown")
 	}
 }

@@ -16,14 +16,37 @@ func customizeStorageAccountBlobService(def *generator.ResourceDefinition) {
 		),
 	}
 
-	// lastAccessTimeTrackingPolicy.name is server-controlled and read-only (its
-	// only valid value is "AccessTimeTracking"). The server omits it while the
-	// policy is disabled and populates it once enabled, so it transitions
-	// null -> "AccessTimeTracking". With the default UseStateForUnknown the plan
-	// pins the stale null and apply fails with "produced an unexpected new value:
-	// ...last_access_time_tracking_policy.name: was null, but now
-	// AccessTimeTracking". UseNonNullStateForUnknown plans the null prior as
-	// "(known after apply)" so the server may supply the value; once non-null it
-	// is reused, keeping the resource idempotent.
-	generator.FindProperty(def, "properties.lastAccessTimeTrackingPolicy.name").NonNullStateForUnknown = true
+	// Azure normalizes CORS string collections and may return them in a different
+	// order than PUT. Model primitive CORS arrays as sets so API ordering does not
+	// produce drift. Keep corsRules itself as a list because the max-items rule and
+	// object element identity are still list-shaped in the generated schema.
+	for _, path := range []string{
+		"properties.cors.corsRules.allowedHeaders",
+		"properties.cors.corsRules.allowedMethods",
+		"properties.cors.corsRules.allowedOrigins",
+		"properties.cors.corsRules.exposedHeaders",
+	} {
+		generator.FindProperty(def, path).UseSet = true
+	}
+
+	// These children are server-controlled/read-only values that Azure leaves null
+	// until the sibling policy is enabled, then populates during the same apply:
+	//
+	//   - lastAccessTimeTrackingPolicy.name -> "AccessTimeTracking"
+	//   - lastAccessTimeTrackingPolicy.blobType -> ["blockBlob"]
+	//   - lastAccessTimeTrackingPolicy.trackingGranularityInDays -> 1
+	//   - restorePolicy.minRestoreTime -> current server time once restore is enabled
+	//
+	// With the default UseStateForUnknown, the plan pins the stale null and apply fails
+	// with "produced an unexpected new value" when Azure supplies the value. Use
+	// UseNonNullStateForUnknown so a null prior plans as unknown; once Azure returns a
+	// non-null value, later plans reuse that state and stay idempotent.
+	for _, path := range []string{
+		"properties.lastAccessTimeTrackingPolicy.name",
+		"properties.lastAccessTimeTrackingPolicy.blobType",
+		"properties.lastAccessTimeTrackingPolicy.trackingGranularityInDays",
+		"properties.restorePolicy.minRestoreTime",
+	} {
+		generator.FindProperty(def, path).NonNullStateForUnknown = true
+	}
 }

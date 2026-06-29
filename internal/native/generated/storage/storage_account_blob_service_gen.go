@@ -109,22 +109,22 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Required:    true,
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
-										"allowed_headers": schema.ListAttribute{
+										"allowed_headers": schema.SetAttribute{
 											Description: "Required if CorsRule element is present. A list of headers allowed to be part of the cross-origin request.",
 											Required:    true,
 											ElementType: types.StringType,
 										},
-										"allowed_methods": schema.ListAttribute{
+										"allowed_methods": schema.SetAttribute{
 											Description: "Required if CorsRule element is present. A list of HTTP methods that are allowed to be executed by the origin.",
 											Required:    true,
 											ElementType: types.StringType,
 										},
-										"allowed_origins": schema.ListAttribute{
+										"allowed_origins": schema.SetAttribute{
 											Description: "Required if CorsRule element is present. A list of origin domains that will be allowed via CORS, or \\\"*\\\" to allow all domains",
 											Required:    true,
 											ElementType: types.StringType,
 										},
-										"exposed_headers": schema.ListAttribute{
+										"exposed_headers": schema.SetAttribute{
 											Description: "Required if CorsRule element is present. A list of response headers to expose to CORS clients.",
 											Required:    true,
 											ElementType: types.StringType,
@@ -237,7 +237,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Optional:    true,
 								Computed:    true,
 								PlanModifiers: []planmodifier.List{
-									listplanmodifier.UseStateForUnknown(),
+									listplanmodifier.UseNonNullStateForUnknown(),
 								},
 								ElementType: types.StringType,
 							},
@@ -265,7 +265,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Optional:    true,
 								Computed:    true,
 								PlanModifiers: []planmodifier.Int64{
-									int64planmodifier.UseStateForUnknown(),
+									int64planmodifier.UseNonNullStateForUnknown(),
 								},
 							},
 						},
@@ -304,7 +304,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Description: "Returns the minimum date and time that the restore can be started.",
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.UseNonNullStateForUnknown(),
 								},
 							},
 						},

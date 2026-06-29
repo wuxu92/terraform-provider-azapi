@@ -280,3 +280,78 @@ func TestFlattenIntoPreservesNestedOmitted(t *testing.T) {
 		t.Errorf("container_delete_retention_policy.days: got %v, want 5 (overwritten)", days)
 	}
 }
+
+// TestBlobServiceCorsSetRoundTrip guards the payload composer for CORS primitive
+// arrays. The generated schema models header/method/origin arrays as SetAttribute
+// because Azure may reorder them; Expand must still serialize every set element into
+// the PUT body. A regression here produced corsRules with only maxAgeInSeconds.
+func TestBlobServiceCorsSetRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	body := loadBody(t, "Microsoft.Storage/storageAccounts/blobServices")
+	objType := generated.Registry["azapi_storage_account_blob_service"].Schema().Type().(basetypes.ObjectType)
+
+	arm := map[string]interface{}{
+		"properties": map[string]interface{}{
+			"cors": map[string]interface{}{
+				"corsRules": []interface{}{
+					map[string]interface{}{
+						"allowedHeaders":  []interface{}{"x-ms-*", "content-type"},
+						"allowedMethods":  []interface{}{"GET", "PUT"},
+						"allowedOrigins":  []interface{}{"https://example.com"},
+						"exposedHeaders":  []interface{}{"x-ms-*"},
+						"maxAgeInSeconds": float64(3600),
+					},
+				},
+			},
+		},
+	}
+	obj, diags := Flatten(ctx, arm, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten diags: %v", diags)
+	}
+
+	props := obj.Attributes()["properties"].(types.Object)
+	cors := props.Attributes()["cors"].(types.Object)
+	rules := cors.Attributes()["cors_rules"].(types.List)
+	rule := rules.Elements()[0].(types.Object)
+	if _, ok := rule.Attributes()["allowed_headers"].(types.Set); !ok {
+		t.Fatalf("allowed_headers = %T, want types.Set", rule.Attributes()["allowed_headers"])
+	}
+
+	out := Expand(obj, body)
+	outProps := out["properties"].(map[string]interface{})
+	outCors := outProps["cors"].(map[string]interface{})
+	outRules := outCors["corsRules"].([]interface{})
+	outRule := outRules[0].(map[string]interface{})
+	assertStringElements(t, outRule["allowedHeaders"], "x-ms-*", "content-type")
+	assertStringElements(t, outRule["allowedMethods"], "GET", "PUT")
+	assertStringElements(t, outRule["allowedOrigins"], "https://example.com")
+	assertStringElements(t, outRule["exposedHeaders"], "x-ms-*")
+	if got := outRule["maxAgeInSeconds"]; got != int64(3600) {
+		t.Errorf("maxAgeInSeconds = %v, want 3600", got)
+	}
+}
+
+func assertStringElements(t *testing.T, got interface{}, want ...string) {
+	t.Helper()
+	items, ok := got.([]interface{})
+	if !ok {
+		t.Fatalf("got %T (%v), want []interface{}", got, got)
+	}
+	seen := map[string]bool{}
+	for _, item := range items {
+		s, ok := item.(string)
+		if !ok {
+			t.Fatalf("set item = %T (%v), want string", item, item)
+		}
+		seen[s] = true
+	}
+	if len(seen) != len(want) {
+		t.Fatalf("elements = %v, want %v", items, want)
+	}
+	for _, w := range want {
+		if !seen[w] {
+			t.Fatalf("elements = %v, missing %q", items, w)
+		}
+	}
+}

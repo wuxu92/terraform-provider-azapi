@@ -73,6 +73,10 @@ type Property struct {
 	// lastAccessTimeTrackingPolicy.name). Off by default: a blanket switch
 	// breaks idempotency for fields the server legitimately leaves null.
 	NonNullStateForUnknown bool
+	// UseSet emits a primitive array as schema.SetAttribute instead of ListAttribute.
+	// Use it only when ARM treats the collection as unordered (e.g. CORS header names)
+	// so API reordering does not create drift. Set by customizers.
+	UseSet bool
 }
 
 // DescriptionValidator is a validation rule extracted from a property description
