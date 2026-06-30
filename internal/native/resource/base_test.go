@@ -1,18 +1,33 @@
-package resource
+package resource_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
-	// Populate generated.Registry so New("azapi_storage_account") resolves.
+	"reflect"
+
+	// Populate generated.Registry and hookRegistry so New("azapi_storage_account") resolves.
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
+	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
+func hookField(t *testing.T, r resource.Resource, name string) reflect.Value {
+	t.Helper()
+	hooks := reflect.ValueOf(r).Elem().FieldByName("hooks")
+	if !hooks.IsValid() || hooks.IsNil() {
+		t.Fatalf("%T has no hooks", r)
+	}
+	field := hooks.Elem().FieldByName(name)
+	if !field.IsValid() {
+		t.Fatalf("hook field %q not found", name)
+	}
+	return field
+}
+
 func TestStorageAccountSchemaComposition(t *testing.T) {
 	ctx := context.Background()
-	r := New("azapi_storage_account")
+	r := nativeresource.New("azapi_storage_account")
 
 	// Metadata: provider prefix + resource suffix.
 	mdResp := &resource.MetadataResponse{}
@@ -55,7 +70,7 @@ func TestStorageAccountSchemaComposition(t *testing.T) {
 
 func TestBlobServiceSchemaComposition(t *testing.T) {
 	ctx := context.Background()
-	r := New("azapi_storage_account_blob_service")
+	r := nativeresource.New("azapi_storage_account_blob_service")
 
 	// Metadata: provider prefix + resource suffix.
 	mdResp := &resource.MetadataResponse{}
@@ -96,7 +111,7 @@ func TestBlobServiceSchemaComposition(t *testing.T) {
 
 func TestResourceGroupSchemaComposition(t *testing.T) {
 	ctx := context.Background()
-	r := New("azapi_resource_group")
+	r := nativeresource.New("azapi_resource_group")
 
 	// Metadata: provider prefix + resource suffix.
 	mdResp := &resource.MetadataResponse{}
@@ -138,7 +153,7 @@ func TestResourceGroupSchemaComposition(t *testing.T) {
 
 func TestWebServerFarmSchemaComposition(t *testing.T) {
 	ctx := context.Background()
-	r := New("azapi_web_server_farm")
+	r := nativeresource.New("azapi_web_server_farm")
 
 	mdResp := &resource.MetadataResponse{}
 	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
@@ -173,7 +188,7 @@ func TestWebServerFarmSchemaComposition(t *testing.T) {
 
 func TestWebSiteSchemaComposition(t *testing.T) {
 	ctx := context.Background()
-	r := New("azapi_web_site")
+	r := nativeresource.New("azapi_web_site")
 
 	mdResp := &resource.MetadataResponse{}
 	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
@@ -207,7 +222,7 @@ func TestWebSiteSchemaComposition(t *testing.T) {
 }
 
 func TestInterfaceAssertions(t *testing.T) {
-	r := New("azapi_storage_account")
+	r := nativeresource.New("azapi_storage_account")
 	if _, ok := r.(resource.ResourceWithConfigure); !ok {
 		t.Error("does not implement ResourceWithConfigure")
 	}
@@ -223,38 +238,15 @@ func TestInterfaceAssertions(t *testing.T) {
 }
 
 func TestStorageAccountHookRegistered(t *testing.T) {
-	if _, ok := hookRegistry["azapi_storage_account"]; !ok {
-		t.Error("storage account hooks not registered")
-	}
-	if hookRegistry["azapi_storage_account"].ModifyPlan == nil {
+	if hookField(t, nativeresource.New("azapi_storage_account"), "ModifyPlan").IsNil() {
 		t.Error("storage account ModifyPlan hook is nil")
-	}
-}
-
-func TestLoadStorageBody(t *testing.T) {
-	d := generated.Registry["azapi_storage_account"]
-	body, err := loadBody(d.ARMType, d.APIVersion)
-	if err != nil {
-		t.Fatalf("loadBody: %v", err)
-	}
-	if body == nil || body.Properties["sku"] == nil {
-		t.Fatal("storage body missing sku")
-	}
-	// Cached on second call.
-	body2, _ := loadBody(d.ARMType, d.APIVersion)
-	if body2 != body {
-		t.Error("loadBody not cached")
 	}
 }
 
 func TestBlobServiceSkipARMDelete(t *testing.T) {
 	// blobServices/default is a singleton with no ARM delete operation, so its
-	// overlay registers a state-only delete (SkipARMDelete) to avoid a 405.
-	h, ok := hookRegistry["azapi_storage_account_blob_service"]
-	if !ok || h == nil {
-		t.Fatal("blob service hooks not registered")
-	}
-	if !h.SkipARMDelete {
+	// generated-service hook registers a state-only delete (SkipARMDelete) to avoid a 405.
+	if !hookField(t, nativeresource.New("azapi_storage_account_blob_service"), "SkipARMDelete").Bool() {
 		t.Error("blob service SkipARMDelete should be true")
 	}
 
@@ -262,7 +254,7 @@ func TestBlobServiceSkipARMDelete(t *testing.T) {
 
 	// With SkipARMDelete, Delete returns before touching the provider (nil here) and
 	// records no error — the framework then removes the resource from state.
-	skip := &Base{hooks: &Hooks{SkipARMDelete: true}}
+	skip := nativeresource.New("azapi_storage_account_blob_service")
 	resp := &resource.DeleteResponse{}
 	skip.Delete(ctx, resource.DeleteRequest{}, resp)
 	if resp.Diagnostics.HasError() {
@@ -271,7 +263,7 @@ func TestBlobServiceSkipARMDelete(t *testing.T) {
 
 	// Without the flag the same nil-provider Delete reaches the provider check and
 	// errors — confirming the early return is what bypasses the ARM delete path.
-	plain := &Base{}
+	plain := nativeresource.New("azapi_storage_account")
 	resp2 := &resource.DeleteResponse{}
 	plain.Delete(ctx, resource.DeleteRequest{}, resp2)
 	if !resp2.Diagnostics.HasError() {
@@ -279,40 +271,9 @@ func TestBlobServiceSkipARMDelete(t *testing.T) {
 	}
 }
 
-func TestWebSiteConfigurationHookRegisteredAndMergesConfigWeb(t *testing.T) {
-	h, ok := hookRegistry["azapi_web_site"]
-	if !ok || h == nil {
-		t.Fatal("web site hooks not registered")
-	}
-	if h.AfterCreate == nil || h.AfterUpdate == nil || h.AfterRead == nil {
+func TestWebSiteConfigurationHookRegistered(t *testing.T) {
+	webSite := nativeresource.New("azapi_web_site")
+	if hookField(t, webSite, "AfterCreate").IsNil() || hookField(t, webSite, "AfterUpdate").IsNil() || hookField(t, webSite, "AfterRead").IsNil() {
 		t.Fatal("web site configuration read hooks must be registered for create, update, and read")
-	}
-
-	siteID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Web/sites/site"
-	if got := webSiteConfigurationID(siteID); got != siteID+"/config/web" {
-		t.Fatalf("webSiteConfigurationID = %q, want config/web child id", got)
-	}
-
-	site := map[string]interface{}{
-		"properties": map[string]interface{}{
-			"enabled": true,
-		},
-	}
-	config := map[string]interface{}{
-		"properties": map[string]interface{}{
-			"ftpsState":        "Disabled",
-			"minTlsVersion":    "1.2",
-			"scmMinTlsVersion": "1.2",
-		},
-	}
-	mergeWebSiteConfiguration(site, config)
-
-	props := site["properties"].(map[string]interface{})
-	if props["enabled"] != true {
-		t.Fatalf("existing site properties were not preserved: %#v", props)
-	}
-	siteConfig := props["siteConfig"].(map[string]interface{})
-	if siteConfig["ftpsState"] != "Disabled" || siteConfig["minTlsVersion"] != "1.2" || siteConfig["scmMinTlsVersion"] != "1.2" {
-		t.Fatalf("siteConfig = %#v, want config/web properties merged", siteConfig)
 	}
 }

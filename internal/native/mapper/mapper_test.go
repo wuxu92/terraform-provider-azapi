@@ -1,4 +1,4 @@
-package mapper
+package mapper_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
+	"github.com/Azure/terraform-provider-azapi/internal/native/mapper"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -50,7 +51,7 @@ func TestRoundTripStorageAccount(t *testing.T) {
 	// Flatten ARM → state object.
 	envelope := map[string]interface{}{} // no envelope override in this test
 	_ = envelope
-	stateObj, diags := Flatten(ctx, arm, objType, body, nil)
+	stateObj, diags := mapper.Flatten(ctx, arm, objType, body, nil)
 	if diags.HasError() {
 		t.Fatalf("Flatten diags: %v", diags)
 	}
@@ -59,7 +60,7 @@ func TestRoundTripStorageAccount(t *testing.T) {
 	}
 
 	// Re-expand state → ARM JSON; verify the settable fields round-trip.
-	out := Expand(stateObj, body)
+	out := mapper.Expand(stateObj, body)
 
 	if out["kind"] != "StorageV2" {
 		t.Errorf("kind round-trip: got %v", out["kind"])
@@ -116,7 +117,7 @@ func TestFlattenIntoPreservesEquivalentLocationBase(t *testing.T) {
 	body := loadStorageBody(t)
 	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
 
-	planObj, diags := Flatten(ctx, map[string]interface{}{
+	planObj, diags := mapper.Flatten(ctx, map[string]interface{}{
 		"kind":     "StorageV2",
 		"location": "eastus2",
 		"sku":      map[string]interface{}{"name": "Standard_LRS"},
@@ -125,7 +126,7 @@ func TestFlattenIntoPreservesEquivalentLocationBase(t *testing.T) {
 		t.Fatalf("Flatten plan diags: %v", diags)
 	}
 
-	stateObj, diags := FlattenInto(ctx, map[string]interface{}{
+	stateObj, diags := mapper.FlattenInto(ctx, map[string]interface{}{
 		"kind":     "StorageV2",
 		"location": "East US 2",
 		"sku":      map[string]interface{}{"name": "Standard_LRS"},
@@ -148,7 +149,7 @@ func TestFlattenIntoOverwritesDifferentLocation(t *testing.T) {
 	body := loadStorageBody(t)
 	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
 
-	baseObj, diags := Flatten(ctx, map[string]interface{}{
+	baseObj, diags := mapper.Flatten(ctx, map[string]interface{}{
 		"kind":     "StorageV2",
 		"location": "westus2",
 		"sku":      map[string]interface{}{"name": "Standard_LRS"},
@@ -157,7 +158,7 @@ func TestFlattenIntoOverwritesDifferentLocation(t *testing.T) {
 		t.Fatalf("Flatten base diags: %v", diags)
 	}
 
-	stateObj, diags := FlattenInto(ctx, map[string]interface{}{
+	stateObj, diags := mapper.FlattenInto(ctx, map[string]interface{}{
 		"kind":     "StorageV2",
 		"location": "East US 2",
 		"sku":      map[string]interface{}{"name": "Standard_LRS"},
@@ -182,11 +183,11 @@ func TestExpandSkipsNullAndUnknown(t *testing.T) {
 		"kind": "StorageV2",
 		"sku":  map[string]interface{}{"name": "Standard_LRS"},
 	}
-	stateObj, diags := Flatten(ctx, arm, objType, body, nil)
+	stateObj, diags := mapper.Flatten(ctx, arm, objType, body, nil)
 	if diags.HasError() {
 		t.Fatalf("Flatten diags: %v", diags)
 	}
-	out := Expand(stateObj, body)
+	out := mapper.Expand(stateObj, body)
 
 	// Absent fields must NOT appear in the expanded body (they were null).
 	if _, ok := out["location"]; ok {
@@ -223,11 +224,11 @@ func TestRoundTripObjectMap(t *testing.T) {
 		},
 	}
 
-	stateObj, diags := Flatten(ctx, arm, objType, body, nil)
+	stateObj, diags := mapper.Flatten(ctx, arm, objType, body, nil)
 	if diags.HasError() {
 		t.Fatalf("Flatten diags: %v", diags)
 	}
-	out := Expand(stateObj, body)
+	out := mapper.Expand(stateObj, body)
 
 	identity, ok := out["identity"].(map[string]interface{})
 	if !ok {
@@ -301,7 +302,7 @@ func TestFlattenIntoPreservesNestedOmitted(t *testing.T) {
 			},
 		},
 	}
-	planObj, diags := Flatten(ctx, plan, objType, body, nil)
+	planObj, diags := mapper.Flatten(ctx, plan, objType, body, nil)
 	if diags.HasError() {
 		t.Fatalf("Flatten plan diags: %v", diags)
 	}
@@ -316,7 +317,7 @@ func TestFlattenIntoPreservesNestedOmitted(t *testing.T) {
 			},
 		},
 	}
-	out, diags := FlattenInto(ctx, resp, planObj, body)
+	out, diags := mapper.FlattenInto(ctx, resp, planObj, body)
 	if diags.HasError() {
 		t.Fatalf("FlattenInto diags: %v", diags)
 	}
@@ -348,7 +349,7 @@ func TestFlattenApplyIntoPreservesKnownWebSiteCompleteValues(t *testing.T) {
 	objType := generated.Registry["azapi_web_site"].Schema().Type().(basetypes.ObjectType)
 	serverFarmID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Web/serverfarms/plan"
 
-	planObj, diags := Flatten(ctx, map[string]interface{}{
+	planObj, diags := mapper.Flatten(ctx, map[string]interface{}{
 		"kind":     "app",
 		"location": "eastus2",
 		"properties": map[string]interface{}{
@@ -371,7 +372,7 @@ func TestFlattenApplyIntoPreservesKnownWebSiteCompleteValues(t *testing.T) {
 		t.Fatalf("Flatten plan diags: %v", diags)
 	}
 
-	stateObj, diags := FlattenApplyInto(ctx, map[string]interface{}{
+	stateObj, diags := mapper.FlattenApplyInto(ctx, map[string]interface{}{
 		"kind":     "app,linux",
 		"location": "East US 2",
 		"properties": map[string]interface{}{
@@ -420,7 +421,7 @@ func TestFlattenIntoPreservesSensitiveWebSiteConfig(t *testing.T) {
 	body := loadBody(t, "Microsoft.Web/sites")
 	objType := generated.Registry["azapi_web_site"].Schema().Type().(basetypes.ObjectType)
 
-	planObj, diags := Flatten(ctx, map[string]interface{}{
+	planObj, diags := mapper.Flatten(ctx, map[string]interface{}{
 		"kind":     "app",
 		"location": "eastus2",
 		"properties": map[string]interface{}{
@@ -431,7 +432,7 @@ func TestFlattenIntoPreservesSensitiveWebSiteConfig(t *testing.T) {
 		t.Fatalf("Flatten plan diags: %v", diags)
 	}
 
-	stateObj, diags := FlattenInto(ctx, map[string]interface{}{
+	stateObj, diags := mapper.FlattenInto(ctx, map[string]interface{}{
 		"kind":     "app",
 		"location": "East US 2",
 		"properties": map[string]interface{}{
@@ -477,7 +478,7 @@ func TestBlobServiceCorsSetRoundTrip(t *testing.T) {
 			},
 		},
 	}
-	obj, diags := Flatten(ctx, arm, objType, body, nil)
+	obj, diags := mapper.Flatten(ctx, arm, objType, body, nil)
 	if diags.HasError() {
 		t.Fatalf("Flatten diags: %v", diags)
 	}
@@ -490,7 +491,7 @@ func TestBlobServiceCorsSetRoundTrip(t *testing.T) {
 		t.Fatalf("allowed_headers = %T, want types.Set", rule.Attributes()["allowed_headers"])
 	}
 
-	out := Expand(obj, body)
+	out := mapper.Expand(obj, body)
 	outProps := out["properties"].(map[string]interface{})
 	outCors := outProps["cors"].(map[string]interface{})
 	outRules := outCors["corsRules"].([]interface{})

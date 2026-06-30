@@ -1,13 +1,14 @@
-package resource
+package web
 
 import (
 	"fmt"
 
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
+	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
 )
 
 func init() {
-	RegisterHooks("azapi_web_site", &Hooks{
+	nativeresource.RegisterHooks(WebSite.Name, &nativeresource.Hooks{
 		AfterCreate: webSiteReadConfiguration,
 		AfterUpdate: webSiteReadConfiguration,
 		AfterRead:   webSiteReadConfiguration,
@@ -19,7 +20,7 @@ func init() {
 // return it. Bicep models the separate child resource Microsoft.Web/sites/config
 // with discriminator name "web"; its ID is /sites/{name}/config/web and its
 // properties type is the same SiteConfig object used by properties.siteConfig.
-func webSiteReadConfiguration(c *CrudCtx) {
+func webSiteReadConfiguration(c *nativeresource.CrudCtx) {
 	if c == nil || c.Client == nil || c.Client.ResourceClient == nil {
 		return
 	}
@@ -44,4 +45,12 @@ func mergeWebSiteConfiguration(site, config map[string]interface{}) {
 		site["properties"] = siteProps
 	}
 	siteProps["siteConfig"] = configProps
+}
+
+func asMap(v interface{}) map[string]interface{} {
+	m, _ := v.(map[string]interface{})
+	if m == nil {
+		return map[string]interface{}{}
+	}
+	return m
 }

@@ -56,9 +56,9 @@ func (r StorageAccountCfg_Complete) Config() string {
 }
 
 // StorageAccountCfg_SKU overrides the SKU, e.g. Standard_ZRS to exercise the storage
-// overlay's zone-migration (Standard_LRS -> Standard_ZRS) ForceNew rule. Like Basic it
-// carries a present (empty) properties block so the replacement account still receives
-// azwise's nested computed defaults.
+// account hook's zone-migration (Standard_LRS -> Standard_ZRS) ForceNew rule. Like
+// Basic it carries a present (empty) properties block so the replacement account
+// still receives azwise's nested computed defaults.
 type StorageAccountCfg_SKU struct {
 	StorageAccountCfg
 	SKU string

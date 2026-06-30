@@ -52,7 +52,7 @@ var _ = Describe("Azure Storage", Ordered, func() {
 		})
 
 		It("replaces the account when migrating Standard_LRS to Standard_ZRS", func() {
-			// Exercises the storage overlay's azwise.CheckForceNew SKU zone-migration
+			// Exercises the storage account hook's azwise.CheckForceNew SKU zone-migration
 			// rule: Standard_LRS -> Standard_ZRS forces a replace. Exists confirms the
 			// replacement account is present in Azure.
 			sa.Apply(storage.StorageAccountCfg_SKU{StorageAccountCfg: cfg, SKU: "Standard_ZRS"}, acc.Exists())

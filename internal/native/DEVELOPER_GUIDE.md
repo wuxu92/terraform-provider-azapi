@@ -24,8 +24,8 @@ bicep flags (types.json)    Required/ReadOnly/WriteOnly → schema flags
 
 The result is baked into `internal/native/generated/<service>/<name>_gen.go`. The
 **runtime never mutates the schema** — it serves the generated `Schema()` plus a
-`timeouts` block. Per-resource runtime *behavior* (not schema) is a separate hook
-layer (`resource/overlay_<name>.go`); see [Runtime behavior hooks](#runtime-behavior-hooks).
+`timeouts` block. Per-resource runtime *behavior* (not schema) lives beside the
+generated resource in `<name>_hooks.go`; see [Runtime behavior hooks](#runtime-behavior-hooks).
 
 Two failure modes to internalize:
 - **Customizer paths panic.** `FindProperty` / `IsolateArrayElement` crash generation
@@ -45,8 +45,9 @@ Two failure modes to internalize:
 | Shared validators (cross-resource) | `internal/native/schema/validator_<rule>.go` |
 | Per-service validators | `internal/native/generated/<service>/validators/<rule>.go` |
 | Generated output | `internal/native/generated/<service>/<name>_gen.go` |
+| Runtime hooks for a generated resource | `internal/native/generated/<service>/<name>_hooks.go` |
 | Service aggregator (blank imports) | `internal/native/generated/all/all.go` |
-| Runtime base / mapper / hooks | `internal/native/resource/` |
+| Runtime base / mapper / hook registry | `internal/native/resource/` |
 | Bicep types manifest | `internal/azure/generated/index.json` (+ `…/<ns>/<date>/types.json`) |
 | Validator CLI | `internal/native/cmd/azapin-validate/` |
 
@@ -86,15 +87,16 @@ Customizers shape the **schema** at generation time; hooks shape runtime **behav
 and touch the schema not at all. Never validate/default/`RequiresReplace` a fixed
 attribute from a hook (bake it into the schema); never read ARM state from a customizer.
 
-Register per Terraform name from an overlay `init()`. Overlays live in package
-`resource`, so they compile in automatically — **no blank import**:
+Register per Terraform name from the generated service package. Hook files are
+hand-written, named `<name>_hooks.go`, and live beside `<name>_gen.go`; the existing
+`generated/all` blank import for that service makes them compile into the provider:
 
 ```go
-// internal/native/resource/overlay_<name>.go
-package resource
+// internal/native/generated/<service>/<name>_hooks.go
+package <service>
 
 func init() {
-    RegisterHooks("azapi_<name>", &Hooks{BeforeCreate: ..., ModifyPlan: ...})
+    resource.RegisterHooks(<Descriptor>.Name, &resource.Hooks{BeforeCreate: ..., ModifyPlan: ...})
 }
 ```
 
@@ -143,8 +145,8 @@ A static plan modifier can't express "replace only when migrating between zonal 
 non-zonal SKUs", so it lives in a `ModifyPlan` hook consulting `azwise.CheckForceNew`:
 
 ```go
-// internal/native/resource/overlay_storage_account.go
-func storageAccountModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+// internal/native/generated/storage/storage_account_hooks.go
+func storageAccountModifyPlan(ctx context.Context, req fwresource.ModifyPlanRequest, resp *fwresource.ModifyPlanResponse) {
     if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
         return // updates only
     }
@@ -155,11 +157,10 @@ func storageAccountModifyPlan(ctx context.Context, req resource.ModifyPlanReques
     if resp.Diagnostics.HasError() {
         return
     }
-    // ARMType/APIVersion from the shipped descriptor — stays correct across version upgrades.
-    d := generated.Registry["azapi_storage_account"]
+    // ARMType/APIVersion from the local descriptor — stays correct across version upgrades.
     oldBody := map[string]interface{}{"sku": map[string]interface{}{"name": oldName.ValueString()}}
     newBody := map[string]interface{}{"sku": map[string]interface{}{"name": newName.ValueString()}}
-    if azwise.CheckForceNew(d.ARMType, d.APIVersion, oldBody, newBody) {
+    if azwise.CheckForceNew(StorageAccount.ARMType, StorageAccount.APIVersion, oldBody, newBody) {
         resp.RequiresReplace = append(resp.RequiresReplace, path.Root("sku"))
     }
 }
@@ -168,9 +169,9 @@ func storageAccountModifyPlan(ctx context.Context, req resource.ModifyPlanReques
 ### Example — body / response massaging (template)
 
 ```go
-RegisterHooks("azapi_<name>", &Hooks{
-    BeforeCreate: func(c *CrudCtx) { c.Body["someField"] = derive(c) },        // injected, then PUT
-    AfterRead:    func(c *CrudCtx) { /* massage c.Response before flatten, or c.Diags.AddError(…) */ },
+resource.RegisterHooks(ExampleResource.Name, &resource.Hooks{
+    BeforeCreate: func(c *resource.CrudCtx) { c.Body["someField"] = derive(c) },
+    AfterRead:    func(c *resource.CrudCtx) { /* massage c.Response before flatten, or c.Diags.AddError(…) */ },
 })
 ```
 
@@ -178,9 +179,10 @@ RegisterHooks("azapi_<name>", &Hooks{
 
 - Schema concerns (validators, defaults, ForceNew on a fixed attribute) → generated
   schema via customizers/azwise, **never** a hook.
-- Keyed by the **Terraform** name; same-package `init()`, no import wiring — just drop
-  `overlay_<name>.go` into `resource/`.
-- Read ARM type/version from `generated.Registry[name]`, never hardcode.
+- Keyed by the **Terraform** name; register from `<name>_hooks.go` in the generated
+  service package using `resource.RegisterHooks(<Descriptor>.Name, ...)`.
+- Read ARM type/version from the local generated descriptor (`<Descriptor>.ARMType`,
+  `<Descriptor>.APIVersion`), never hardcode.
 - Append to `Diags`/`resp.Diagnostics` and `return` to abort; the base checks after each hook.
 
 ---
@@ -409,7 +411,7 @@ Golden rule: **never hand-edit `<name>_gen.go`** (it carries
 | A ForceNew / default / validator / enum from AzureRM | azwise `<resource>.go` | regenerate |
 | A name constraint, semantic validator, or rule bicep+azwise can't express | customizer `<resource>.go` | regenerate |
 | A cross-resource validator | `internal/native/schema/validator_<rule>.go` | regenerate |
-| Runtime behavior (mutate body before PUT, normalize on read) | `resource/overlay_<name>.go` (`RegisterHooks`) | no regenerate (runtime) |
+| Runtime behavior (mutate body before PUT, normalize on read) | `generated/<service>/<name>_hooks.go` (`resource.RegisterHooks`) | no regenerate (runtime) |
 
 1. Edit the source layer.
 2. Regenerate: `go run ./internal/native/generator/cmd/generate_poc.go`.
@@ -418,8 +420,8 @@ Golden rule: **never hand-edit `<name>_gen.go`** (it carries
 4. Run the verification gate. `azapin-validate` stays at `0 mismatches`; the azwise overlay
    test still asserts your rule baked in.
 
-Runtime-only changes (hooks in `overlay_<name>.go`) need no regeneration — just `go build`
-+ tests.
+Runtime-only changes (hooks in `generated/<service>/<name>_hooks.go`) need no regeneration —
+just `go build` + tests.
 
 ---
 

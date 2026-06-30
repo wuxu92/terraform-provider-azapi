@@ -24,8 +24,8 @@ type CrudCtx struct {
 }
 
 // Hooks holds optional per-resource customization of runtime BEHAVIOR only. A nil
-// Hooks (or nil field) means "use the base behavior". Overlay files register
-// Hooks via RegisterHooks.
+// Hooks (or nil field) means "use the base behavior". Generated service packages
+// register hand-written hooks via RegisterHooks from <resource>_hooks.go files.
 //
 // Schema customization (attribute validators, defaults, the parent-reference
 // name) is NOT done here — it is baked into the generated schema at generation
@@ -53,9 +53,9 @@ type Hooks struct {
 	ModifyPlan     func(context.Context, resource.ModifyPlanRequest, *resource.ModifyPlanResponse)
 }
 
-// hookRegistry holds hand-written overlays keyed by Terraform resource name.
+// hookRegistry holds hand-written runtime hooks keyed by Terraform resource name.
 var hookRegistry = map[string]*Hooks{}
 
 // RegisterHooks attaches customization hooks to a generated resource. Call from
-// an overlay file's init().
+// a generated service package's <resource>_hooks.go init().
 func RegisterHooks(name string, h *Hooks) { hookRegistry[name] = h }

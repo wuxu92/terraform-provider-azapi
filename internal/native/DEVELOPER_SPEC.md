@@ -160,8 +160,8 @@ User stories with acceptance criteria. **MUST/SHOULD/MAY** per RFC 2119.
   `internal/native/generator/customizers`) that mutates the parsed type graph so
   validators/defaults/ForceNew are baked into the generated schema and never
   mutated at runtime. **SHOULD** be preferred for schema-shape rules.
-- A hand-written overlay MAY register `Hooks` (Before/After per op, ModifyPlan,
-  ValidateConfig) keyed by resource name.
+- A hand-written generated-service hook file MAY register `Hooks` (Before/After per
+  op, ModifyPlan, ValidateConfig) keyed by resource name.
 - A resource MAY override a base method via Go embedding when hooks are
   insufficient.
 
@@ -248,8 +248,8 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 | `internal/native/armtypes` | ARM resource type string constants |
 | `internal/native/schema` | Runtime static-default impls (`Static*`), shared generic validators (`UUID`, `AzureResourceID`), plan-modifier anchors |
 | `internal/native/mapper` | Generic state ↔ ARM JSON (`Expand`/`Flatten`/`FlattenInto`/`ResolveUnknowns`) |
-| `internal/native/resource` | Generic `Base` resource, hooks, body loader, overlays |
-| `internal/native/generated` | Registry (`Descriptor`/`Register`/`Registry`); per-service sub-packages `generated/<service>/` (schemas) + `generated/<service>/validators/`; `generated/all` blank-imports every service to populate the registry |
+| `internal/native/resource` | Generic `Base` resource, hook types/registry, body loader |
+| `internal/native/generated` | Registry (`Descriptor`/`Register`/`Registry`); per-service sub-packages `generated/<service>` (schemas) + `generated/<service>/validators/` + hand-written `<resource>_hooks.go`; `generated/all` blank-imports every service to populate the registry and hooks |
 | `internal/native/validate` | Compiled-schema ↔ bicep cross-validator |
 | `internal/native/acceptance` | Ginkgo BDD acceptance framework |
 | `internal/native/cmd/azapin-validate` | Standalone validation CLI |
@@ -456,8 +456,8 @@ sequenceDiagram
   attributes → `plan`/`apply` → outputs via direct attribute refs.
 - **Add a resource** (maintainer): run generator → file auto-registers → ship.
 - **Customize** (maintainer): register a generation-time customizer (bakes
-  validators/defaults/ForceNew into the schema), and/or a runtime `Hooks` overlay
-  (`RegisterHooks("azapi_x", &Hooks{…})`), or embed `*Base` to override a method.
+  validators/defaults/ForceNew into the schema), and/or runtime hooks in
+  `generated/<service>/<name>_hooks.go`, or embed `*Base` to override a method.
 - **Curate knowledge** (maintainer): edit/add an azwise `BaseKnowledge` entry →
   regenerate → overlay flows into the schema.
 

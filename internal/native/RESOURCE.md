@@ -137,11 +137,11 @@ imports), so generated files stay pure. The ARM type + version replace the britt
 `[azapin:…]` description-tag parsing the validator uses; the tag stays for the
 validator's convenience but the descriptor is the source of truth at runtime.
 
-Runtime **behavior** hooks are **not** on the descriptor. They live in a separate
-`hookRegistry` in `internal/native/resource`, keyed by resource name and populated
-by hand-written overlay files (`resource/overlay_<name>.go`) via `RegisterHooks`.
-`Base` looks them up once at construction (`hookRegistry[name]`); a resource with
-no overlay simply has nil hooks and uses the base behavior.
+Runtime **behavior** hooks are **not** on the descriptor. `internal/native/resource`
+owns the hook types and `hookRegistry`; hand-written `<resource>_hooks.go` files live
+beside the generated resource schema in `internal/native/generated/<service>/` and
+register via `resource.RegisterHooks`. `Base` looks hooks up once at construction
+(`hookRegistry[name]`); a resource with no hooks simply uses the base behavior.
 
 ## Base Struct
 
@@ -276,8 +276,8 @@ validators, defaults, the parent-reference name — is baked into the generated
 schema at generation time via generator customizers (GENERATOR.md Rule 9d), so the
 runtime never mutates the schema.
 
-A hand-written overlay file sets `Descriptor.Hooks`. Hooks receive a `*CrudCtx`
-carrying everything they might touch and return diagnostics:
+A hand-written `<resource>_hooks.go` file in the generated service package registers
+`Hooks` via `resource.RegisterHooks`. Hooks receive a `*CrudCtx` carrying everything they might touch:
 
 ```go
 type CrudCtx struct {
@@ -357,8 +357,8 @@ unified flow entirely.
 2. **Base** implementing Resource/Configure/Schema/CRUD with no hooks; wire one
    resource (`azapi_storage_account`) end-to-end behind a feature flag.
 3. **ModifyPlan/ValidateConfig/ImportState** + azwise ForceNew integration.
-4. **Hooks** + one overlay (storage_account SKU zone-migration ForceNew) to prove
-   the seam.
+4. **Hooks** + one generated-service hook file (storage_account SKU zone-migration
+   ForceNew) to prove the seam.
 5. **Provider registration** of the full `generated.Registry`; acceptance test a
    handful of representative resources.
 
@@ -373,9 +373,9 @@ unified flow entirely.
   `put`/`Read`/`Delete`; runtime body loader reads the authoritative types.json from
   `azure.StaticFiles` (`loader.go`).
 - **Hooks** — `hooks.go`: runtime behavior only — `Before/After` per op +
-  `ValidateConfig`/`ModifyPlan` overrides; storage overlay
-  (`overlay_storage_account.go`) implements the SKU zone-migration ForceNew via
-  `azwise.CheckForceNew`.
+  `ValidateConfig`/`ModifyPlan` overrides; generated-service hook files such as
+  `generated/storage/storage_account_hooks.go` implement resource-specific runtime
+  behavior like the SKU zone-migration ForceNew via `azwise.CheckForceNew`.
 - **Schema customizers** — `internal/native/generator/customizers`: generation-time, per-ARM-type
   Go hooks that bake validators/defaults/parent-name into the generated schema
   (see GENERATOR.md Rule 9d). Not part of the provider runtime.

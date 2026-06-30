@@ -1,27 +1,26 @@
-package resource
+package storage
 
 import (
 	"context"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
+	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
+	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Storage account overlay. The generated schema already carries declarative
-// ForceNew (RequiresReplace) from the azwise overlay; this hook adds the
-// *conditional* SKU zone-migration rule that a static plan modifier can't
-// express — replacement is required only when migrating between zonal and
-// non-zonal SKUs, which azwise.CheckForceNew encodes.
+// Storage account hooks add the conditional SKU zone-migration rule that a
+// static schema plan modifier cannot express. Generated schema already carries
+// declarative ForceNew rules from azwise; this hook only handles the dynamic
+// replacement decision encoded by azwise.CheckForceNew.
 func init() {
-	RegisterHooks("azapi_storage_account", &Hooks{
+	nativeresource.RegisterHooks(StorageAccount.Name, &nativeresource.Hooks{
 		ModifyPlan: storageAccountModifyPlan,
 	})
 }
 
-func storageAccountModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+func storageAccountModifyPlan(ctx context.Context, req fwresource.ModifyPlanRequest, resp *fwresource.ModifyPlanResponse) {
 	// Only relevant for updates (both prior state and plan present).
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
@@ -41,10 +40,7 @@ func storageAccountModifyPlan(ctx context.Context, req resource.ModifyPlanReques
 	oldBody := map[string]interface{}{"sku": map[string]interface{}{"name": oldName.ValueString()}}
 	newBody := map[string]interface{}{"sku": map[string]interface{}{"name": newName.ValueString()}}
 
-	// Look up the ARM type + API version from the shipped descriptor so this stays
-	// correct when the generator rolls the resource forward to a newer version.
-	d := generated.Registry["azapi_storage_account"]
-	if azwise.CheckForceNew(d.ARMType, d.APIVersion, oldBody, newBody) {
+	if azwise.CheckForceNew(StorageAccount.ARMType, StorageAccount.APIVersion, oldBody, newBody) {
 		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("sku"))
 	}
 }

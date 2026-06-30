@@ -26,7 +26,7 @@ generation time:
 runtime:
 
     internal/native/resource (Base) serves Descriptor.Schema() + a timeouts block.
-    Per-resource CRUD behavior: resource/overlay_<name>.go via RegisterHooks.
+    Per-resource CRUD behavior: generated/<service>/<resource>_hooks.go via RegisterHooks.
 ```
 
 ### Components
@@ -39,10 +39,10 @@ runtime:
 | `internal/native/generator/emitter.go` | Renders type graph → Go source with Terraform schema, conditional imports |
 | `internal/native/naming` | ARM type → Terraform resource name + property name conversion |
 | `internal/native/schema` | Runtime utilities: `StaticBool`, `StaticString`, `StaticInt64` default implementations |
-| `internal/native/generated/` | Registry (`Registry`, `Descriptor`, `Register`); per-service sub-packages `generated/<service>/` hold the generated schemas + `validators/`; `generated/all` aggregates them |
+| `internal/native/generated/` | Registry (`Registry`, `Descriptor`, `Register`); per-service sub-packages `generated/<service>/` hold generated schemas, config builders, validators, and hand-written `<resource>_hooks.go`; `generated/all` aggregates them |
 | `internal/native/generator/customizers/` | Per-resource generation-time schema customizers (Rule 9d), keyed by ARM type via `register.go` |
 | `internal/azure/azwise/` | Curated AzureRM operational knowledge (ForceNew, validation, defaults, timeouts) overlaid at generation time (`ApplyAzwise`) |
-| `internal/native/resource/` | Runtime `Base` (generic CRUD), the mapper, and per-resource behavior hooks (`overlay_<name>.go`, `RegisterHooks`) |
+| `internal/native/resource/` | Runtime `Base` (generic CRUD), the mapper, hook types, and the hook registry (`RegisterHooks`) |
 
 ### Generation Pipeline
 
