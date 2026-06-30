@@ -223,7 +223,7 @@ func TestWebServerFarmCustomizerAddsNameIDAndSkuRules(t *testing.T) {
 	}
 }
 
-func TestWebSiteCustomizerAddsNameAndIDValidators(t *testing.T) {
+func TestWebSiteCustomizerAddsValidatorsAndClearsSiteConfigDefaults(t *testing.T) {
 	def := &generator.ResourceDefinition{
 		Name:           "Microsoft.Web/sites@2025-03-01",
 		WritableScopes: naming.ScopeResourceGroup,
@@ -231,6 +231,12 @@ func TestWebSiteCustomizerAddsNameAndIDValidators(t *testing.T) {
 			"properties": {Name: "properties", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
 				"serverFarmId":           {Name: "serverFarmId", Type: &generator.Type{Kind: generator.KindString}},
 				"virtualNetworkSubnetId": {Name: "virtualNetworkSubnetId", Type: &generator.Type{Kind: generator.KindString}},
+				"siteConfig": {Name: "siteConfig", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+					"ftpsState": {Name: "ftpsState", Type: &generator.Type{Kind: generator.KindString}, DefaultValue: "Disabled"},
+					"nested": {Name: "nested", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+						"enabled": {Name: "enabled", Type: &generator.Type{Kind: generator.KindBool}, DefaultValue: "false"},
+					}}},
+				}}},
 			}}},
 		}},
 	}
@@ -244,6 +250,11 @@ func TestWebSiteCustomizerAddsNameAndIDValidators(t *testing.T) {
 		p := generator.FindProperty(def, path)
 		if len(p.Validators) != 1 || p.Validators[0].Kind != generator.ValidatorShared || p.Validators[0].Call != "AzureResourceID()" {
 			t.Fatalf("%s validators = %#v, want AzureResourceID shared validator", path, p.Validators)
+		}
+	}
+	for _, path := range []string{"properties.siteConfig.ftpsState", "properties.siteConfig.nested.enabled"} {
+		if got := generator.FindProperty(def, path).DefaultValue; got != "" {
+			t.Fatalf("%s default = %q, want cleared for write-only siteConfig", path, got)
 		}
 	}
 }

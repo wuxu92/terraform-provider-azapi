@@ -1102,7 +1102,9 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "Flag to use Managed Identity Creds for ACR pull",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticBool(false),
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"acr_user_managed_identity_id": schema.StringAttribute{
 								Description: "If using user managed identity, the user managed identity ClientId",
@@ -1655,7 +1657,9 @@ func AzapiWebSiteSchema() schema.Schema {
 										Description: "Gets or sets whether CORS requests with credentials are allowed. See \nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#Requests_with_credentials\nfor more details.",
 										Optional:    true,
 										Computed:    true,
-										Default:     nativeschema.StaticBool(false),
+										PlanModifiers: []planmodifier.Bool{
+											boolplanmodifier.UseStateForUnknown(),
+										},
 									},
 								},
 							},
@@ -1778,13 +1782,15 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "State of FTP / FTPS service",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticString("Disabled"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"AllAllowed",
 										"FtpsOnly",
 										"Disabled",
 									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
 								},
 							},
 							"function_app_scale_limit": schema.Int64Attribute{
@@ -1851,7 +1857,9 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "Http20Enabled: configures a web site to allow clients to connect over http2.0",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticBool(false),
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"http20_proxy_flag": schema.Int64Attribute{
 								Description: "Http20ProxyFlag: Configures a website to allow http2.0 to pass be proxied all the way to the app. 0 = disabled, 1 = pass through all http2 traffic, 2 = pass through gRPC only.",
@@ -1981,12 +1989,14 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "Default action for main access restriction if no rules are matched.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticString("Allow"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"Allow",
 										"Deny",
 									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
 								},
 							},
 							"java_container": schema.StringAttribute{
@@ -2067,7 +2077,6 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "Site load balancing.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticString("LeastRequests"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"WeightedRoundRobin",
@@ -2079,12 +2088,17 @@ func AzapiWebSiteSchema() schema.Schema {
 										"LeastRequestsWithTieBreaker",
 									),
 								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"local_my_sql_enabled": schema.BoolAttribute{
 								Description: "<code>true</code> to enable local MySQL; otherwise, <code>false</code>.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticBool(false),
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"logs_directory_size_limit": schema.Int64Attribute{
 								Description: "HTTP logs directory size limit.",
@@ -2139,12 +2153,14 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "Managed pipeline mode.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticString("Integrated"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"Integrated",
 										"Classic",
 									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
 								},
 							},
 							"managed_service_identity_id": schema.Int64Attribute{
@@ -2216,7 +2232,6 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "MinTlsVersion: configures the minimum version of TLS required for SSL requests",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticString("1.2"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"1.0",
@@ -2224,6 +2239,9 @@ func AzapiWebSiteSchema() schema.Schema {
 										"1.2",
 										"1.3",
 									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
 								},
 							},
 							"minimum_elastic_instance_count": schema.Int64Attribute{
@@ -2289,12 +2307,14 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "Property to allow or block all public traffic.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticString("Enabled"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"Enabled",
 										"Disabled",
 									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
 								},
 							},
 							"publishing_username": schema.StringAttribute{
@@ -2394,7 +2414,9 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "<code>true</code> if remote debugging is enabled; otherwise, <code>false</code>.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticBool(false),
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"remote_debugging_version": schema.StringAttribute{
 								Description: "Remote debugging version.",
@@ -2532,12 +2554,14 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "Default action for scm access restriction if no rules are matched.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticString("Allow"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"Allow",
 										"Deny",
 									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
 								},
 							},
 							"scm_ip_security_restrictions_use_main": schema.BoolAttribute{
@@ -2552,7 +2576,6 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "ScmMinTlsVersion: configures the minimum version of TLS required for SSL requests for SCM site",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticString("1.2"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"1.0",
@@ -2560,6 +2583,9 @@ func AzapiWebSiteSchema() schema.Schema {
 										"1.2",
 										"1.3",
 									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
 								},
 							},
 							"scm_type": schema.StringAttribute{
@@ -2696,7 +2722,9 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "<code>true</code> if WebSocket is enabled; otherwise, <code>false</code>.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticBool(false),
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 							"website_time_zone": schema.StringAttribute{
 								Description: "Sets the time zone a site uses for generating timestamps. Compatible with Linux and Windows App Service. Setting the WEBSITE_TIME_ZONE app setting takes precedence over this config. For Linux, expects...",
