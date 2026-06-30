@@ -149,13 +149,21 @@ func (b *Base) ImportState(ctx context.Context, req resource.ImportStateRequest,
 		return
 	}
 
+	hc := &CrudCtx{Ctx: ctx, Client: b.provider, ID: id, Response: asMap(respBody), Diags: &resp.Diagnostics}
+	if b.hooks != nil && b.hooks.AfterRead != nil {
+		b.hooks.AfterRead(hc)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	objType := b.objectType(ctx)
 	envelope := map[string]attr.Value{
 		"id":              types.StringValue(id.ID()),
 		"name":            types.StringValue(id.Name),
 		b.desc.ParentAttr: types.StringValue(id.ParentId),
 	}
-	stateObj, diags := mapper.Flatten(ctx, asMap(respBody), objType, bt, envelope)
+	stateObj, diags := mapper.Flatten(ctx, hc.Response, objType, bt, envelope)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
