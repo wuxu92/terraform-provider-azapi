@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -90,14 +91,31 @@ func AzapiStorageAccountSchema() schema.Schema {
 							),
 						},
 					},
-					"user_assigned_identities": schema.SingleNestedAttribute{
+					"user_assigned_identities": schema.MapNestedAttribute{
 						Description: "Gets or sets a list of key value pairs that describe the set of User Assigned identities that will be used with this storage account. The key is the ARM resource identifier of the identity. Only 1 Use...",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Object{
-							objectplanmodifier.UseStateForUnknown(),
+						PlanModifiers: []planmodifier.Map{
+							mapplanmodifier.UseStateForUnknown(),
 						},
-						Attributes: map[string]schema.Attribute{},
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"client_id": schema.StringAttribute{
+									Description: "The client ID of the identity.",
+									Computed:    true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+									},
+								},
+								"principal_id": schema.StringAttribute{
+									Description: "The principal ID of the identity.",
+									Computed:    true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -119,6 +137,9 @@ func AzapiStorageAccountSchema() schema.Schema {
 			"location": schema.StringAttribute{
 				Description: "Required. Gets or sets the location of the resource. This will be one of the supported and registered Azure Geo Regions (e.g. West US, East US, Southeast Asia, etc.). The geo region of a resource cann...",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					nativeschema.UseStateForEquivalentLocation(),
+				},
 			},
 			"placement": schema.SingleNestedAttribute{
 				Description: "Optional. Gets or sets the zonal placement details for the storage account.",
@@ -2144,14 +2165,14 @@ func AzapiStorageAccountSchema() schema.Schema {
 					},
 				},
 			},
-			"tags": schema.SingleNestedAttribute{
+			"tags": schema.MapAttribute{
 				Description: "Gets or sets a list of key value pairs that describe the resource. These tags can be used for viewing and grouping this resource (across resource groups). A maximum of 15 tags can be provided for a re...",
 				Optional:    true,
 				Computed:    true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.Map{
+					mapplanmodifier.UseStateForUnknown(),
 				},
-				Attributes: map[string]schema.Attribute{},
+				ElementType: types.StringType,
 			},
 			"zones": schema.ListAttribute{
 				Description: "Optional. Gets or sets the pinned logical availability zone for the storage account.",
@@ -2194,10 +2215,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 	}
 }
 
-// StorageAccount is the static description of the azapi_storage_account resource: its
-// Terraform name, ARM type, API version, and body schema. It is the single source
-// of truth for those values (referenced as StorageAccount.Name from the config builder)
-// and is registered at init.
+// StorageAccount describes azapi_storage_account for registration and config builders.
 var StorageAccount = generated.Descriptor{
 	Name:           "azapi_storage_account",
 	ARMType:        "Microsoft.Storage/storageAccounts",

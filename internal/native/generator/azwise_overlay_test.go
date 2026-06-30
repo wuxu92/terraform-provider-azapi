@@ -220,3 +220,145 @@ func TestApplyAzwiseResourceGroup(t *testing.T) {
 		t.Error("expected a length validator on managedBy from azwise")
 	}
 }
+
+// TestApplyAzwiseWebServerFarm verifies the Microsoft.Web/serverfarms overlay applies
+// App Service Plan ForceNew/default/validation knowledge from AzureRM.
+func TestApplyAzwiseWebServerFarm(t *testing.T) {
+	defs, ver := latestWebServerFarmDefs(t)
+	PostProcess(defs)
+
+	tag := "Microsoft.Web/serverfarms@" + ver
+	var farm *ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			farm = d
+			break
+		}
+	}
+	if farm == nil {
+		t.Fatal("web server farm definition not found")
+	}
+
+	for _, path := range []string{"location", "properties.reserved", "properties.hyperV"} {
+		if p := navigate(farm.Body, path); p == nil {
+			t.Fatalf("%s not found", path)
+		} else if !p.ForceNew {
+			t.Errorf("expected %s to be ForceNew via azwise", path)
+		}
+	}
+	if p := navigate(farm.Body, "properties.perSiteScaling"); p == nil {
+		t.Fatal("properties.perSiteScaling not found")
+	} else if p.DefaultValue != "false" {
+		t.Errorf("perSiteScaling default = %q, want false", p.DefaultValue)
+	}
+	if p := navigate(farm.Body, "sku.name"); p == nil {
+		t.Fatal("sku.name not found")
+	} else if len(p.Validators) == 0 {
+		t.Error("expected sku.name validator from azwise")
+	}
+	if p := navigate(farm.Body, "sku.capacity"); p == nil {
+		t.Fatal("sku.capacity not found")
+	} else if len(p.Validators) == 0 {
+		t.Error("expected sku.capacity int validator from azwise")
+	}
+}
+
+// TestApplyAzwiseWebSite verifies the Microsoft.Web/sites overlay applies common
+// App Service AzureRM defaults and validators to the shared site ARM type.
+func TestApplyAzwiseWebSite(t *testing.T) {
+	defs, ver := latestWebSiteDefs(t)
+	PostProcess(defs)
+
+	tag := "Microsoft.Web/sites@" + ver
+	var site *ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			site = d
+			break
+		}
+	}
+	if site == nil {
+		t.Fatal("web site definition not found")
+	}
+
+	if p := navigate(site.Body, "location"); p == nil {
+		t.Fatal("location not found")
+	} else if !p.ForceNew {
+		t.Error("expected location to be ForceNew via azwise")
+	}
+	if p := navigate(site.Body, "properties.serverFarmId"); p == nil {
+		t.Fatal("properties.serverFarmId not found")
+	} else if p.Type.Kind != KindString || p.ForceComputed {
+		t.Error("expected properties.serverFarmId to remain a settable string ARM body field")
+	}
+
+	if p := navigate(site.Body, "properties.httpsOnly"); p == nil {
+		t.Fatal("properties.httpsOnly not found")
+	} else if p.DefaultValue != "false" {
+		t.Errorf("properties.httpsOnly default = %q, want false", p.DefaultValue)
+	}
+	if p := navigate(site.Body, "properties.siteConfig.minTlsVersion"); p == nil {
+		t.Fatal("properties.siteConfig.minTlsVersion not found")
+	} else if p.DefaultValue != "1.2" {
+		t.Errorf("minTlsVersion default = %q, want 1.2", p.DefaultValue)
+	}
+
+	mode := navigate(site.Body, "properties.clientCertMode")
+	if mode == nil {
+		t.Fatal("properties.clientCertMode not found")
+	}
+	if !mode.Type.IsEnum() {
+		t.Error("expected clientCertMode to carry bicep enum validation")
+	}
+}
+
+func TestEmitWebSiteSensitiveOnlyOnAzwiseLeaf(t *testing.T) {
+	defs, ver := latestWebSiteDefs(t)
+	PostProcess(defs)
+
+	tag := "Microsoft.Web/sites@" + ver
+	var site *ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			site = d
+			break
+		}
+	}
+	if site == nil {
+		t.Fatal("web site definition not found")
+	}
+
+	if p := navigate(site.Body, "properties.siteConfig"); p == nil {
+		t.Fatal("properties.siteConfig not found")
+	} else if p.Sensitive {
+		t.Fatal("siteConfig must not inherit sensitivity from nested connection string")
+	}
+	if p := navigate(site.Body, "properties.siteConfig.connectionStrings[*].connectionString"); p == nil {
+		t.Fatal("connection string leaf not found")
+	} else if !p.Sensitive {
+		t.Fatal("connection string leaf should be sensitive via azwise")
+	}
+
+	src, err := EmitSchema(site)
+	if err != nil {
+		t.Fatalf("EmitSchema: %v", err)
+	}
+	siteConfigIdx := strings.Index(src, `"site_config": schema.SingleNestedAttribute{`)
+	if siteConfigIdx < 0 {
+		t.Fatal("site_config schema block not emitted")
+	}
+	appSettingsIdx := strings.Index(src[siteConfigIdx:], `"app_settings": schema.ListNestedAttribute{`)
+	if appSettingsIdx < 0 {
+		t.Fatal("app_settings schema block not emitted")
+	}
+	if strings.Contains(src[siteConfigIdx:siteConfigIdx+appSettingsIdx], "Sensitive:   true") {
+		t.Fatal("site_config parent block must not be emitted as Sensitive")
+	}
+	connectionStringIdx := strings.Index(src, `"connection_string": schema.StringAttribute{`)
+	if connectionStringIdx < 0 {
+		t.Fatal("connection_string schema block not emitted")
+	}
+	if !strings.Contains(src[connectionStringIdx:connectionStringIdx+250], "Sensitive:   true") {
+		t.Fatal("connection_string leaf should be emitted as Sensitive")
+	}
+}

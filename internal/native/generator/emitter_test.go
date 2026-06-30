@@ -38,6 +38,9 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 	if !strings.Contains(source, `"location"`) {
 		t.Error("missing location attribute")
 	}
+	if !strings.Contains(source, "nativeschema.UseStateForEquivalentLocation()") {
+		t.Error("missing location semantic equality plan modifier")
+	}
 	if !strings.Contains(source, `"properties"`) {
 		t.Error("missing properties attribute")
 	}

@@ -111,6 +111,67 @@ func TestRoundTripStorageAccount(t *testing.T) {
 	}
 }
 
+func TestFlattenIntoPreservesEquivalentLocationBase(t *testing.T) {
+	ctx := context.Background()
+	body := loadStorageBody(t)
+	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+
+	planObj, diags := Flatten(ctx, map[string]interface{}{
+		"kind":     "StorageV2",
+		"location": "eastus2",
+		"sku":      map[string]interface{}{"name": "Standard_LRS"},
+	}, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten plan diags: %v", diags)
+	}
+
+	stateObj, diags := FlattenInto(ctx, map[string]interface{}{
+		"kind":     "StorageV2",
+		"location": "East US 2",
+		"sku":      map[string]interface{}{"name": "Standard_LRS"},
+	}, planObj, body)
+	if diags.HasError() {
+		t.Fatalf("FlattenInto diags: %v", diags)
+	}
+
+	location, ok := stateObj.Attributes()["location"].(types.String)
+	if !ok {
+		t.Fatalf("location = %T, want types.String", stateObj.Attributes()["location"])
+	}
+	if got := location.ValueString(); got != "eastus2" {
+		t.Fatalf("location = %q, want planned canonical value eastus2", got)
+	}
+}
+
+func TestFlattenIntoOverwritesDifferentLocation(t *testing.T) {
+	ctx := context.Background()
+	body := loadStorageBody(t)
+	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+
+	baseObj, diags := Flatten(ctx, map[string]interface{}{
+		"kind":     "StorageV2",
+		"location": "westus2",
+		"sku":      map[string]interface{}{"name": "Standard_LRS"},
+	}, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten base diags: %v", diags)
+	}
+
+	stateObj, diags := FlattenInto(ctx, map[string]interface{}{
+		"kind":     "StorageV2",
+		"location": "East US 2",
+		"sku":      map[string]interface{}{"name": "Standard_LRS"},
+	}, baseObj, body)
+	if diags.HasError() {
+		t.Fatalf("FlattenInto diags: %v", diags)
+	}
+
+	location := stateObj.Attributes()["location"].(types.String)
+	if got := location.ValueString(); got != "East US 2" {
+		t.Fatalf("location = %q, want response value East US 2", got)
+	}
+}
+
 func TestExpandSkipsNullAndUnknown(t *testing.T) {
 	ctx := context.Background()
 	body := loadStorageBody(t)
@@ -278,6 +339,117 @@ func TestFlattenIntoPreservesNestedOmitted(t *testing.T) {
 	days := cdrp.Attributes()["days"].(types.Int64)
 	if days.IsNull() || days.ValueInt64() != 5 {
 		t.Errorf("container_delete_retention_policy.days: got %v, want 5 (overwritten)", days)
+	}
+}
+
+func TestFlattenApplyIntoPreservesKnownWebSiteCompleteValues(t *testing.T) {
+	ctx := context.Background()
+	body := loadBody(t, "Microsoft.Web/sites")
+	objType := generated.Registry["azapi_web_site"].Schema().Type().(basetypes.ObjectType)
+	serverFarmID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Web/serverfarms/plan"
+
+	planObj, diags := Flatten(ctx, map[string]interface{}{
+		"kind":     "app",
+		"location": "eastus2",
+		"properties": map[string]interface{}{
+			"serverFarmId":          serverFarmID,
+			"clientAffinityEnabled": false,
+			"clientCertEnabled":     false,
+			"clientCertMode":        "Required",
+			"enabled":               true,
+			"httpsOnly":             true,
+			"publicNetworkAccess":   "Enabled",
+			"siteConfig": map[string]interface{}{
+				"ftpsState":        "Disabled",
+				"http20Enabled":    false,
+				"minTlsVersion":    "1.2",
+				"scmMinTlsVersion": "1.2",
+			},
+		},
+	}, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten plan diags: %v", diags)
+	}
+
+	stateObj, diags := FlattenApplyInto(ctx, map[string]interface{}{
+		"kind":     "app,linux",
+		"location": "East US 2",
+		"properties": map[string]interface{}{
+			"serverFarmId":          serverFarmID + "-echo",
+			"clientAffinityEnabled": true,
+			"clientCertEnabled":     true,
+			"clientCertMode":        "Optional",
+			"enabled":               false,
+			"httpsOnly":             false,
+			"publicNetworkAccess":   "Disabled",
+			"siteConfig": map[string]interface{}{
+				"ftpsState":        "AllAllowed",
+				"http20Enabled":    true,
+				"minTlsVersion":    "1.3",
+				"scmMinTlsVersion": "1.3",
+			},
+		},
+	}, planObj, body)
+	if diags.HasError() {
+		t.Fatalf("FlattenApplyInto diags: %v", diags)
+	}
+
+	attrs := stateObj.Attributes()
+	if got := attrs["kind"].(types.String).ValueString(); got != "app" {
+		t.Fatalf("kind = %q, want planned value app", got)
+	}
+	props := attrs["properties"].(types.Object)
+	propAttrs := props.Attributes()
+	if got := propAttrs["server_farm_id"].(types.String).ValueString(); got != serverFarmID {
+		t.Fatalf("server_farm_id = %q, want planned value", got)
+	}
+	if got := propAttrs["client_affinity_enabled"].(types.Bool).ValueBool(); got != false {
+		t.Fatalf("client_affinity_enabled = %t, want planned false", got)
+	}
+	if got := propAttrs["client_cert_mode"].(types.String).ValueString(); got != "Required" {
+		t.Fatalf("client_cert_mode = %q, want planned Required", got)
+	}
+	siteConfig := propAttrs["site_config"].(types.Object)
+	if got := siteConfig.Attributes()["ftps_state"].(types.String).ValueString(); got != "Disabled" {
+		t.Fatalf("site_config.ftps_state = %q, want planned Disabled", got)
+	}
+}
+
+func TestFlattenIntoPreservesSensitiveWebSiteConfig(t *testing.T) {
+	ctx := context.Background()
+	body := loadBody(t, "Microsoft.Web/sites")
+	objType := generated.Registry["azapi_web_site"].Schema().Type().(basetypes.ObjectType)
+
+	planObj, diags := Flatten(ctx, map[string]interface{}{
+		"kind":     "app",
+		"location": "eastus2",
+		"properties": map[string]interface{}{
+			"serverFarmId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Web/serverfarms/plan",
+		},
+	}, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten plan diags: %v", diags)
+	}
+
+	stateObj, diags := FlattenInto(ctx, map[string]interface{}{
+		"kind":     "app",
+		"location": "East US 2",
+		"properties": map[string]interface{}{
+			"serverFarmId": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Web/serverfarms/plan",
+			"siteConfig": map[string]interface{}{
+				"ftpsState":     "AllAllowed",
+				"http20Enabled": true,
+			},
+		},
+	}, planObj, body)
+	if diags.HasError() {
+		t.Fatalf("FlattenInto diags: %v", diags)
+	}
+
+	props := stateObj.Attributes()["properties"].(types.Object)
+	siteConfig := props.Attributes()["site_config"].(types.Object)
+	if !siteConfig.IsNull() {
+		t.Fatalf("site_config = %s, want preserved null because it is sensitive/write-only", siteConfig.String())
 	}
 }
 

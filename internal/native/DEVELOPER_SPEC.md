@@ -279,7 +279,7 @@ type Property struct {
     DefaultValue string                 // description-mined or azwise-verified
     Validators   []DescriptionValidator // ARM-ID / regex / range / OneOf / length / custom / shared
     ForceNew      bool        // azwise overlay → RequiresReplace
-    Sensitive     bool        // azwise overlay → Sensitive: true
+    Sensitive     bool        // azwise SensitiveFields leaf overlay → Sensitive: true
     ForceComputed bool        // azwise overlay → Computed-only
 }
 ```

@@ -162,6 +162,16 @@ func validateType(tfAttr schema.Attribute, bicepProp *generator.Property, path s
 		if bt.Kind != generator.KindArray {
 			mismatches = append(mismatches, typeMismatch(path, bicepProp, "ListAttribute", bt))
 		}
+	case schema.MapNestedAttribute:
+		if bt.Kind != generator.KindMap {
+			mismatches = append(mismatches, typeMismatch(path, bicepProp, "MapNestedAttribute", bt))
+		} else if bt.ElementType != nil && bt.ElementType.Kind == generator.KindObject {
+			mismatches = append(mismatches, validateObject(attr.NestedObject.Attributes, bt.ElementType, path)...)
+		}
+	case schema.MapAttribute:
+		if bt.Kind != generator.KindMap {
+			mismatches = append(mismatches, typeMismatch(path, bicepProp, "MapAttribute", bt))
+		}
 	case schema.DynamicAttribute:
 		// Dynamic accepts anything
 	}
@@ -174,7 +184,12 @@ func isStringCompat(t *generator.Type) bool {
 	case generator.KindString, generator.KindStringLiteral:
 		return true
 	case generator.KindUnion:
-		return t.IsEnum()
+		// The generator emits enum unions and non-enum unions as StringAttribute.
+		return true
+	case generator.KindAny, generator.KindMap:
+		// Dynamic/Map cannot be nested inside collection elements in the framework;
+		// the emitter intentionally degrades those shapes to StringAttribute there.
+		return true
 	default:
 		return false
 	}
@@ -210,6 +225,8 @@ func bicepDesc(t *generator.Type) string {
 		return "Union"
 	case generator.KindAny:
 		return "Any"
+	case generator.KindMap:
+		return "Map"
 	default:
 		return fmt.Sprintf("Unknown(%d)", t.Kind)
 	}

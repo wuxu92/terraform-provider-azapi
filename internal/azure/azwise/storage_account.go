@@ -25,7 +25,7 @@ func (s *StorageAccount) CheckForceNew(oldBody, newBody map[string]interface{}) 
 		return false
 	}
 	zonal := map[string]bool{
-		"STANDARD_ZRS":     true,
+		"STANDARD_ZRS":    true,
 		"STANDARD_GZRS":   true,
 		"STANDARD_RAGZRS": true,
 	}

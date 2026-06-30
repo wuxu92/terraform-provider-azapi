@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
-
 // ---------------------------------------------------------------------------
 // Interface
 // ---------------------------------------------------------------------------
@@ -248,7 +247,7 @@ type BaseKnowledge struct {
 	RequiredFields []string
 }
 
-func (b *BaseKnowledge) GetResourceType() string         { return b.ResourceType }
+func (b *BaseKnowledge) GetResourceType() string          { return b.ResourceType }
 func (b *BaseKnowledge) GetApiVersions() []string         { return b.ApiVersions }
 func (b *BaseKnowledge) IsSoftDelete() bool               { return b.SoftDelete }
 func (b *BaseKnowledge) GetComputedFields() []string      { return b.ComputedFields }

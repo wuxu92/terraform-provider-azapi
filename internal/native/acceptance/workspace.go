@@ -1,12 +1,17 @@
 package nativeacc
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/Azure/terraform-provider-azapi/internal/acceptance"
 	"github.com/Azure/terraform-provider-azapi/internal/azure/location"
@@ -89,9 +94,21 @@ func (w *Workspace) Scope() *Scope {
 
 // providerConfig configures the in-process azapi provider; credentials are read
 // from the standard ARM_* environment variables.
-const providerConfig = `provider "azapi" {
+const providerConfig = `terraform {
+  required_providers {
+	azapi = {
+	  source  = "azure/azapi"
+	}
+  }
+}
+
+provider "azapi" {
 }
 `
+
+const dumpTFConfigEnv = "GINKGO_DUMP_TF_CONFIG"
+const dumpTFConfigFileEnv = "GINKGO_DUMP_TF_CONFIG_FILE"
+const dumpTFConfigOnlyEnv = "GINKGO_DUMP_TF_CONFIG_ONLY"
 
 // Start provisions the shared base resources. Intended for BeforeAll. It skips the
 // whole Describe when the acceptance preconditions are unmet.
@@ -158,6 +175,9 @@ func (w *Workspace) Destroy() {
 	if !w.started || w.tf == nil {
 		return
 	}
+	if dumpTFConfigOnlyEnabled() {
+		return
+	}
 
 	gomega.Expect(w.tf.Destroy(context.Background(), tfexec.Reattach(w.reattach))).
 		NotTo(gomega.HaveOccurred(), "terraform destroy")
@@ -176,6 +196,92 @@ func (w *Workspace) Destroy() {
 func (w *Workspace) writeFile(name, content string) {
 	gomega.Expect(os.WriteFile(filepath.Join(w.dir, name), []byte(content), 0o600)).
 		NotTo(gomega.HaveOccurred(), "writing %s", name)
+}
+
+func (w *Workspace) dumpTFConfigIfEnabled(reason string) {
+	if !dumpTFConfigEnabled() || w.dir == "" {
+		return
+	}
+	dump, err := w.tfConfigDump(reason)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "\n# ===== Terraform config dump failed (%s): %v =====\n", reason, err)
+		return
+	}
+	if path := strings.TrimSpace(os.Getenv(dumpTFConfigFileEnv)); path != "" {
+		if err := writeTFConfigDumpFile(path, dump); err != nil {
+			fmt.Fprintf(os.Stderr, "\n# ===== Terraform config dump write failed (%s): %v =====\n", reason, err)
+		}
+		return
+	}
+	fmt.Fprint(os.Stderr, dump)
+}
+
+func dumpTFConfigEnabled() bool {
+	return envBool(dumpTFConfigEnv) || dumpTFConfigOnlyEnabled()
+}
+
+func dumpTFConfigOnlyEnabled() bool {
+	return envBool(dumpTFConfigOnlyEnv)
+}
+
+func envBool(name string) bool {
+	val := strings.TrimSpace(os.Getenv(name))
+	if val == "" {
+		return false
+	}
+	enabled, err := strconv.ParseBool(val)
+	return err == nil && enabled
+}
+
+func writeTFConfigDumpFile(path, dump string) error {
+	if dir := filepath.Dir(path); dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(dump)
+	return err
+}
+
+func (w *Workspace) tfConfigDump(reason string) (string, error) {
+	entries, err := os.ReadDir(w.dir)
+	if err != nil {
+		return "", err
+	}
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".tf") {
+			continue
+		}
+		names = append(names, entry.Name())
+	}
+	sort.Strings(names)
+
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "\n# ===== BEGIN Terraform config dump: %s =====\n", reason)
+	fmt.Fprintf(&buf, "# Workspace: %s\n", w.dir)
+	if len(names) == 0 {
+		buf.WriteString("# No .tf files present.\n")
+	}
+	for _, name := range names {
+		content, err := os.ReadFile(filepath.Join(w.dir, name))
+		if err != nil {
+			return "", err
+		}
+		fmt.Fprintf(&buf, "\n# ----- %s -----\n", name)
+		buf.Write(content)
+		if len(content) == 0 || content[len(content)-1] != '\n' {
+			buf.WriteByte('\n')
+		}
+	}
+	fmt.Fprintf(&buf, "# ===== END Terraform config dump: %s =====\n", reason)
+	return buf.String(), nil
 }
 
 func (w *Workspace) render(tpl string) string { return render(tpl, w.tmplData()) }

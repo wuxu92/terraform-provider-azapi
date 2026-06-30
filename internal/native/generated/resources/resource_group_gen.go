@@ -5,12 +5,15 @@ import (
 	"regexp"
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
+	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // AzapiResourceGroupSchema returns the Terraform resource schema for Microsoft.Resources/resourceGroups@2025-04-01.
@@ -22,6 +25,7 @@ func AzapiResourceGroupSchema() schema.Schema {
 				Description: "The location of the resource group. It cannot be changed after the resource group has been created. It must be one of the supported Azure locations.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
+					nativeschema.UseStateForEquivalentLocation(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
@@ -52,14 +56,14 @@ func AzapiResourceGroupSchema() schema.Schema {
 					},
 				},
 			},
-			"tags": schema.SingleNestedAttribute{
+			"tags": schema.MapAttribute{
 				Description: "The tags attached to the resource group.",
 				Optional:    true,
 				Computed:    true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
+				PlanModifiers: []planmodifier.Map{
+					mapplanmodifier.UseStateForUnknown(),
 				},
-				Attributes: map[string]schema.Attribute{},
+				ElementType: types.StringType,
 			},
 			"name": schema.StringAttribute{
 				Required:      true,
@@ -93,10 +97,7 @@ func AzapiResourceGroupSchema() schema.Schema {
 	}
 }
 
-// ResourceGroup is the static description of the azapi_resource_group resource: its
-// Terraform name, ARM type, API version, and body schema. It is the single source
-// of truth for those values (referenced as ResourceGroup.Name from the config builder)
-// and is registered at init.
+// ResourceGroup describes azapi_resource_group for registration and config builders.
 var ResourceGroup = generated.Descriptor{
 	Name:           "azapi_resource_group",
 	ARMType:        "Microsoft.Resources/resourceGroups",

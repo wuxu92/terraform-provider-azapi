@@ -1,7 +1,10 @@
 package nativeacc
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,11 +75,13 @@ func applyAll(w *Workspace, staged []Staged) {
 		addrs[i] = s.r.address()
 	}
 	label := strings.Join(addrs, ", ")
+	w.dumpTFConfigIfEnabled("before terraform apply (" + label + ")")
+	if dumpTFConfigOnlyEnabled() {
+		return
+	}
 	gomega.Expect(w.tf.Apply(ctx, tfexec.Reattach(w.reattach))).
 		NotTo(gomega.HaveOccurred(), "terraform apply (%s)", label)
-	hasChanges, err := w.tf.Plan(ctx, tfexec.Reattach(w.reattach))
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "plan after apply (%s)", label)
-	gomega.Expect(hasChanges).To(gomega.BeFalse(), "plan after apply shows drift for %s", label)
+	expectNoPlanDrift(ctx, w, label, "plan after apply")
 	for _, s := range staged {
 		s.r.verify(s.checks, true)
 	}
@@ -86,6 +91,9 @@ func applyAll(w *Workspace, staged []Staged) {
 // Use it in an It that asserts a facet of a resource provisioned in the container's
 // BeforeAll.
 func (r *Resource) Check(checks ...Check) *Resource {
+	if dumpTFConfigOnlyEnabled() {
+		return r
+	}
 	r.verify(checks, false)
 	return r
 }
@@ -97,6 +105,9 @@ func (r *Resource) Check(checks ...Check) *Resource {
 // step) — never in a separate It, which would silently depend on another spec having
 // applied the resource first.
 func (r *Resource) ImportVerify() *Resource {
+	if dumpTFConfigOnlyEnabled() {
+		return r
+	}
 	ctx := context.Background()
 	id := r.currentID()
 	gomega.Expect(id).NotTo(gomega.BeEmpty(), "resource %s has no id to import", r.address())
@@ -106,9 +117,7 @@ func (r *Resource) ImportVerify() *Resource {
 	gomega.Expect(r.scope.ws.tf.Import(ctx, r.address(), id, tfexec.Reattach(r.scope.ws.reattach))).
 		NotTo(gomega.HaveOccurred(), "import %s", r.address())
 
-	hasChanges, err := r.scope.ws.tf.Plan(ctx, tfexec.Reattach(r.scope.ws.reattach))
-	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "plan after import")
-	gomega.Expect(hasChanges).To(gomega.BeFalse(), "plan after import shows drift for %s", r.address())
+	expectNoPlanDrift(ctx, r.scope.ws, r.address(), "plan after import")
 	return r
 }
 
@@ -122,6 +131,10 @@ func (r *Resource) ApplyExpectError(config Configure, errRegex string) {
 	// Remove the config even if an assertion below fails (gomega panics on failure),
 	// so a regressed negative case cannot leave an invalid .tf that poisons teardown.
 	defer func() { _ = os.Remove(filepath.Join(r.scope.ws.dir, resourceFileName(r.address()))) }()
+	r.scope.ws.dumpTFConfigIfEnabled("before terraform plan expecting error (" + r.address() + ")")
+	if dumpTFConfigOnlyEnabled() {
+		return
+	}
 	_, err := r.scope.ws.tf.Plan(context.Background(), tfexec.Reattach(r.scope.ws.reattach))
 	gomega.Expect(err).To(gomega.HaveOccurred(), "expected plan to fail for %s", r.address())
 	gomega.Expect(err.Error()).To(gomega.MatchRegexp(errRegex))
@@ -175,6 +188,67 @@ func (r *Resource) stateResource() *tfjson.StateResource {
 		}
 	}
 	return nil
+}
+
+func expectNoPlanDrift(ctx context.Context, w *Workspace, label, operation string) {
+	var planJSON bytes.Buffer
+	w.tf.SetStdout(&planJSON)
+	// defer w.tf.SetStdout(os.Stdout)
+	hasChanges, err := w.tf.Plan(ctx, tfexec.Reattach(w.reattach))
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "%s (%s)", operation, label)
+	gomega.Expect(hasChanges).To(gomega.BeFalse(), "%s shows drift for %s\n%s", operation, label, formatPlanJSONDrift(planJSON.String()))
+}
+
+func formatPlanJSONDrift(output string) string {
+	lines := strings.Split(output, "\n")
+	summary := make([]string, 0)
+	diagnostics := make([]string, 0)
+	changes := make([]string, 0)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var msg map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			continue
+		}
+		switch msg["type"] {
+		case "change_summary":
+			if c, ok := msg["changes"].(map[string]interface{}); ok {
+				summary = append(summary, fmt.Sprintf("change summary: add=%v change=%v remove=%v operation=%v", c["add"], c["change"], c["remove"], msg["operation"]))
+			}
+		case "planned_change", "resource_drift":
+			if c, ok := msg["change"].(map[string]interface{}); ok {
+				addr := "<unknown>"
+				if r, ok := c["resource"].(map[string]interface{}); ok {
+					if v, ok := r["addr"].(string); ok && v != "" {
+						addr = v
+					}
+				}
+				action := c["action"]
+				if actions, ok := c["actions"]; ok {
+					action = actions
+				}
+				changes = append(changes, fmt.Sprintf("%s: %s action=%v reason=%v", msg["type"], addr, action, c["reason"]))
+			}
+		case "diagnostic":
+			if d, ok := msg["diagnostic"].(map[string]interface{}); ok {
+				diagnostics = append(diagnostics, fmt.Sprintf("diagnostic: severity=%v summary=%v detail=%v", d["severity"], d["summary"], d["detail"]))
+			}
+		}
+	}
+
+	parts := make([]string, 0, 4)
+	parts = append(parts, summary...)
+	parts = append(parts, changes...)
+	parts = append(parts, diagnostics...)
+	if len(parts) == 0 {
+		return "Terraform plan JSON contained changes but no parsed drift details. Raw output:\n" + output
+	}
+	parts = append(parts, "raw terraform plan JSON:", output)
+	return strings.Join(parts, "\n")
 }
 
 func (r *Resource) address() string { return r.tfType + "." + r.label }

@@ -19,6 +19,7 @@ func extractNestedValue(m map[string]interface{}, path string) interface{} {
 	}
 	return current
 }
+
 // extractAllValues traverses a map using a dot-separated path that may contain
 // "[*]" segments for array iteration, returning all leaf values found.
 //

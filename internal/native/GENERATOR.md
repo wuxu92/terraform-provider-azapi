@@ -85,9 +85,9 @@ If the property is neither Required nor ReadOnly, it is `Optional: true, Compute
 
 When a known default value is available (from description extraction, azwise, or a customizer), the property is emitted as `Optional: true, Computed: true` with a `Default` (see Rule 8). The framework **requires** `Computed` whenever a `Default` is set — `Default` is a state value, not a plan modifier, and a non-`Computed` `Default` is rejected at provider startup. What the default *does* replace is the Rule 3 `UseStateForUnknown` safe-default modifier, which is omitted for default-bearing attributes.
 
-**Rule 4: WriteOnly properties → `Sensitive: true`**
+**Rule 4: WriteOnly properties stay normal Optional+Computed attributes**
 
-If bit 2 is set, the property is accepted in PUT but never returned in GET. These map to `Sensitive: true` in Terraform.
+If bit 2 is set, the property is accepted in PUT but may be omitted from ordinary GET responses. Do **not** map this to Terraform `Sensitive`: framework sensitivity is a UI redaction/state-display concern, not a mutability or read-back rule. Secret redaction comes only from azwise `SensitiveFields` leaf paths. Runtime flattening preserves write-only values across read/apply when ARM omits or echoes them in an incompatible form.
 
 **Rule 5: SystemManaged properties → skipped entirely**
 

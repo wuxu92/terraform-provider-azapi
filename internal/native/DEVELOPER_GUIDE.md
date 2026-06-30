@@ -311,6 +311,15 @@ Three surfaces (model on storage account / blob service):
 | azwise overlay | `generator/azwise_overlay_test.go` (`TestApplyAzwiseBlobService`) | the overlay baked into the live-parsed body |
 | Acceptance | `generated/<service>/<resource>_test.go` (a `Describe`) + `<resource>_config.go` (a `<Resource>Cfg` config builder) | live create/read/update against Azure |
 
+**Native dependency rule (hard stop).** Acceptance configs for native resources must
+depend only on other native generated resources. If a scenario needs a prerequisite ARM
+resource and `generated.Registry`/`internal/native/generated/<service>` has no native
+descriptor for it, stop the workflow: print a clear error naming the missing ARM type
+and terminate generation/development for that resource until the dependency is added.
+Never hide a missing native dependency by embedding generic `azapi_resource` HCL in a
+native acceptance config; add the dependency as its own native target first, then use
+its typed `<Dependency>Cfg` and `scope.ResourceFor` handle.
+
 **Config builders** live in `<resource>_config.go` beside the schema. Split address
 metadata from scenario HCL:
 

@@ -97,6 +97,8 @@ Where:
 | `Microsoft.Resources/resourceGroups` | `azapi_resource_group` |
 | `Microsoft.KeyVault/vaults` | `azapi_keyvault_vault` |
 | `Microsoft.KeyVault/vaults/keys` | `azapi_keyvault_vault_key` |
+| `Microsoft.Web/serverfarms` | `azapi_web_server_farm` |
+| `Microsoft.Web/sites` | `azapi_web_site` |
 | `Microsoft.Network/virtualNetworks` | `azapi_network_virtual_network` |
 | `Microsoft.Network/virtualNetworks/subnets` | `azapi_network_virtual_network_subnet` |
 | `Microsoft.Network/networkSecurityGroups` | `azapi_network_security_group` |
@@ -149,7 +151,7 @@ See GENERATOR.md for the full 17-rule specification. Key behaviors:
 | Default value extracted from description | `Optional: true` + `Default: staticValue` |
 | Single optional child in a block | Promoted to `Required` |
 | Default (non-Required, non-ReadOnly) | `Optional: true, Computed: true` (safe default) |
-| Bicep `WriteOnly` flag | `Sensitive: true` |
+| Bicep `WriteOnly` flag | Normal `Optional: true, Computed: true`; preserved by mapper, not `Sensitive` |
 | Enum type (settable) | `stringvalidator.OneOf(...)` |
 | ARM resource ID in description | `stringvalidator.RegexMatches(...)` |
 | Numeric range in description | `int64validator.Between/AtLeast/AtMost` |
@@ -187,7 +189,7 @@ Generate all 2,631 stable resource types. Ship alongside `azapi_resource`.
 | Post-processing | ✓ Complete | `generator/postprocess.go` |
 | Schema emitter | ✓ Complete | `generator/emitter.go`, `emitter_test.go` |
 | Runtime defaults | ✓ Complete | `schema/defaults.go` |
-| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group` | `generated/{storage,resources}/*_gen.go` |
+| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site` | `generated/{storage,resources,web}/*_gen.go` |
 | Generator command | ✓ Working | `generator/cmd/generate_poc.go` |
 | CRUD methods | ✓ Complete | `resource/base.go`, `mapper/mapper.go` |
 | Provider registration | ✓ Complete | `internal/provider/provider.go` (iterates `generated.Registry`) |

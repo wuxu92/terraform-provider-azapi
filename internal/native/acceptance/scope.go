@@ -121,6 +121,13 @@ func (s *Scope) Teardown() {
 	for _, address := range s.owned {
 		_ = os.Remove(filepath.Join(s.ws.dir, resourceFileName(address)))
 	}
+	s.ws.dumpTFConfigIfEnabled("before scoped teardown apply")
+	if dumpTFConfigOnlyEnabled() {
+		s.owned = nil
+		s.ownedBy = nil
+		s.tracked = nil
+		return
+	}
 	// Re-apply the remaining config: Terraform destroys the resources whose files we
 	// just removed and no-ops everything still present (ancestor / sibling scopes).
 	gomega.Expect(s.ws.tf.Apply(context.Background(), tfexec.Reattach(s.ws.reattach))).

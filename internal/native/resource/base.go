@@ -261,7 +261,7 @@ func (b *Base) put(ctx context.Context, planObj types.Object, isNew bool, to tim
 		return
 	}
 
-	stateObj, fdiags := mapper.FlattenInto(ctx, hc.Response, planObj, bt)
+	stateObj, fdiags := mapper.FlattenApplyInto(ctx, hc.Response, planObj, bt)
 	if diags.Append(fdiags...); diags.HasError() {
 		return
 	}

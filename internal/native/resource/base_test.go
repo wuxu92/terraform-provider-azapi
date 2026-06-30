@@ -136,6 +136,76 @@ func TestResourceGroupSchemaComposition(t *testing.T) {
 	}
 }
 
+func TestWebServerFarmSchemaComposition(t *testing.T) {
+	ctx := context.Background()
+	r := New("azapi_web_server_farm")
+
+	mdResp := &resource.MetadataResponse{}
+	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
+	if mdResp.TypeName != "azapi_web_server_farm" {
+		t.Errorf("TypeName = %q, want azapi_web_server_farm", mdResp.TypeName)
+	}
+
+	schemaResp := &resource.SchemaResponse{}
+	r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+	if diags := s.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("schema validation failed: %v", diags)
+	}
+
+	for _, name := range []string{"name", "resource_group_id", "id"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing envelope attribute %q", name)
+		}
+	}
+	if _, ok := s.Attributes["parent_id"]; ok {
+		t.Error("web server farm should expose resource_group_id, not the generic parent_id")
+	}
+	if _, ok := s.Blocks["timeouts"]; !ok {
+		t.Error("missing timeouts block")
+	}
+	for _, name := range []string{"location", "kind", "sku", "properties", "identity", "tags"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing body attribute %q", name)
+		}
+	}
+}
+
+func TestWebSiteSchemaComposition(t *testing.T) {
+	ctx := context.Background()
+	r := New("azapi_web_site")
+
+	mdResp := &resource.MetadataResponse{}
+	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
+	if mdResp.TypeName != "azapi_web_site" {
+		t.Errorf("TypeName = %q, want azapi_web_site", mdResp.TypeName)
+	}
+
+	schemaResp := &resource.SchemaResponse{}
+	r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+	if diags := s.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("schema validation failed: %v", diags)
+	}
+
+	for _, name := range []string{"name", "resource_group_id", "id"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing envelope attribute %q", name)
+		}
+	}
+	if _, ok := s.Attributes["parent_id"]; ok {
+		t.Error("web site should expose resource_group_id, not the generic parent_id")
+	}
+	if _, ok := s.Blocks["timeouts"]; !ok {
+		t.Error("missing timeouts block")
+	}
+	for _, name := range []string{"location", "kind", "properties", "identity", "tags"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing body attribute %q", name)
+		}
+	}
+}
+
 func TestInterfaceAssertions(t *testing.T) {
 	r := New("azapi_storage_account")
 	if _, ok := r.(resource.ResourceWithConfigure); !ok {

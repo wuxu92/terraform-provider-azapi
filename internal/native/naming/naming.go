@@ -167,11 +167,12 @@ var noSingularize = map[string]bool{
 
 // irregularPlurals maps irregular plural forms to their singular
 var irregularPlurals = map[string]string{
-	"databases":  "database",
-	"namespaces": "namespace",
-	"addresses":  "address",
-	"statuses":   "status",
-	"indices":    "index",
+	"databases":   "database",
+	"namespaces":  "namespace",
+	"addresses":   "address",
+	"statuses":    "status",
+	"serverfarms": "server_farm",
+	"indices":     "index",
 }
 
 func singularize(s string) string {

@@ -45,3 +45,15 @@ func latestResourceGroupDefs(t *testing.T) ([]*ResourceDefinition, string) {
 	t.Helper()
 	return latestStableDefs(t, "Microsoft.Resources/resourceGroups")
 }
+
+// latestWebServerFarmDefs returns the Web server farm defs for the latest stable API version.
+func latestWebServerFarmDefs(t *testing.T) ([]*ResourceDefinition, string) {
+	t.Helper()
+	return latestStableDefs(t, "Microsoft.Web/serverfarms")
+}
+
+// latestWebSiteDefs returns the Web site defs for the latest stable API version.
+func latestWebSiteDefs(t *testing.T) ([]*ResourceDefinition, string) {
+	t.Helper()
+	return latestStableDefs(t, "Microsoft.Web/sites")
+}

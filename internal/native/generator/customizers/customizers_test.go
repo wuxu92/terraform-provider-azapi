@@ -183,3 +183,67 @@ func TestBlobServiceCustomizerMarksServerPopulatedFields(t *testing.T) {
 		t.Error("restore_policy.last_enabled_time must keep the default UseStateForUnknown")
 	}
 }
+
+func TestWebServerFarmCustomizerAddsNameIDAndSkuRules(t *testing.T) {
+	def := &generator.ResourceDefinition{
+		Name:           "Microsoft.Web/serverfarms@2025-03-01",
+		WritableScopes: naming.ScopeResourceGroup,
+		Body: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+			"sku": {Name: "sku", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+				"name": {Name: "name", Type: &generator.Type{Kind: generator.KindString}},
+			}}},
+			"properties": {Name: "properties", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+				"hostingEnvironmentProfile": {Name: "hostingEnvironmentProfile", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+					"id": {Name: "id", Type: &generator.Type{Kind: generator.KindString}},
+				}}},
+			}}},
+		}},
+	}
+	generator.PostProcess([]*generator.ResourceDefinition{def})
+	customizeWebServerFarm(def)
+
+	if got := len(def.Envelope.Name.Validators); got != 2 {
+		t.Fatalf("name validators = %d, want 2", got)
+	}
+	if p := generator.FindProperty(def, "sku"); !p.Flags.IsRequired() {
+		t.Fatal("sku should be required by customizer")
+	}
+	if p := generator.FindProperty(def, "sku.name"); !p.Flags.IsRequired() {
+		t.Fatal("sku.name should be required by customizer")
+	}
+	p := generator.FindProperty(def, "properties.hostingEnvironmentProfile.id")
+	hasSharedID := false
+	for _, v := range p.Validators {
+		if v.Kind == generator.ValidatorShared && v.Call == "AzureResourceID()" {
+			hasSharedID = true
+		}
+	}
+	if !hasSharedID {
+		t.Fatalf("ASE ID validators = %#v, want AzureResourceID shared validator", p.Validators)
+	}
+}
+
+func TestWebSiteCustomizerAddsNameAndIDValidators(t *testing.T) {
+	def := &generator.ResourceDefinition{
+		Name:           "Microsoft.Web/sites@2025-03-01",
+		WritableScopes: naming.ScopeResourceGroup,
+		Body: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+			"properties": {Name: "properties", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+				"serverFarmId":           {Name: "serverFarmId", Type: &generator.Type{Kind: generator.KindString}},
+				"virtualNetworkSubnetId": {Name: "virtualNetworkSubnetId", Type: &generator.Type{Kind: generator.KindString}},
+			}}},
+		}},
+	}
+	generator.PostProcess([]*generator.ResourceDefinition{def})
+	customizeWebSite(def)
+
+	if got := len(def.Envelope.Name.Validators); got != 2 {
+		t.Fatalf("name validators = %d, want 2", got)
+	}
+	for _, path := range []string{"properties.serverFarmId", "properties.virtualNetworkSubnetId"} {
+		p := generator.FindProperty(def, path)
+		if len(p.Validators) != 1 || p.Validators[0].Kind != generator.ValidatorShared || p.Validators[0].Call != "AzureResourceID()" {
+			t.Fatalf("%s validators = %#v, want AzureResourceID shared validator", path, p.Validators)
+		}
+	}
+}

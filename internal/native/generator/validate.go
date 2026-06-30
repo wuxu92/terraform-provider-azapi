@@ -153,42 +153,30 @@ var attrNameInSource = regexp.MustCompile(`"([a-z][a-z0-9_]*)"\s*:\s*schema\.\w+
 func extractEmittedPaths(source string) map[string]bool {
 	paths := make(map[string]bool)
 
-	// Track nesting via brace depth. Each `"name": schema.XxxAttribute{`
-	// or `"name": schema.XxxNestedAttribute{` opens a new scope.
+	// Track nesting from gofmt indentation instead of brace depth. Attribute
+	// blocks contain validators, plan modifiers, and descriptions whose braces do
+	// not define schema hierarchy; indentation does.
 	type scope struct {
-		path  string
-		depth int // brace depth when this scope was entered
+		path   string
+		indent int
 	}
 
 	var stack []scope
-	braceDepth := 0
 
 	lines := strings.Split(source, "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// Count braces on this line (outside strings)
-		for _, ch := range trimmed {
-			switch ch {
-			case '{':
-				braceDepth++
-			case '}':
-				braceDepth--
-				// Pop scopes that have closed
-				for len(stack) > 0 && braceDepth <= stack[len(stack)-1].depth {
-					stack = stack[:len(stack)-1]
-				}
-			}
-		}
-
-		// Check for attribute declaration
 		m := attrNameInSource.FindStringSubmatch(trimmed)
 		if m == nil {
 			continue
 		}
 		attrName := m[1]
+		indent := len(line) - len(strings.TrimLeft(line, "\t "))
+		for len(stack) > 0 && indent <= stack[len(stack)-1].indent {
+			stack = stack[:len(stack)-1]
+		}
 
-		// Build the full path from the scope stack
 		var parentPath string
 		if len(stack) > 0 {
 			parentPath = stack[len(stack)-1].path
@@ -196,10 +184,8 @@ func extractEmittedPaths(source string) map[string]bool {
 		fullPath := joinPath(parentPath, attrName)
 		paths[fullPath] = true
 
-		// If this line opens a nested scope (contains `Attribute{` and the brace
-		// is still open), push onto the stack
-		if strings.Contains(trimmed, "Attribute{") || strings.Contains(trimmed, "Attribute {") {
-			stack = append(stack, scope{path: fullPath, depth: braceDepth - 1})
+		if strings.Contains(trimmed, "schema.SingleNestedAttribute{") || strings.Contains(trimmed, "schema.ListNestedAttribute{") || strings.Contains(trimmed, "schema.MapNestedAttribute{") {
+			stack = append(stack, scope{path: fullPath, indent: indent})
 		}
 	}
 

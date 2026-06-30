@@ -20,8 +20,8 @@ func NewKeyVaultKey() *KeyVaultKey {
 			ResourceType: "Microsoft.KeyVault/vaults/keys",
 			ForceNew: []ForceNewRule{
 				{PropertyPath: "name"},
-				{PropertyPath: "properties.kty"},     // key_type → kty in ARM
-				{PropertyPath: "properties.keySize"},  // key_size → keySize in ARM
+				{PropertyPath: "properties.kty"},       // key_type → kty in ARM
+				{PropertyPath: "properties.keySize"},   // key_size → keySize in ARM
 				{PropertyPath: "properties.curveName"}, // curve → curveName in ARM
 			},
 			SoftDelete: true, // keys inherit vault soft-delete; purge via PurgeSoftDeletedKeysOnDestroy feature flag

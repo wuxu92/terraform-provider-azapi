@@ -10,4 +10,5 @@ package all
 import (
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/resources"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/storage"
+	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/web"
 )

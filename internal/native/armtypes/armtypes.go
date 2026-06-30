@@ -20,4 +20,12 @@ const (
 	// ResourceGroup is Microsoft.Resources/resourceGroups, a subscription-scoped
 	// top-level resource (envelope parent: subscription_id).
 	ResourceGroup = "Microsoft.Resources/resourceGroups"
+
+	// WebServerFarm is Microsoft.Web/serverfarms, the App Service plan resource
+	// required by App Service web apps and function apps.
+	WebServerFarm = "Microsoft.Web/serverfarms"
+
+	// WebSite is Microsoft.Web/sites, the shared ARM resource type used by
+	// App Service web apps and function apps.
+	WebSite = "Microsoft.Web/sites"
 )

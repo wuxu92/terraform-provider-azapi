@@ -28,6 +28,8 @@ var targets = []string{
 	armtypes.StorageAccount,
 	armtypes.StorageAccountBlobService,
 	armtypes.ResourceGroup,
+	armtypes.WebServerFarm,
+	armtypes.WebSite,
 }
 
 func main() {

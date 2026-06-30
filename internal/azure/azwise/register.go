@@ -8,5 +8,7 @@ func RegisterAll() {
 	Register(NewKeyVault())
 	Register(NewKeyVaultKey())
 	Register(NewKeyVaultSecret())
+	Register(NewWebSite())
+	Register(NewWebServerFarm())
 	Register(NewResourceGroup())
 }

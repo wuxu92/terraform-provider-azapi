@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
+	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
 	"github.com/Azure/terraform-provider-azapi/internal/services/dynamic"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -316,14 +317,25 @@ func ResolveUnknowns(ctx context.Context, v attr.Value) attr.Value {
 	}
 }
 
-// FlattenInto refreshes the body attributes of an existing object (plan for
-// create, prior state for read/update) from an ARM JSON response, preserving the
-// envelope (name, parent_id, id, timeouts) and any body attribute the response
-// omits — recursively, so a nested optional the user set but the server drops keeps
-// the planned value instead of collapsing to null (which the framework rejects as
-// an inconsistent apply result). Only attributes present in the response are
-// overwritten, avoiding wipes of write-only fields the server never echoes.
+// FlattenInto refreshes body attributes of an existing state object from an ARM
+// JSON response, preserving the envelope (name, parent_id, id, timeouts) and any
+// body attribute the response omits. It is used for read/import refresh, so normal
+// echoed properties overwrite prior state while sensitive/write-only and semantic
+// location values are kept stable.
 func FlattenInto(ctx context.Context, arm map[string]interface{}, base types.Object, body *generator.Type) (types.Object, diag.Diagnostics) {
+	return flattenInto(ctx, arm, base, body, false)
+}
+
+// FlattenApplyInto refreshes the planned object from an ARM write response for
+// Create/Update. Terraform requires apply results to match every planned known
+// value exactly; values configured by the practitioner cannot be replaced with
+// Azure's echo/default representation during apply. Unknown planned values may
+// still be populated from the response.
+func FlattenApplyInto(ctx context.Context, arm map[string]interface{}, base types.Object, body *generator.Type) (types.Object, diag.Diagnostics) {
+	return flattenInto(ctx, arm, base, body, true)
+}
+
+func flattenInto(ctx context.Context, arm map[string]interface{}, base types.Object, body *generator.Type, preserveKnown bool) (types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if base.IsNull() || base.IsUnknown() {
 		return base, diags
@@ -349,7 +361,16 @@ func FlattenInto(ctx context.Context, arm map[string]interface{}, base types.Obj
 			if !present || armVal == nil {
 				continue // keep the base value
 			}
-			v, d := flattenValueInto(ctx, armVal, values[name], at, prop.Type)
+			if preserveKnown && shouldPreserveKnownApplyValue(values[name]) {
+				continue
+			}
+			if shouldPreserveSensitiveValue(prop) {
+				continue
+			}
+			if shouldPreserveEquivalentLocation(prop, values[name], armVal) {
+				continue
+			}
+			v, d := flattenValueInto(ctx, armVal, values[name], at, prop.Type, preserveKnown)
 			diags.Append(d...)
 			values[name] = v
 		}
@@ -361,10 +382,10 @@ func FlattenInto(ctx context.Context, arm map[string]interface{}, base types.Obj
 }
 
 // flattenValueInto is the base-aware counterpart of flattenValue: for a nested
-// object it recurses through FlattenInto, threading the corresponding base value
+// object it recurses through flattenInto, threading the corresponding base value
 // so fields the response omits are preserved at every depth. Non-object kinds have
 // no per-element base to thread and delegate to flattenValue unchanged.
-func flattenValueInto(ctx context.Context, armVal interface{}, base attr.Value, at attr.Type, bicep *generator.Type) (attr.Value, diag.Diagnostics) {
+func flattenValueInto(ctx context.Context, armVal interface{}, base attr.Value, at attr.Type, bicep *generator.Type, preserveKnown bool) (attr.Value, diag.Diagnostics) {
 	if _, ok := at.(basetypes.ObjectType); ok {
 		if m, ok := armVal.(map[string]interface{}); ok {
 			if baseObj, ok := base.(types.Object); ok && !baseObj.IsNull() && !baseObj.IsUnknown() {
@@ -372,9 +393,36 @@ func flattenValueInto(ctx context.Context, armVal interface{}, base attr.Value, 
 				if bicep != nil && bicep.Kind == generator.KindObject {
 					nested = bicep
 				}
-				return FlattenInto(ctx, m, baseObj, nested)
+				return flattenInto(ctx, m, baseObj, nested, preserveKnown)
 			}
 		}
 	}
 	return flattenValue(ctx, armVal, at, bicep)
+}
+
+func shouldPreserveKnownApplyValue(v attr.Value) bool {
+	if v == nil || v.IsNull() || v.IsUnknown() {
+		return false
+	}
+	_, isObject := v.(types.Object)
+	return !isObject
+}
+
+func shouldPreserveEquivalentLocation(prop *generator.Property, base attr.Value, armVal interface{}) bool {
+	if prop == nil || prop.Name != "location" || prop.Type == nil || prop.Type.Kind != generator.KindString {
+		return false
+	}
+	baseString, ok := base.(types.String)
+	if !ok || baseString.IsNull() || baseString.IsUnknown() {
+		return false
+	}
+	armString, ok := armVal.(string)
+	if !ok {
+		return false
+	}
+	return nativeschema.NormalizeLocation(baseString.ValueString()) == nativeschema.NormalizeLocation(armString)
+}
+
+func shouldPreserveSensitiveValue(prop *generator.Property) bool {
+	return prop != nil && (prop.Sensitive || prop.Flags.IsWriteOnly())
 }

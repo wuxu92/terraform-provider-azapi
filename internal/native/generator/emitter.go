@@ -81,13 +81,16 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	if needs.pmList {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier\"\n")
 	}
+	if needs.pmMap {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier\"\n")
+	}
 	if needs.stringValidator || needs.int64Validator || needs.custom || needs.shared {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/schema/validator\"\n")
 	}
 	if needs.types {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/types\"\n")
 	}
-	if needs.defaults || needs.shared {
+	if needs.defaults || needs.shared || needs.nativeSchema {
 		b.WriteString("\tnativeschema \"github.com/Azure/terraform-provider-azapi/internal/native/schema\"\n")
 	}
 	b.WriteString("\t\"github.com/Azure/terraform-provider-azapi/internal/native/generated\"\n")
@@ -155,8 +158,10 @@ type importNeeds struct {
 	pmInt64         bool // int64planmodifier
 	pmObject        bool // objectplanmodifier
 	pmList          bool // listplanmodifier
+	pmMap           bool // mapplanmodifier
 	custom          bool // for a service-specific generated/<service>/validators reference
 	shared          bool // for a generic nativeschema validator reference (SharedValidator)
+	nativeSchema    bool // for generic native schema helpers that are not validators/defaults
 }
 
 func scanImportNeeds(typ *Type) importNeeds {
@@ -176,6 +181,10 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 		computed := effectiveComputed(prop)
 		if prop.DefaultValue != "" {
 			needs.defaults = true
+		}
+		if usesLocationPlanModifier(prop, computed) {
+			needs.nativeSchema = true
+			needs.planmodifier = true
 		}
 		for _, v := range prop.Validators {
 			switch v.Kind {
@@ -198,6 +207,9 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 		if prop.Type.Kind == KindArray && (prop.Type.ElementType == nil || prop.Type.ElementType.Kind != KindObject) {
 			needs.types = true
 		}
+		if prop.Type.Kind == KindMap && (prop.Type.ElementType == nil || prop.Type.ElementType.Kind != KindObject) {
+			needs.types = true
+		}
 		// State reuse and ForceNew both need type-specific plan modifier imports.
 		// SetAttribute has no bundled planmodifier package in this framework version.
 		useState := !prop.UseSet && !prop.Flags.IsRequired() && prop.DefaultValue == ""
@@ -212,6 +224,8 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 					needs.pmBool = true
 				case "int64planmodifier":
 					needs.pmInt64 = true
+				case "mapplanmodifier":
+					needs.pmMap = true
 				case "objectplanmodifier":
 					needs.pmObject = true
 				case "listplanmodifier":
@@ -221,6 +235,9 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 		}
 		if prop.Type.Kind == KindObject {
 			scanImportNeedsRecurse(prop.Type, needs)
+		}
+		if prop.Type.Kind == KindMap && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject {
+			scanImportNeedsRecurse(prop.Type.ElementType, needs)
 		}
 		if prop.Type.Kind == KindArray && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject {
 			scanImportNeedsRecurse(prop.Type.ElementType, needs)
@@ -365,6 +382,25 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
 		}
 
+	case typ.Kind == KindMap:
+		if typ.ElementType != nil && typ.ElementType.Kind == KindObject {
+			b.WriteString(fmt.Sprintf("%s%q: schema.MapNestedAttribute{\n", tabs, tfName))
+			writeAttributeFlags(b, prop, computed, tabs)
+			emitPlanModifiers(b, prop, computed, tabs)
+			b.WriteString(fmt.Sprintf("%s\tNestedObject: schema.NestedAttributeObject{\n", tabs))
+			b.WriteString(fmt.Sprintf("%s\t\tAttributes: map[string]schema.Attribute{\n", tabs))
+			emitAttributes(b, typ.ElementType, indent+3, true)
+			b.WriteString(fmt.Sprintf("%s\t\t},\n", tabs))
+			b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+			b.WriteString(fmt.Sprintf("%s},\n", tabs))
+		} else {
+			b.WriteString(fmt.Sprintf("%s%q: schema.MapAttribute{\n", tabs, tfName))
+			writeAttributeFlags(b, prop, computed, tabs)
+			emitPlanModifiers(b, prop, computed, tabs)
+			b.WriteString(fmt.Sprintf("%s\tElementType: %s,\n", tabs, listElementType(typ.ElementType)))
+			b.WriteString(fmt.Sprintf("%s},\n", tabs))
+		}
+
 	case typ.Kind == KindUnion:
 		// Non-enum union: accept it as a string for now.
 		b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, tfName))
@@ -393,7 +429,8 @@ func emitPlanModifiers(b *strings.Builder, prop *Property, computed bool, tabs s
 	// make null prior state unknown for Azure-populated values.
 	useState := !prop.Flags.IsRequired() && prop.DefaultValue == ""
 	forceNew := prop.ForceNew && !computed
-	if !useState && !forceNew {
+	location := usesLocationPlanModifier(prop, computed)
+	if !useState && !forceNew && !location {
 		return
 	}
 	pkg, typ := planModifierFor(prop)
@@ -401,6 +438,9 @@ func emitPlanModifiers(b *strings.Builder, prop *Property, computed bool, tabs s
 		return // type has no plan-modifier package (e.g. dynamic)
 	}
 	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.%s{\n", tabs, typ))
+	if location {
+		b.WriteString(fmt.Sprintf("%s\t\tnativeschema.UseStateForEquivalentLocation(),\n", tabs))
+	}
 	if useState {
 		stateMod := "UseStateForUnknown"
 		if prop.NonNullStateForUnknown {
@@ -412,6 +452,10 @@ func emitPlanModifiers(b *strings.Builder, prop *Property, computed bool, tabs s
 		b.WriteString(fmt.Sprintf("%s\t\t%s.RequiresReplace(),\n", tabs, pkg))
 	}
 	b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+}
+
+func usesLocationPlanModifier(prop *Property, computed bool) bool {
+	return !computed && prop.Name == "location" && prop.Type != nil && prop.Type.Kind == KindString
 }
 
 // planModifierFor returns the type-specific plan-modifier package and framework type.
@@ -427,6 +471,8 @@ func planModifierFor(prop *Property) (pkg, typ string) {
 		return "objectplanmodifier", "Object"
 	case prop.Type.Kind == KindArray:
 		return "listplanmodifier", "List"
+	case prop.Type.Kind == KindMap:
+		return "mapplanmodifier", "Map"
 	}
 	return "", ""
 }
@@ -453,7 +499,7 @@ func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs
 		b.WriteString(fmt.Sprintf("%s\tOptional: true,\n", tabs))
 		b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
 	}
-	if prop.Flags.IsWriteOnly() || prop.Sensitive {
+	if prop.Sensitive {
 		b.WriteString(fmt.Sprintf("%s\tSensitive: true,\n", tabs))
 	}
 }

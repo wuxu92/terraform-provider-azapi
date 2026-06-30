@@ -52,6 +52,98 @@ func TestValidateStorageAccountSchema(t *testing.T) {
 	}
 }
 
+func TestValidateWebServerFarmSchema(t *testing.T) {
+	defs, ver := latestWebServerFarmDefs(t)
+	tag := "Microsoft.Web/serverfarms@" + ver
+
+	PostProcess(defs)
+
+	var farm *ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			farm = d
+			break
+		}
+	}
+	if farm == nil {
+		t.Fatal("web server farm not found")
+	}
+
+	source, err := EmitSchema(farm)
+	if err != nil {
+		t.Fatalf("EmitSchema: %v", err)
+	}
+
+	mismatches := ValidateEmittedSchema(source, farm.Body, EnvelopeAttrNames(farm)...)
+	for _, m := range mismatches {
+		if m.Kind != MismatchMissingInSchema {
+			t.Fatalf("unexpected schema mismatch for web server farm: %s", FormatMismatches(mismatches))
+		}
+	}
+}
+
+func TestValidateWebSiteSchema(t *testing.T) {
+	defs, ver := latestWebSiteDefs(t)
+	tag := "Microsoft.Web/sites@" + ver
+
+	PostProcess(defs)
+
+	var site *ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			site = d
+			break
+		}
+	}
+	if site == nil {
+		t.Fatal("web site not found")
+	}
+
+	source, err := EmitSchema(site)
+	if err != nil {
+		t.Fatalf("EmitSchema: %v", err)
+	}
+
+	mismatches := ValidateEmittedSchema(source, site.Body, EnvelopeAttrNames(site)...)
+	for _, m := range mismatches {
+		if m.Kind != MismatchMissingInSchema {
+			t.Fatalf("unexpected schema mismatch for web site: %s", FormatMismatches(mismatches))
+		}
+	}
+}
+
+func TestExtractEmittedPathsKeepsNestedSiblingsSeparate(t *testing.T) {
+	source := `
+		"identity": schema.SingleNestedAttribute{
+			Attributes: map[string]schema.Attribute{
+				"type": schema.StringAttribute{
+					Optional: true,
+					PlanModifiers: []planmodifier.String{
+						stringplanmodifier.UseStateForUnknown(),
+					},
+				},
+			},
+		},
+		"properties": schema.SingleNestedAttribute{
+			Attributes: map[string]schema.Attribute{
+				"server_farm_id": schema.StringAttribute{
+					Required: true,
+				},
+			},
+		},
+	`
+
+	paths := extractEmittedPaths(source)
+	for _, p := range []string{"identity", "identity.type", "properties", "properties.server_farm_id"} {
+		if !paths[p] {
+			t.Fatalf("missing extracted path %q in %#v", p, paths)
+		}
+	}
+	if paths["identity.properties"] || paths["identity.properties.server_farm_id"] {
+		t.Fatalf("sibling nested object was incorrectly attributed under identity: %#v", paths)
+	}
+}
+
 func TestValidateDetectsMismatches(t *testing.T) {
 	// Build a bicep type with known properties
 	bicepBody := &Type{

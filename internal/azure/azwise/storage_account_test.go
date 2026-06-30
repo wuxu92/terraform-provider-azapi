@@ -336,11 +336,11 @@ func TestStorageComputedFields(t *testing.T) {
 	}
 	// Spot-check critical entries
 	want := map[string]bool{
-		"properties.primaryEndpoints":                true,
-		"properties.secondaryEndpoints":              true,
-		"properties.provisioningState":               true,
-		"properties.primaryLocation":                 true,
-		"properties.privateEndpointConnections":      true,
+		"properties.primaryEndpoints":                  true,
+		"properties.secondaryEndpoints":                true,
+		"properties.provisioningState":                 true,
+		"properties.primaryLocation":                   true,
+		"properties.privateEndpointConnections":        true,
 		"properties.storageAccountSkuConversionStatus": true,
 	}
 	for _, f := range k.ComputedFields {
@@ -357,9 +357,9 @@ func TestStorageForceNewRules(t *testing.T) {
 		t.Fatalf("expected 9 ForceNew rules, got %d", len(k.ForceNew))
 	}
 	want := map[string]bool{
-		"sku.tier":              true,
-		"properties.isHnsEnabled":  true,
-		"extendedLocation":        true,
+		"sku.tier":                   true,
+		"properties.isHnsEnabled":    true,
+		"extendedLocation":           true,
 		"properties.dnsEndpointType": true,
 	}
 	for _, r := range k.ForceNew {

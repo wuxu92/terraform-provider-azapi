@@ -75,6 +75,7 @@ func TestResourceName(t *testing.T) {
 		{"Microsoft.Compute/virtualMachines/extensions", "azapi_compute_virtual_machine_extension"},
 		{"Microsoft.ContainerService/managedClusters", "azapi_containerservice_managed_cluster"},
 		{"Microsoft.Web/sites", "azapi_web_site"},
+		{"Microsoft.Web/serverfarms", "azapi_web_server_farm"},
 		{"Microsoft.Sql/servers", "azapi_sql_server"},
 		{"Microsoft.Sql/servers/databases", "azapi_sql_server_database"},
 		{"Microsoft.Cache/redis", "azapi_cache_redis"},

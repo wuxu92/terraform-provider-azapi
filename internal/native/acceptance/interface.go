@@ -1,5 +1,7 @@
 package nativeacc
 
+import "github.com/onsi/gomega/format"
+
 // Configure is implemented by a scenario config: a concrete acceptance-test state
 // (create baseline, update state, validation case, replacement case, etc.) that
 // renders one Terraform block. Resource metadata and scenario HCL stay separate:
@@ -34,4 +36,8 @@ type DataSourceConfig interface {
 	Label() string            // Terraform state label
 	IDRef() string            // Terraform reference to the data source's id attribute, e.g. "data.azapi_client_config.current.id".
 	RefOf(path string) string // Terraform reference to an arbitrary attribute.
+}
+
+func init() {
+	format.MaxDepth = 0 // avoid truncating nested structs in gomega diffs
 }

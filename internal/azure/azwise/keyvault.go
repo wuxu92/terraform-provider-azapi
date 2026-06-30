@@ -11,7 +11,6 @@ import "time"
 //   - AzureRM helpers/validate/network.go (IPv4/CIDR)
 //   - Azure SDK vaults/constants.go (2023-02-01)
 type KeyVault struct {
-
 	BaseKnowledge
 }
 
@@ -199,13 +198,13 @@ func NewKeyVault() *KeyVault {
 			},
 			// These properties are optional; Azure/AzureRM fills in defaults if omitted.
 			DefaultValues: []DefaultValue{
-				{PropertyPath: "properties.accessPolicies"},                                              // empty list when omitted
-				{PropertyPath: "properties.enableRbacAuthorization", Value: false},                       // AzureRM: Optional+Computed, Azure defaults false
-				{PropertyPath: "properties.networkAcls.defaultAction", Value: "Allow"},                   // expand default when block absent
-				{PropertyPath: "properties.networkAcls.bypass", Value: "AzureServices"},                  // expand default when block absent
-				{PropertyPath: "properties.softDeleteRetentionInDays", Value: float64(90)},               // Azure default 90 days
-				{PropertyPath: "properties.enableSoftDelete", Value: true},                               // Azure enforced true since 2025
-				{PropertyPath: "properties.enablePurgeProtection", Value: false},                         // Azure defaults false; AzureRM strongly recommends true
+				{PropertyPath: "properties.accessPolicies"},                                // empty list when omitted
+				{PropertyPath: "properties.enableRbacAuthorization", Value: false},         // AzureRM: Optional+Computed, Azure defaults false
+				{PropertyPath: "properties.networkAcls.defaultAction", Value: "Allow"},     // expand default when block absent
+				{PropertyPath: "properties.networkAcls.bypass", Value: "AzureServices"},    // expand default when block absent
+				{PropertyPath: "properties.softDeleteRetentionInDays", Value: float64(90)}, // Azure default 90 days
+				{PropertyPath: "properties.enableSoftDelete", Value: true},                 // Azure enforced true since 2025
+				{PropertyPath: "properties.enablePurgeProtection", Value: false},           // Azure defaults false; AzureRM strongly recommends true
 			},
 		},
 	}

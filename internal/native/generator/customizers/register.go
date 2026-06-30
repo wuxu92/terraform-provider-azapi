@@ -11,4 +11,6 @@ func init() {
 	Register(armtypes.StorageAccount, customizeStorageAccount)
 	Register(armtypes.StorageAccountBlobService, customizeStorageAccountBlobService)
 	Register(armtypes.ResourceGroup, customizeResourceGroup)
+	Register(armtypes.WebServerFarm, customizeWebServerFarm)
+	Register(armtypes.WebSite, customizeWebSite)
 }

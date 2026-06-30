@@ -807,7 +807,7 @@ func TestKeyVaultValidate(t *testing.T) {
 			},
 			"softDeleteRetentionInDays": float64(30),
 			"publicNetworkAccess":       "Enabled",
-			"createMode":               "default",
+			"createMode":                "default",
 		},
 	}, true)
 	if len(diags) != 0 {
