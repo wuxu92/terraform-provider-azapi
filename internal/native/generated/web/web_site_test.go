@@ -20,26 +20,34 @@ var _ = Describe("Azure Web", Ordered, func() {
 	rg := ws.ResourceFor(rgCfg)
 	BeforeAll(func() { rg.Apply(resources.ResourceGroupCfg_Basic(rgCfg), acc.Exists()) })
 
-	Describe("an App Service site", Ordered, func() {
-		scope := ws.Scope()
-		AfterAll(scope.Teardown)
+	// Keep the plan and site in separate nested scopes. Scoped teardown removes all
+	// configs owned by that scope before re-applying; nesting makes Ginkgo destroy
+	// the site first, then the server farm it uses.
+	Describe("an App Service plan", Ordered, func() {
+		planScope := ws.Scope()
+		AfterAll(planScope.Teardown)
 
 		farmCfg := web.NewWebServerFarmCfg(rgCfg, "plan")
-		farm := scope.ResourceFor(farmCfg)
-		cfg := web.NewWebSiteCfg(rgCfg, farmCfg)
-		site := scope.ResourceFor(cfg)
+		farm := planScope.ResourceFor(farmCfg)
 
 		BeforeAll(func() {
-			scope.ApplyAll(
-				farm.Stage(web.WebServerFarmCfg_Basic(farmCfg), acc.Exists()),
-				site.Stage(web.WebSiteCfg_Basic(cfg), acc.Exists()),
-			)
-			farm.ImportVerify()
-			site.ImportVerify()
+			farm.Apply(web.WebServerFarmCfg_Basic(farmCfg), acc.Exists()).ImportVerify()
 		})
 
-		It("updates common site properties in place", func() {
-			site.Apply(web.WebSiteCfg_Complete(cfg)).ImportVerify()
+		Describe("an App Service site", Ordered, func() {
+			siteScope := planScope.Scope()
+			AfterAll(siteScope.Teardown)
+
+			cfg := web.NewWebSiteCfg(rgCfg, farmCfg)
+			site := siteScope.ResourceFor(cfg)
+
+			BeforeAll(func() {
+				site.Apply(web.WebSiteCfg_Basic(cfg), acc.Exists()).ImportVerify()
+			})
+
+			It("updates common site properties in place", func() {
+				site.Apply(web.WebSiteCfg_Complete(cfg)).ImportVerify()
+			})
 		})
 	})
 })
