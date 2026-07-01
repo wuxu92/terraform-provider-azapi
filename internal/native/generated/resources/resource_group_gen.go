@@ -21,6 +21,29 @@ func AzapiResourceGroupSchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.Resources/resourceGroups resource. [azapin:Microsoft.Resources/resourceGroups@2025-04-01]",
 		Attributes: map[string]schema.Attribute{
+			"name": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 90),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[-\w._()]*[-\w_()]$`),
+						"resource group name may contain only alphanumerics, dashes, underscores, parentheses and periods, and may not end with a period",
+					),
+				},
+				MarkdownDescription: "Specifies the name of the Azure resource.",
+			},
+			"subscription_id": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`(?i)^/subscriptions/[^/]+$`),
+						"subscription_id must be a subscription ID (/subscriptions/{id})",
+					),
+				},
+				MarkdownDescription: "The ID of the parent resource that contains this resource.",
+			},
 			"location": schema.StringAttribute{
 				Description: "The location of the resource group. It cannot be changed after the resource group has been created. It must be one of the supported Azure locations.",
 				Required:    true,
@@ -64,29 +87,6 @@ func AzapiResourceGroupSchema() schema.Schema {
 					mapplanmodifier.UseStateForUnknown(),
 				},
 				ElementType: types.StringType,
-			},
-			"name": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Validators: []validator.String{
-					stringvalidator.LengthBetween(1, 90),
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[-\w._()]*[-\w_()]$`),
-						"resource group name may contain only alphanumerics, dashes, underscores, parentheses and periods, and may not end with a period",
-					),
-				},
-				MarkdownDescription: "Specifies the name of the Azure resource.",
-			},
-			"subscription_id": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`(?i)^/subscriptions/[^/]+$`),
-						"subscription_id must be a subscription ID (/subscriptions/{id})",
-					),
-				},
-				MarkdownDescription: "The ID of the parent resource that contains this resource.",
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,

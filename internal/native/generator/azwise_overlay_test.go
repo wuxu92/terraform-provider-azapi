@@ -297,6 +297,11 @@ func TestApplyAzwiseWebSite(t *testing.T) {
 	} else if p.DefaultValue != "false" {
 		t.Errorf("properties.httpsOnly default = %q, want false", p.DefaultValue)
 	}
+	if p := navigate(site.Body, "properties.clientAffinityPartitioningEnabled"); p == nil {
+		t.Fatal("properties.clientAffinityPartitioningEnabled not found")
+	} else if p.DefaultValue != "false" {
+		t.Errorf("properties.clientAffinityPartitioningEnabled default = %q, want false", p.DefaultValue)
+	}
 	if p := navigate(site.Body, "properties.siteConfig.minTlsVersion"); p == nil {
 		t.Fatal("properties.siteConfig.minTlsVersion not found")
 	} else if p.DefaultValue != "1.2" {

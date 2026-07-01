@@ -25,6 +25,238 @@ func AzapiWebServerFarmSchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.Web/serverfarms resource. [azapin:Microsoft.Web/serverfarms@2025-03-01]",
 		Attributes: map[string]schema.Attribute{
+			"name": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 60),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[0-9A-Za-z-_]+$`),
+						"App Service plan name may only contain alphanumeric characters, dashes, and underscores, up to 60 characters",
+					),
+				},
+				MarkdownDescription: "Specifies the name of the Azure resource.",
+			},
+			"resource_group_id": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+$`),
+						"resource_group_id must be a resource group ID (/subscriptions/{id}/resourceGroups/{name})",
+					),
+				},
+				MarkdownDescription: "The ID of the parent resource that contains this resource.",
+			},
+			"location": schema.StringAttribute{
+				Description: "Resource Location.",
+				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					nativeschema.UseStateForEquivalentLocation(),
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"sku": schema.SingleNestedAttribute{
+				Description: "Description of a SKU for a scalable resource.",
+				Required:    true,
+				Attributes: map[string]schema.Attribute{
+					"capabilities": schema.ListNestedAttribute{
+						Description: "Capabilities of the SKU, e.g., is traffic manager enabled?",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.UseStateForUnknown(),
+						},
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"name": schema.StringAttribute{
+									Description: "Name of the SKU capability.",
+									Optional:    true,
+									Computed:    true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+									},
+								},
+								"reason": schema.StringAttribute{
+									Description: "Reason of the SKU capability.",
+									Optional:    true,
+									Computed:    true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+									},
+								},
+								"value": schema.StringAttribute{
+									Description: "Value of the SKU capability.",
+									Optional:    true,
+									Computed:    true,
+									PlanModifiers: []planmodifier.String{
+										stringplanmodifier.UseStateForUnknown(),
+									},
+								},
+							},
+						},
+					},
+					"capacity": schema.Int64Attribute{
+						Description: "Current number of instances assigned to the resource.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.Int64{
+							int64validator.AtLeast(1),
+						},
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.UseStateForUnknown(),
+						},
+					},
+					"family": schema.StringAttribute{
+						Description: "Family code of the resource SKU.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"locations": schema.ListAttribute{
+						Description: "Locations of the SKU.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.UseStateForUnknown(),
+						},
+						ElementType: types.StringType,
+					},
+					"name": schema.StringAttribute{
+						Description: "Name of the resource SKU.",
+						Required:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"B1",
+								"B2",
+								"B3",
+								"Y1",
+								"EP1",
+								"EP2",
+								"EP3",
+								"FC1",
+								"F1",
+								"I1",
+								"I2",
+								"I3",
+								"I1v2",
+								"I2v2",
+								"I3v2",
+								"I4v2",
+								"I5v2",
+								"I6v2",
+								"I1mv2",
+								"I2mv2",
+								"I3mv2",
+								"I4mv2",
+								"I5mv2",
+								"P1v2",
+								"P2v2",
+								"P3v2",
+								"P0v3",
+								"P1v3",
+								"P2v3",
+								"P3v3",
+								"P1mv3",
+								"P2mv3",
+								"P3mv3",
+								"P4mv3",
+								"P5mv3",
+								"P0v4",
+								"P1v4",
+								"P2v4",
+								"P3v4",
+								"P1mv4",
+								"P2mv4",
+								"P3mv4",
+								"P4mv4",
+								"P5mv4",
+								"D1",
+								"SHARED",
+								"WS1",
+								"WS2",
+								"WS3",
+							),
+						},
+					},
+					"size": schema.StringAttribute{
+						Description: "Size specifier of the resource SKU.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"sku_capacity": schema.SingleNestedAttribute{
+						Description: "Min, max, and default scale values of the SKU.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+						Attributes: map[string]schema.Attribute{
+							"default": schema.Int64Attribute{
+								Description: "Default number of workers for this App Service plan SKU.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Int64{
+									int64planmodifier.UseStateForUnknown(),
+								},
+							},
+							"elastic_maximum": schema.Int64Attribute{
+								Description: "Maximum number of Elastic workers for this App Service plan SKU.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Int64{
+									int64planmodifier.UseStateForUnknown(),
+								},
+							},
+							"maximum": schema.Int64Attribute{
+								Description: "Maximum number of workers for this App Service plan SKU.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Int64{
+									int64planmodifier.UseStateForUnknown(),
+								},
+							},
+							"minimum": schema.Int64Attribute{
+								Description: "Minimum number of workers for this App Service plan SKU.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Int64{
+									int64planmodifier.UseStateForUnknown(),
+								},
+							},
+							"scale_type": schema.StringAttribute{
+								Description: "Available scale configurations for an App Service plan.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
+							},
+						},
+					},
+					"tier": schema.StringAttribute{
+						Description: "Service tier of the resource SKU.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+				},
+			},
+			"kind": schema.StringAttribute{
+				Description: "Kind of resource. If the resource is an app, you can refer to https://github.com/Azure/app-service-linux-docs/blob/master/Things_You_Should_Know/kind_property.md#app-service-resource-kind-reference fo...",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"extended_location": schema.SingleNestedAttribute{
 				Description: "Extended Location.",
 				Optional:    true,
@@ -44,88 +276,6 @@ func AzapiWebServerFarmSchema() schema.Schema {
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
-				},
-			},
-			"identity": schema.SingleNestedAttribute{
-				Description: "Managed service identity.",
-				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
-				},
-				Attributes: map[string]schema.Attribute{
-					"principal_id": schema.StringAttribute{
-						Description: "Principal Id of managed service identity.",
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-					"tenant_id": schema.StringAttribute{
-						Description: "Tenant of managed service identity.",
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-					"type": schema.StringAttribute{
-						Description: "Type of managed service identity.",
-						Optional:    true,
-						Computed:    true,
-						Validators: []validator.String{
-							stringvalidator.OneOf(
-								"None",
-								"SystemAssigned",
-								"UserAssigned",
-								"SystemAssigned, UserAssigned",
-							),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-					"user_assigned_identities": schema.MapNestedAttribute{
-						Description: "The list of user assigned identities associated with the resource. The user identity dictionary key references will be ARM resource ids in the form: '/subscriptions/{subscriptionId}/resourceGroups/{re...",
-						Optional:    true,
-						Computed:    true,
-						PlanModifiers: []planmodifier.Map{
-							mapplanmodifier.UseStateForUnknown(),
-						},
-						NestedObject: schema.NestedAttributeObject{
-							Attributes: map[string]schema.Attribute{
-								"client_id": schema.StringAttribute{
-									Description: "Client Id of user assigned identity",
-									Computed:    true,
-									PlanModifiers: []planmodifier.String{
-										stringplanmodifier.UseStateForUnknown(),
-									},
-								},
-								"principal_id": schema.StringAttribute{
-									Description: "Principal Id of user assigned identity",
-									Computed:    true,
-									PlanModifiers: []planmodifier.String{
-										stringplanmodifier.UseStateForUnknown(),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			"kind": schema.StringAttribute{
-				Description: "Kind of resource. If the resource is an app, you can refer to https://github.com/Azure/app-service-linux-docs/blob/master/Things_You_Should_Know/kind_property.md#app-service-resource-kind-reference fo...",
-				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"location": schema.StringAttribute{
-				Description: "Resource Location.",
-				Required:    true,
-				PlanModifiers: []planmodifier.String{
-					nativeschema.UseStateForEquivalentLocation(),
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"properties": schema.SingleNestedAttribute{
@@ -629,199 +779,7 @@ func AzapiWebServerFarmSchema() schema.Schema {
 					},
 				},
 			},
-			"sku": schema.SingleNestedAttribute{
-				Description: "Description of a SKU for a scalable resource.",
-				Required:    true,
-				Attributes: map[string]schema.Attribute{
-					"capabilities": schema.ListNestedAttribute{
-						Description: "Capabilities of the SKU, e.g., is traffic manager enabled?",
-						Optional:    true,
-						Computed:    true,
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.UseStateForUnknown(),
-						},
-						NestedObject: schema.NestedAttributeObject{
-							Attributes: map[string]schema.Attribute{
-								"name": schema.StringAttribute{
-									Description: "Name of the SKU capability.",
-									Optional:    true,
-									Computed:    true,
-									PlanModifiers: []planmodifier.String{
-										stringplanmodifier.UseStateForUnknown(),
-									},
-								},
-								"reason": schema.StringAttribute{
-									Description: "Reason of the SKU capability.",
-									Optional:    true,
-									Computed:    true,
-									PlanModifiers: []planmodifier.String{
-										stringplanmodifier.UseStateForUnknown(),
-									},
-								},
-								"value": schema.StringAttribute{
-									Description: "Value of the SKU capability.",
-									Optional:    true,
-									Computed:    true,
-									PlanModifiers: []planmodifier.String{
-										stringplanmodifier.UseStateForUnknown(),
-									},
-								},
-							},
-						},
-					},
-					"capacity": schema.Int64Attribute{
-						Description: "Current number of instances assigned to the resource.",
-						Optional:    true,
-						Computed:    true,
-						Validators: []validator.Int64{
-							int64validator.AtLeast(1),
-						},
-						PlanModifiers: []planmodifier.Int64{
-							int64planmodifier.UseStateForUnknown(),
-						},
-					},
-					"family": schema.StringAttribute{
-						Description: "Family code of the resource SKU.",
-						Optional:    true,
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-					"locations": schema.ListAttribute{
-						Description: "Locations of the SKU.",
-						Optional:    true,
-						Computed:    true,
-						PlanModifiers: []planmodifier.List{
-							listplanmodifier.UseStateForUnknown(),
-						},
-						ElementType: types.StringType,
-					},
-					"name": schema.StringAttribute{
-						Description: "Name of the resource SKU.",
-						Required:    true,
-						Validators: []validator.String{
-							stringvalidator.OneOf(
-								"B1",
-								"B2",
-								"B3",
-								"Y1",
-								"EP1",
-								"EP2",
-								"EP3",
-								"FC1",
-								"F1",
-								"I1",
-								"I2",
-								"I3",
-								"I1v2",
-								"I2v2",
-								"I3v2",
-								"I4v2",
-								"I5v2",
-								"I6v2",
-								"I1mv2",
-								"I2mv2",
-								"I3mv2",
-								"I4mv2",
-								"I5mv2",
-								"P1v2",
-								"P2v2",
-								"P3v2",
-								"P0v3",
-								"P1v3",
-								"P2v3",
-								"P3v3",
-								"P1mv3",
-								"P2mv3",
-								"P3mv3",
-								"P4mv3",
-								"P5mv3",
-								"P0v4",
-								"P1v4",
-								"P2v4",
-								"P3v4",
-								"P1mv4",
-								"P2mv4",
-								"P3mv4",
-								"P4mv4",
-								"P5mv4",
-								"D1",
-								"SHARED",
-								"WS1",
-								"WS2",
-								"WS3",
-							),
-						},
-					},
-					"size": schema.StringAttribute{
-						Description: "Size specifier of the resource SKU.",
-						Optional:    true,
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-					"sku_capacity": schema.SingleNestedAttribute{
-						Description: "Min, max, and default scale values of the SKU.",
-						Optional:    true,
-						Computed:    true,
-						PlanModifiers: []planmodifier.Object{
-							objectplanmodifier.UseStateForUnknown(),
-						},
-						Attributes: map[string]schema.Attribute{
-							"default": schema.Int64Attribute{
-								Description: "Default number of workers for this App Service plan SKU.",
-								Optional:    true,
-								Computed:    true,
-								PlanModifiers: []planmodifier.Int64{
-									int64planmodifier.UseStateForUnknown(),
-								},
-							},
-							"elastic_maximum": schema.Int64Attribute{
-								Description: "Maximum number of Elastic workers for this App Service plan SKU.",
-								Optional:    true,
-								Computed:    true,
-								PlanModifiers: []planmodifier.Int64{
-									int64planmodifier.UseStateForUnknown(),
-								},
-							},
-							"maximum": schema.Int64Attribute{
-								Description: "Maximum number of workers for this App Service plan SKU.",
-								Optional:    true,
-								Computed:    true,
-								PlanModifiers: []planmodifier.Int64{
-									int64planmodifier.UseStateForUnknown(),
-								},
-							},
-							"minimum": schema.Int64Attribute{
-								Description: "Minimum number of workers for this App Service plan SKU.",
-								Optional:    true,
-								Computed:    true,
-								PlanModifiers: []planmodifier.Int64{
-									int64planmodifier.UseStateForUnknown(),
-								},
-							},
-							"scale_type": schema.StringAttribute{
-								Description: "Available scale configurations for an App Service plan.",
-								Optional:    true,
-								Computed:    true,
-								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.UseStateForUnknown(),
-								},
-							},
-						},
-					},
-					"tier": schema.StringAttribute{
-						Description: "Service tier of the resource SKU.",
-						Optional:    true,
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-				},
-			},
+			"identity": nativeschema.ManagedServiceIdentity(false, ""),
 			"tags": schema.MapAttribute{
 				Description: "Resource tags.",
 				Optional:    true,
@@ -830,29 +788,6 @@ func AzapiWebServerFarmSchema() schema.Schema {
 					mapplanmodifier.UseStateForUnknown(),
 				},
 				ElementType: types.StringType,
-			},
-			"name": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Validators: []validator.String{
-					stringvalidator.LengthBetween(1, 60),
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[0-9A-Za-z-_]+$`),
-						"App Service plan name may only contain alphanumeric characters, dashes, and underscores, up to 60 characters",
-					),
-				},
-				MarkdownDescription: "Specifies the name of the Azure resource.",
-			},
-			"resource_group_id": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+$`),
-						"resource_group_id must be a resource group ID (/subscriptions/{id}/resourceGroups/{name})",
-					),
-				},
-				MarkdownDescription: "The ID of the parent resource that contains this resource.",
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,

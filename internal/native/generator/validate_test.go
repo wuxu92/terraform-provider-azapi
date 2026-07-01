@@ -144,6 +144,27 @@ func TestExtractEmittedPathsKeepsNestedSiblingsSeparate(t *testing.T) {
 	}
 }
 
+func TestExtractEmittedPathsExpandsManagedIdentityHelper(t *testing.T) {
+	source := `
+		"identity": nativeschema.ManagedServiceIdentity(false, ""),
+	`
+
+	paths := extractEmittedPaths(source)
+	for _, p := range []string{
+		"identity",
+		"identity.principal_id",
+		"identity.tenant_id",
+		"identity.type",
+		"identity.user_assigned_identities",
+		"identity.user_assigned_identities.client_id",
+		"identity.user_assigned_identities.principal_id",
+	} {
+		if !paths[p] {
+			t.Fatalf("missing extracted path %q in %#v", p, paths)
+		}
+	}
+}
+
 func TestValidateDetectsMismatches(t *testing.T) {
 	// Build a bicep type with known properties
 	bicepBody := &Type{

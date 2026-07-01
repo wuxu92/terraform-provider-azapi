@@ -189,6 +189,7 @@ func NewWebSite() *WebSite {
 			},
 			DefaultValues: []DefaultValue{
 				{PropertyPath: "properties.clientAffinityEnabled", Value: false},
+				{PropertyPath: "properties.clientAffinityPartitioningEnabled", Value: false},
 				{PropertyPath: "properties.clientCertEnabled", Value: false},
 				{PropertyPath: "properties.enabled", Value: true},
 				{PropertyPath: "properties.httpsOnly", Value: false},

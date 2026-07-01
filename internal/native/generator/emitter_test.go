@@ -105,6 +105,54 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 	t.Logf("Generated schema (%d lines total):\n%s\n...", len(lines), strings.Join(lines[:maxLines], "\n"))
 }
 
+func TestEmitSchemaOrdersCommonTopLevelAttributes(t *testing.T) {
+	defs, ver := latestStorageDefs(t)
+	PostProcess(defs)
+	tag := "Microsoft.Storage/storageAccounts@" + ver
+
+	var sa *ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			sa = d
+			break
+		}
+	}
+	if sa == nil {
+		t.Fatal("storage account not found")
+	}
+
+	source, err := EmitSchema(sa)
+	if err != nil {
+		t.Fatalf("EmitSchema: %v", err)
+	}
+
+	assertSourceOrder(t, source,
+		`"name": schema.StringAttribute{`,
+		`"resource_group_id": schema.StringAttribute{`,
+		`"location": schema.StringAttribute{`,
+		`"sku": schema.SingleNestedAttribute{`,
+		`"kind": schema.StringAttribute{`,
+		`"properties": schema.SingleNestedAttribute{`,
+		`"identity": nativeschema.ManagedServiceIdentity`,
+		`"tags": schema.MapAttribute{`,
+	)
+}
+
+func assertSourceOrder(t *testing.T, source string, needles ...string) {
+	t.Helper()
+	last := -1
+	for _, needle := range needles {
+		idx := strings.Index(source, needle)
+		if idx < 0 {
+			t.Fatalf("missing %q", needle)
+		}
+		if idx <= last {
+			t.Fatalf("%q appears out of order", needle)
+		}
+		last = idx
+	}
+}
+
 func TestEmitPlanModifiersHonorsNonNullStateForUnknown(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

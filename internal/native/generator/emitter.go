@@ -106,9 +106,12 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	b.WriteString(fmt.Sprintf("\t\tDescription: \"Manages a %s resource. [azapin:%s]\",\n", armType, def.Name))
 	b.WriteString("\t\tAttributes: map[string]schema.Attribute{\n")
 
-	// Body attrs plus the synthetic operational envelope.
+	// Operational envelope first, common configurable body fields next, then the
+	// remaining body, then common metadata/outputs.
+	emitEnvelopeStringAttr(&b, def.Envelope.Name, "\t\t\t")
+	emitEnvelopeStringAttr(&b, def.Envelope.Parent, "\t\t\t")
 	emitAttributes(&b, def.Body, 3, false)
-	emitEnvelope(&b, def.Envelope, "\t\t\t")
+	emitEnvelopeIDAttr(&b, "\t\t\t")
 
 	b.WriteString("\t\t},\n")
 	b.WriteString("\t}\n")
@@ -176,6 +179,10 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 	}
 	for _, prop := range typ.Properties {
 		if prop.Flags.IsSystemManaged() {
+			continue
+		}
+		if isManagedServiceIdentityProperty(prop) {
+			needs.nativeSchema = true
 			continue
 		}
 		computed := effectiveComputed(prop)
@@ -284,11 +291,7 @@ func emitAttributes(b *strings.Builder, objType *Type, indent int, inCollection 
 	if objType.Kind != KindObject {
 		return
 	}
-	propNames := make([]string, 0, len(objType.Properties))
-	for name := range objType.Properties {
-		propNames = append(propNames, name)
-	}
-	sort.Strings(propNames)
+	propNames := orderedPropertyNames(objType, indent, inCollection)
 
 	tabs := strings.Repeat("\t", indent)
 	for _, armName := range propNames {
@@ -300,9 +303,67 @@ func emitAttributes(b *strings.Builder, objType *Type, indent int, inCollection 
 	}
 }
 
+func orderedPropertyNames(objType *Type, indent int, inCollection bool) []string {
+	propNames := make([]string, 0, len(objType.Properties))
+	for name := range objType.Properties {
+		propNames = append(propNames, name)
+	}
+	sort.Strings(propNames)
+	if indent != 3 || inCollection {
+		return propNames
+	}
+
+	front := []string{"location", "sku", "type", "kind"}
+	back := []string{"identity", "tags"}
+	return orderPropertyNames(propNames, front, back)
+}
+
+func orderPropertyNames(sortedNames, front, back []string) []string {
+	seen := make(map[string]bool, len(sortedNames))
+	available := make(map[string]bool, len(sortedNames))
+	for _, name := range sortedNames {
+		available[name] = true
+	}
+
+	ordered := make([]string, 0, len(sortedNames))
+	appendIfPresent := func(name string) {
+		if available[name] && !seen[name] {
+			ordered = append(ordered, name)
+			seen[name] = true
+		}
+	}
+	for _, name := range front {
+		appendIfPresent(name)
+	}
+	for _, name := range sortedNames {
+		if !seen[name] && !stringIn(name, back) {
+			ordered = append(ordered, name)
+			seen[name] = true
+		}
+	}
+	for _, name := range back {
+		appendIfPresent(name)
+	}
+	return ordered
+}
+
+func stringIn(needle string, haystack []string) bool {
+	for _, item := range haystack {
+		if item == needle {
+			return true
+		}
+	}
+	return false
+}
+
 func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs string, indent int, inCollection bool) {
 	typ := prop.Type
 	computed := effectiveComputed(prop)
+
+	if isManagedServiceIdentityProperty(prop) {
+		b.WriteString(fmt.Sprintf("%s%q: nativeschema.ManagedServiceIdentity(%t, \"\"),\n", tabs, tfName, identityTypeRequired(prop)))
+		return
+	}
 
 	switch {
 	case typ.Kind == KindString:
@@ -477,6 +538,29 @@ func planModifierFor(prop *Property) (pkg, typ string) {
 	return "", ""
 }
 
+func isManagedServiceIdentityProperty(prop *Property) bool {
+	if prop == nil || prop.Name != "identity" || prop.Type == nil || prop.Type.Kind != KindObject {
+		return false
+	}
+	props := prop.Type.Properties
+	if props == nil {
+		return false
+	}
+	for _, name := range []string{"principalId", "tenantId", "type", "userAssignedIdentities"} {
+		if _, ok := props[name]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func identityTypeRequired(prop *Property) bool {
+	if !isManagedServiceIdentityProperty(prop) {
+		return false
+	}
+	return prop.Type.Properties["type"].Flags.IsRequired()
+}
+
 // writeAttributeFlags writes Description, Required/Optional/Computed, defaults and sensitivity.
 func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs string) {
 	if prop.Description != "" {
@@ -603,6 +687,10 @@ func emitStringValidators(b *strings.Builder, validators []DescriptionValidator,
 func emitEnvelope(b *strings.Builder, env Envelope, tabs string) {
 	emitEnvelopeStringAttr(b, env.Name, tabs)
 	emitEnvelopeStringAttr(b, env.Parent, tabs)
+	emitEnvelopeIDAttr(b, tabs)
+}
+
+func emitEnvelopeIDAttr(b *strings.Builder, tabs string) {
 	// id is uniform and server-assigned; reuse it across plans.
 	b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, "id"))
 	b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))

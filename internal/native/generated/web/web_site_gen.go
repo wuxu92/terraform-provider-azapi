@@ -25,6 +25,45 @@ func AzapiWebSiteSchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.Web/sites resource. [azapin:Microsoft.Web/sites@2025-03-01]",
 		Attributes: map[string]schema.Attribute{
+			"name": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 60),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[0-9A-Za-z-]+$`),
+						"site name may only contain alphanumeric characters and dashes, up to 60 characters",
+					),
+				},
+				MarkdownDescription: "Specifies the name of the Azure resource.",
+			},
+			"resource_group_id": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+$`),
+						"resource_group_id must be a resource group ID (/subscriptions/{id}/resourceGroups/{name})",
+					),
+				},
+				MarkdownDescription: "The ID of the parent resource that contains this resource.",
+			},
+			"location": schema.StringAttribute{
+				Description: "Resource Location.",
+				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					nativeschema.UseStateForEquivalentLocation(),
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"kind": schema.StringAttribute{
+				Description: "Kind of resource. If the resource is an app, you can refer to https://github.com/Azure/app-service-linux-docs/blob/master/Things_You_Should_Know/kind_property.md#app-service-resource-kind-reference fo...",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"extended_location": schema.SingleNestedAttribute{
 				Description: "Extended Location.",
 				Optional:    true,
@@ -44,88 +83,6 @@ func AzapiWebSiteSchema() schema.Schema {
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
-				},
-			},
-			"identity": schema.SingleNestedAttribute{
-				Description: "Managed service identity.",
-				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
-				},
-				Attributes: map[string]schema.Attribute{
-					"principal_id": schema.StringAttribute{
-						Description: "Principal Id of managed service identity.",
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-					"tenant_id": schema.StringAttribute{
-						Description: "Tenant of managed service identity.",
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-					"type": schema.StringAttribute{
-						Description: "Type of managed service identity.",
-						Optional:    true,
-						Computed:    true,
-						Validators: []validator.String{
-							stringvalidator.OneOf(
-								"None",
-								"SystemAssigned",
-								"UserAssigned",
-								"SystemAssigned, UserAssigned",
-							),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-					"user_assigned_identities": schema.MapNestedAttribute{
-						Description: "The list of user assigned identities associated with the resource. The user identity dictionary key references will be ARM resource ids in the form: '/subscriptions/{subscriptionId}/resourceGroups/{re...",
-						Optional:    true,
-						Computed:    true,
-						PlanModifiers: []planmodifier.Map{
-							mapplanmodifier.UseStateForUnknown(),
-						},
-						NestedObject: schema.NestedAttributeObject{
-							Attributes: map[string]schema.Attribute{
-								"client_id": schema.StringAttribute{
-									Description: "Client Id of user assigned identity",
-									Computed:    true,
-									PlanModifiers: []planmodifier.String{
-										stringplanmodifier.UseStateForUnknown(),
-									},
-								},
-								"principal_id": schema.StringAttribute{
-									Description: "Principal Id of user assigned identity",
-									Computed:    true,
-									PlanModifiers: []planmodifier.String{
-										stringplanmodifier.UseStateForUnknown(),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			"kind": schema.StringAttribute{
-				Description: "Kind of resource. If the resource is an app, you can refer to https://github.com/Azure/app-service-linux-docs/blob/master/Things_You_Should_Know/kind_property.md#app-service-resource-kind-reference fo...",
-				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"location": schema.StringAttribute{
-				Description: "Resource Location.",
-				Required:    true,
-				PlanModifiers: []planmodifier.String{
-					nativeschema.UseStateForEquivalentLocation(),
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"properties": schema.SingleNestedAttribute{
@@ -169,9 +126,7 @@ func AzapiWebSiteSchema() schema.Schema {
 						Description: "<code>true</code> to enable client affinity partitioning using CHIPS cookies, this will add the <code>partitioned</code> property to the affinity cookies; <code>false</code> to stop sending partitione...",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     nativeschema.StaticBool(false),
 					},
 					"client_affinity_proxy_enabled": schema.BoolAttribute{
 						Description: "<code>true</code> to override client affinity cookie domain with X-Forwarded-Host request header. <code>false</code> to use default domain. Default is <code>false</code>.",
@@ -2870,6 +2825,7 @@ func AzapiWebSiteSchema() schema.Schema {
 					},
 				},
 			},
+			"identity": nativeschema.ManagedServiceIdentity(false, ""),
 			"tags": schema.MapAttribute{
 				Description: "Resource tags.",
 				Optional:    true,
@@ -2878,29 +2834,6 @@ func AzapiWebSiteSchema() schema.Schema {
 					mapplanmodifier.UseStateForUnknown(),
 				},
 				ElementType: types.StringType,
-			},
-			"name": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Validators: []validator.String{
-					stringvalidator.LengthBetween(1, 60),
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[0-9A-Za-z-]+$`),
-						"site name may only contain alphanumeric characters and dashes, up to 60 characters",
-					),
-				},
-				MarkdownDescription: "Specifies the name of the Azure resource.",
-			},
-			"resource_group_id": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+$`),
-						"resource_group_id must be a resource group ID (/subscriptions/{id}/resourceGroups/{name})",
-					),
-				},
-				MarkdownDescription: "The ID of the parent resource that contains this resource.",
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,

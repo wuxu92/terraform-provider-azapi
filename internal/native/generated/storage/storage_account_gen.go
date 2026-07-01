@@ -25,6 +25,86 @@ func AzapiStorageAccountSchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.Storage/storageAccounts resource. [azapin:Microsoft.Storage/storageAccounts@2025-06-01]",
 		Attributes: map[string]schema.Attribute{
+			"name": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(3, 24),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[a-z0-9]+$`),
+						"storage account name must be 3-24 characters of lowercase letters and digits only",
+					),
+				},
+				MarkdownDescription: "Specifies the name of the Azure resource.",
+			},
+			"resource_group_id": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+$`),
+						"resource_group_id must be a resource group ID (/subscriptions/{id}/resourceGroups/{name})",
+					),
+				},
+				MarkdownDescription: "The ID of the parent resource that contains this resource.",
+			},
+			"location": schema.StringAttribute{
+				Description: "Required. Gets or sets the location of the resource. This will be one of the supported and registered Azure Geo Regions (e.g. West US, East US, Southeast Asia, etc.). The geo region of a resource cann...",
+				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					nativeschema.UseStateForEquivalentLocation(),
+				},
+			},
+			"sku": schema.SingleNestedAttribute{
+				Description: "Required. Gets or sets the SKU name.",
+				Required:    true,
+				Attributes: map[string]schema.Attribute{
+					"name": schema.StringAttribute{
+						Description: "The SKU name. Required for account creation; optional for update. Note that in older versions, SKU name was called accountType.",
+						Required:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"Standard_LRS",
+								"Standard_GRS",
+								"Standard_RAGRS",
+								"Standard_ZRS",
+								"Premium_LRS",
+								"Premium_ZRS",
+								"Standard_GZRS",
+								"Standard_RAGZRS",
+								"StandardV2_LRS",
+								"StandardV2_GRS",
+								"StandardV2_ZRS",
+								"StandardV2_GZRS",
+								"PremiumV2_LRS",
+								"PremiumV2_ZRS",
+							),
+						},
+					},
+					"tier": schema.StringAttribute{
+						Description: "The SKU tier. This is based on the SKU name.",
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+				},
+			},
+			"kind": schema.StringAttribute{
+				Description: "Required. Indicates the type of storage account.",
+				Optional:    true,
+				Computed:    true,
+				Default:     nativeschema.StaticString("StorageV2"),
+				Validators: []validator.String{
+					stringvalidator.OneOf(
+						"Storage",
+						"StorageV2",
+						"BlobStorage",
+						"FileStorage",
+						"BlockBlobStorage",
+					),
+				},
+			},
 			"extended_location": schema.SingleNestedAttribute{
 				Description: "Optional. Set the extended location of the resource. If not set, the storage account will be created in Azure main region. Otherwise it will be created in the specified extended location",
 				Optional:    true,
@@ -55,90 +135,6 @@ func AzapiStorageAccountSchema() schema.Schema {
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
-				},
-			},
-			"identity": schema.SingleNestedAttribute{
-				Description: "The identity of the resource.",
-				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
-				},
-				Attributes: map[string]schema.Attribute{
-					"principal_id": schema.StringAttribute{
-						Description: "The principal ID of resource identity.",
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-					"tenant_id": schema.StringAttribute{
-						Description: "The tenant ID of resource.",
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-					"type": schema.StringAttribute{
-						Description: "The identity type.",
-						Required:    true,
-						Validators: []validator.String{
-							stringvalidator.OneOf(
-								"None",
-								"SystemAssigned",
-								"UserAssigned",
-								"SystemAssigned,UserAssigned",
-							),
-						},
-					},
-					"user_assigned_identities": schema.MapNestedAttribute{
-						Description: "Gets or sets a list of key value pairs that describe the set of User Assigned identities that will be used with this storage account. The key is the ARM resource identifier of the identity. Only 1 Use...",
-						Optional:    true,
-						Computed:    true,
-						PlanModifiers: []planmodifier.Map{
-							mapplanmodifier.UseStateForUnknown(),
-						},
-						NestedObject: schema.NestedAttributeObject{
-							Attributes: map[string]schema.Attribute{
-								"client_id": schema.StringAttribute{
-									Description: "The client ID of the identity.",
-									Computed:    true,
-									PlanModifiers: []planmodifier.String{
-										stringplanmodifier.UseStateForUnknown(),
-									},
-								},
-								"principal_id": schema.StringAttribute{
-									Description: "The principal ID of the identity.",
-									Computed:    true,
-									PlanModifiers: []planmodifier.String{
-										stringplanmodifier.UseStateForUnknown(),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			"kind": schema.StringAttribute{
-				Description: "Required. Indicates the type of storage account.",
-				Optional:    true,
-				Computed:    true,
-				Default:     nativeschema.StaticString("StorageV2"),
-				Validators: []validator.String{
-					stringvalidator.OneOf(
-						"Storage",
-						"StorageV2",
-						"BlobStorage",
-						"FileStorage",
-						"BlockBlobStorage",
-					),
-				},
-			},
-			"location": schema.StringAttribute{
-				Description: "Required. Gets or sets the location of the resource. This will be one of the supported and registered Azure Geo Regions (e.g. West US, East US, Southeast Asia, etc.). The geo region of a resource cann...",
-				Required:    true,
-				PlanModifiers: []planmodifier.String{
-					nativeschema.UseStateForEquivalentLocation(),
 				},
 			},
 			"placement": schema.SingleNestedAttribute{
@@ -2057,41 +2053,6 @@ func AzapiStorageAccountSchema() schema.Schema {
 					},
 				},
 			},
-			"sku": schema.SingleNestedAttribute{
-				Description: "Required. Gets or sets the SKU name.",
-				Required:    true,
-				Attributes: map[string]schema.Attribute{
-					"name": schema.StringAttribute{
-						Description: "The SKU name. Required for account creation; optional for update. Note that in older versions, SKU name was called accountType.",
-						Required:    true,
-						Validators: []validator.String{
-							stringvalidator.OneOf(
-								"Standard_LRS",
-								"Standard_GRS",
-								"Standard_RAGRS",
-								"Standard_ZRS",
-								"Premium_LRS",
-								"Premium_ZRS",
-								"Standard_GZRS",
-								"Standard_RAGZRS",
-								"StandardV2_LRS",
-								"StandardV2_GRS",
-								"StandardV2_ZRS",
-								"StandardV2_GZRS",
-								"PremiumV2_LRS",
-								"PremiumV2_ZRS",
-							),
-						},
-					},
-					"tier": schema.StringAttribute{
-						Description: "The SKU tier. This is based on the SKU name.",
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-				},
-			},
 			"system_data": schema.SingleNestedAttribute{
 				Description: "Azure Resource Manager metadata containing createdBy and modifiedBy information.",
 				Computed:    true,
@@ -2165,15 +2126,6 @@ func AzapiStorageAccountSchema() schema.Schema {
 					},
 				},
 			},
-			"tags": schema.MapAttribute{
-				Description: "Gets or sets a list of key value pairs that describe the resource. These tags can be used for viewing and grouping this resource (across resource groups). A maximum of 15 tags can be provided for a re...",
-				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.Map{
-					mapplanmodifier.UseStateForUnknown(),
-				},
-				ElementType: types.StringType,
-			},
 			"zones": schema.ListAttribute{
 				Description: "Optional. Gets or sets the pinned logical availability zone for the storage account.",
 				Optional:    true,
@@ -2183,28 +2135,15 @@ func AzapiStorageAccountSchema() schema.Schema {
 				},
 				ElementType: types.StringType,
 			},
-			"name": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Validators: []validator.String{
-					stringvalidator.LengthBetween(3, 24),
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[a-z0-9]+$`),
-						"storage account name must be 3-24 characters of lowercase letters and digits only",
-					),
+			"identity": nativeschema.ManagedServiceIdentity(true, ""),
+			"tags": schema.MapAttribute{
+				Description: "Gets or sets a list of key value pairs that describe the resource. These tags can be used for viewing and grouping this resource (across resource groups). A maximum of 15 tags can be provided for a re...",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Map{
+					mapplanmodifier.UseStateForUnknown(),
 				},
-				MarkdownDescription: "Specifies the name of the Azure resource.",
-			},
-			"resource_group_id": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+$`),
-						"resource_group_id must be a resource group ID (/subscriptions/{id}/resourceGroups/{name})",
-					),
-				},
-				MarkdownDescription: "The ID of the parent resource that contains this resource.",
+				ElementType: types.StringType,
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,

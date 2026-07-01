@@ -24,6 +24,65 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.Storage/storageAccounts/blobServices resource. [azapin:Microsoft.Storage/storageAccounts/blobServices@2025-06-01]",
 		Attributes: map[string]schema.Attribute{
+			"name": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.OneOf(
+						"default",
+					),
+				},
+				MarkdownDescription: "Specifies the name of the Azure resource.",
+			},
+			"storage_account_id": schema.StringAttribute{
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`(?i)/providers/Microsoft\.Storage/storageAccounts/[^/]+$`),
+						"storage_account_id must be the ID of a Microsoft.Storage/storageAccounts resource",
+					),
+				},
+				MarkdownDescription: "The ID of the parent resource that contains this resource.",
+			},
+			"sku": schema.SingleNestedAttribute{
+				Description: "Sku name and tier.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
+				Attributes: map[string]schema.Attribute{
+					"name": schema.StringAttribute{
+						Description: "The SKU name. Required for account creation; optional for update. Note that in older versions, SKU name was called accountType.",
+						Required:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"Standard_LRS",
+								"Standard_GRS",
+								"Standard_RAGRS",
+								"Standard_ZRS",
+								"Premium_LRS",
+								"Premium_ZRS",
+								"Standard_GZRS",
+								"Standard_RAGZRS",
+								"StandardV2_LRS",
+								"StandardV2_GRS",
+								"StandardV2_ZRS",
+								"StandardV2_GZRS",
+								"PremiumV2_LRS",
+								"PremiumV2_ZRS",
+							),
+						},
+					},
+					"tier": schema.StringAttribute{
+						Description: "The SKU tier. This is based on the SKU name.",
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+				},
+			},
 			"properties": schema.SingleNestedAttribute{
 				Description: "The properties of a storage account’s Blob service.",
 				Required:    true,
@@ -311,44 +370,6 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 					},
 				},
 			},
-			"sku": schema.SingleNestedAttribute{
-				Description: "Sku name and tier.",
-				Computed:    true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
-				},
-				Attributes: map[string]schema.Attribute{
-					"name": schema.StringAttribute{
-						Description: "The SKU name. Required for account creation; optional for update. Note that in older versions, SKU name was called accountType.",
-						Required:    true,
-						Validators: []validator.String{
-							stringvalidator.OneOf(
-								"Standard_LRS",
-								"Standard_GRS",
-								"Standard_RAGRS",
-								"Standard_ZRS",
-								"Premium_LRS",
-								"Premium_ZRS",
-								"Standard_GZRS",
-								"Standard_RAGZRS",
-								"StandardV2_LRS",
-								"StandardV2_GRS",
-								"StandardV2_ZRS",
-								"StandardV2_GZRS",
-								"PremiumV2_LRS",
-								"PremiumV2_ZRS",
-							),
-						},
-					},
-					"tier": schema.StringAttribute{
-						Description: "The SKU tier. This is based on the SKU name.",
-						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
-					},
-				},
-			},
 			"system_data": schema.SingleNestedAttribute{
 				Description: "Azure Resource Manager metadata containing createdBy and modifiedBy information.",
 				Computed:    true,
@@ -421,27 +442,6 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 						},
 					},
 				},
-			},
-			"name": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Validators: []validator.String{
-					stringvalidator.OneOf(
-						"default",
-					),
-				},
-				MarkdownDescription: "Specifies the name of the Azure resource.",
-			},
-			"storage_account_id": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`(?i)/providers/Microsoft\.Storage/storageAccounts/[^/]+$`),
-						"storage_account_id must be the ID of a Microsoft.Storage/storageAccounts resource",
-					),
-				},
-				MarkdownDescription: "The ID of the parent resource that contains this resource.",
 			},
 			"id": schema.StringAttribute{
 				Computed:            true,

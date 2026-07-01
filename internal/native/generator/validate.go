@@ -148,6 +148,12 @@ func CollectExpectedPaths(typ *Type, prefix string, out map[string]*Property) {
 //	"attribute_name": schema.XxxAttribute{
 var attrNameInSource = regexp.MustCompile(`"([a-z][a-z0-9_]*)"\s*:\s*schema\.\w+Attribute`)
 
+// managedIdentityInSource matches the reusable native schema helper emitted for
+// the common ARM identity envelope. The helper expands to the same fixed child
+// schema as the bicep ManagedServiceIdentity shape, so validation records its
+// known paths explicitly.
+var managedIdentityInSource = regexp.MustCompile(`"([a-z][a-z0-9_]*)"\s*:\s*nativeschema\.ManagedServiceIdentity\(`)
+
 // extractEmittedPaths parses the emitted Go source and extracts all attribute
 // paths by tracking the nesting of quoted attribute names in schema declarations.
 func extractEmittedPaths(source string) map[string]bool {
@@ -166,6 +172,31 @@ func extractEmittedPaths(source string) map[string]bool {
 	lines := strings.Split(source, "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
+		if m := managedIdentityInSource.FindStringSubmatch(trimmed); m != nil {
+			attrName := m[1]
+			indent := len(line) - len(strings.TrimLeft(line, "\t "))
+			for len(stack) > 0 && indent <= stack[len(stack)-1].indent {
+				stack = stack[:len(stack)-1]
+			}
+			var parentPath string
+			if len(stack) > 0 {
+				parentPath = stack[len(stack)-1].path
+			}
+			fullPath := joinPath(parentPath, attrName)
+			for _, suffix := range []string{
+				"",
+				"principal_id",
+				"tenant_id",
+				"type",
+				"user_assigned_identities",
+				"user_assigned_identities.client_id",
+				"user_assigned_identities.principal_id",
+			} {
+				paths[joinPathAllowEmpty(fullPath, suffix)] = true
+			}
+			continue
+		}
 
 		m := attrNameInSource.FindStringSubmatch(trimmed)
 		if m == nil {
@@ -190,6 +221,13 @@ func extractEmittedPaths(source string) map[string]bool {
 	}
 
 	return paths
+}
+
+func joinPathAllowEmpty(prefix, name string) string {
+	if name == "" {
+		return prefix
+	}
+	return joinPath(prefix, name)
 }
 
 func joinPath(prefix, name string) string {

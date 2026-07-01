@@ -11,6 +11,7 @@ import (
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
+	"github.com/Azure/terraform-provider-azapi/internal/native/armjson"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/mapper"
@@ -149,7 +150,7 @@ func (b *Base) ImportState(ctx context.Context, req resource.ImportStateRequest,
 		return
 	}
 
-	hc := &CrudCtx{Ctx: ctx, Client: b.provider, ID: id, Response: asMap(respBody), Diags: &resp.Diagnostics}
+	hc := &CrudCtx{Ctx: ctx, Client: b.provider, ID: id, Response: armjson.AsMap(respBody), Diags: &resp.Diagnostics}
 	if b.hooks != nil && b.hooks.AfterRead != nil {
 		b.hooks.AfterRead(hc)
 		if resp.Diagnostics.HasError() {
@@ -263,7 +264,7 @@ func (b *Base) put(ctx context.Context, planObj types.Object, isNew bool, to tim
 		return
 	}
 
-	hc.Response = asMap(respBody)
+	hc.Response = armjson.AsMap(respBody)
 	b.runHook(hookAfter(b.hooks, isNew), hc)
 	if diags.HasError() {
 		return
@@ -328,7 +329,7 @@ func (b *Base) Read(ctx context.Context, req resource.ReadRequest, resp *resourc
 		return
 	}
 
-	hc := &CrudCtx{Ctx: ctx, Client: b.provider, ID: id, State: stateObj, Response: asMap(respBody), Diags: &resp.Diagnostics}
+	hc := &CrudCtx{Ctx: ctx, Client: b.provider, ID: id, State: stateObj, Response: armjson.AsMap(respBody), Diags: &resp.Diagnostics}
 	if b.hooks != nil && b.hooks.AfterRead != nil {
 		b.hooks.AfterRead(hc)
 		if resp.Diagnostics.HasError() {
@@ -468,11 +469,4 @@ func setState(ctx context.Context, st *tfsdk.State, obj types.Object) diag.Diagn
 	}
 	st.Raw = raw
 	return diags
-}
-
-func asMap(v interface{}) map[string]interface{} {
-	if m, ok := v.(map[string]interface{}); ok {
-		return m
-	}
-	return map[string]interface{}{}
 }
