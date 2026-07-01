@@ -39,5 +39,5 @@ type DataSourceConfig interface {
 }
 
 func init() {
-	format.MaxDepth = 0 // avoid truncating nested structs in gomega diffs
+	format.MaxDepth = 1 // avoid truncating nested structs in gomega diffs
 }

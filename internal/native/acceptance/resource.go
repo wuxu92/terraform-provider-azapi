@@ -3,8 +3,6 @@ package nativeacc
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -196,58 +194,25 @@ func expectNoPlanDrift(ctx context.Context, w *Workspace, label, operation strin
 	// defer w.tf.SetStdout(os.Stdout)
 	hasChanges, err := w.tf.Plan(ctx, tfexec.Reattach(w.reattach))
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), "%s (%s)", operation, label)
-	gomega.Expect(hasChanges).To(gomega.BeFalse(), "%s shows drift for %s\n%s", operation, label, formatPlanJSONDrift(planJSON.String()))
+	gomega.Expect(hasChanges).To(gomega.BeFalse(), "%s shows drift for %s\n%s", operation, label, formatPlanDrift(planJSON.String()))
 }
 
-func formatPlanJSONDrift(output string) string {
+func formatPlanDrift(output string) string {
 	lines := strings.Split(output, "\n")
-	summary := make([]string, 0)
-	diagnostics := make([]string, 0)
-	changes := make([]string, 0)
+	parts := make([]string, 0, len(lines))
 
+	// remove lines contain "Refreshing state..."
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		var msg map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		if strings.Contains(line, "Refreshing state...") {
 			continue
 		}
-		switch msg["type"] {
-		case "change_summary":
-			if c, ok := msg["changes"].(map[string]interface{}); ok {
-				summary = append(summary, fmt.Sprintf("change summary: add=%v change=%v remove=%v operation=%v", c["add"], c["change"], c["remove"], msg["operation"]))
-			}
-		case "planned_change", "resource_drift":
-			if c, ok := msg["change"].(map[string]interface{}); ok {
-				addr := "<unknown>"
-				if r, ok := c["resource"].(map[string]interface{}); ok {
-					if v, ok := r["addr"].(string); ok && v != "" {
-						addr = v
-					}
-				}
-				action := c["action"]
-				if actions, ok := c["actions"]; ok {
-					action = actions
-				}
-				changes = append(changes, fmt.Sprintf("%s: %s action=%v reason=%v", msg["type"], addr, action, c["reason"]))
-			}
-		case "diagnostic":
-			if d, ok := msg["diagnostic"].(map[string]interface{}); ok {
-				diagnostics = append(diagnostics, fmt.Sprintf("diagnostic: severity=%v summary=%v detail=%v", d["severity"], d["summary"], d["detail"]))
-			}
-		}
+		parts = append(parts, line)
 	}
 
-	parts := make([]string, 0, 4)
-	parts = append(parts, summary...)
-	parts = append(parts, changes...)
-	parts = append(parts, diagnostics...)
-	if len(parts) == 0 {
-		return "Terraform plan JSON contained changes but no parsed drift details. Raw output:\n" + output
-	}
-	parts = append(parts, "raw terraform plan JSON:", output)
 	return strings.Join(parts, "\n")
 }
 

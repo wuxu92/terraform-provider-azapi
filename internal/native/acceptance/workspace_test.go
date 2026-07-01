@@ -198,24 +198,3 @@ func TestDumpTFConfigIfEnabledAppendsConfiguredFile(t *testing.T) {
 		t.Fatalf("dump file missing second appended dump:\n%s", text)
 	}
 }
-
-func TestFormatPlanJSONDrift(t *testing.T) {
-	planJSON := strings.Join([]string{
-		`{"type":"planned_change","change":{"resource":{"addr":"azapi_web_site.test"},"action":"update","reason":"resource_drift"}}`,
-		`{"type":"change_summary","changes":{"add":0,"change":1,"remove":0},"operation":"plan"}`,
-		`{"type":"diagnostic","diagnostic":{"severity":"warning","summary":"example","detail":"details"}}`,
-	}, "\n")
-
-	got := formatPlanJSONDrift(planJSON)
-	for _, want := range []string{
-		"change summary: add=0 change=1 remove=0 operation=plan",
-		"planned_change: azapi_web_site.test action=update reason=resource_drift",
-		"diagnostic: severity=warning summary=example detail=details",
-		"raw terraform plan JSON:",
-		planJSON,
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("formatPlanJSONDrift missing %q in:\n%s", want, got)
-		}
-	}
-}
