@@ -2,6 +2,15 @@ package customizers
 
 import "github.com/Azure/terraform-provider-azapi/internal/native/generator"
 
+// webSiteMaxRestrictionPriority caps access-restriction priority one below Azure's
+// reserved default-rule sentinel (int32 max, 2147483647). ARM tags the implicit
+// default rule — the one selected by ipSecurityRestrictionsDefaultAction /
+// scmIpSecurityRestrictionsDefaultAction — with 2147483647, and the read hook
+// (webSiteReadConfiguration) strips any rule at that priority. Forbidding it in the
+// schema stops a user from configuring a rule the hook would then filter out, which
+// would drift on every plan.
+const webSiteMaxRestrictionPriority = 2147483646
+
 // customizeWebSite applies Microsoft.Web/sites schema rules that the bicep type
 // graph cannot express:
 //   - The site name is an operational-envelope field, not a body property, so the
@@ -31,6 +40,18 @@ func customizeWebSite(def *generator.ResourceDefinition) {
 
 	siteConfig := generator.FindProperty(def, "properties.siteConfig")
 	clearDefaultValues(siteConfig.Type)
+
+	for _, path := range []string{
+		"properties.siteConfig.ipSecurityRestrictions",
+		"properties.siteConfig.scmIpSecurityRestrictions",
+	} {
+		elem := generator.IsolateArrayElement(def, path)
+		priority := elem.Properties["priority"]
+		if priority == nil {
+			panic("native: customizeWebSite: " + path + " element has no priority property")
+		}
+		priority.Validators = append(priority.Validators, generator.IntRangeValidator(1, webSiteMaxRestrictionPriority))
+	}
 }
 
 func clearDefaultValues(typ *generator.Type) {

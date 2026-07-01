@@ -224,6 +224,9 @@ func TestWebServerFarmCustomizerAddsNameIDAndSkuRules(t *testing.T) {
 }
 
 func TestWebSiteCustomizerAddsValidatorsAndClearsSiteConfigDefaults(t *testing.T) {
+	restrictionElem := &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
+		"priority": {Name: "priority", Type: &generator.Type{Kind: generator.KindInt}},
+	}}
 	def := &generator.ResourceDefinition{
 		Name:           "Microsoft.Web/sites@2025-03-01",
 		WritableScopes: naming.ScopeResourceGroup,
@@ -236,6 +239,8 @@ func TestWebSiteCustomizerAddsValidatorsAndClearsSiteConfigDefaults(t *testing.T
 					"nested": {Name: "nested", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
 						"enabled": {Name: "enabled", Type: &generator.Type{Kind: generator.KindBool}, DefaultValue: "false"},
 					}}},
+					"ipSecurityRestrictions":    {Name: "ipSecurityRestrictions", Type: &generator.Type{Kind: generator.KindArray, ElementType: restrictionElem}},
+					"scmIpSecurityRestrictions": {Name: "scmIpSecurityRestrictions", Type: &generator.Type{Kind: generator.KindArray, ElementType: restrictionElem}},
 				}}},
 			}}},
 		}},
@@ -255,6 +260,23 @@ func TestWebSiteCustomizerAddsValidatorsAndClearsSiteConfigDefaults(t *testing.T
 	for _, path := range []string{"properties.siteConfig.ftpsState", "properties.siteConfig.nested.enabled"} {
 		if got := generator.FindProperty(def, path).DefaultValue; got != "" {
 			t.Fatalf("%s default = %q, want cleared for write-only siteConfig", path, got)
+		}
+	}
+
+	// Both restriction arrays share one bicep element type; the cap must land on each
+	// independently (exactly one validator per path proves IsolateArrayElement un-shared
+	// them rather than double-appending to a common element).
+	for _, path := range []string{
+		"properties.siteConfig.ipSecurityRestrictions[*].priority",
+		"properties.siteConfig.scmIpSecurityRestrictions[*].priority",
+	} {
+		priority := generator.FindProperty(def, path)
+		if len(priority.Validators) != 1 || priority.Validators[0].Kind != generator.ValidatorIntRange {
+			t.Fatalf("%s validators = %#v, want one int-range validator", path, priority.Validators)
+		}
+		v := priority.Validators[0]
+		if v.Min == nil || *v.Min != 1 || v.Max == nil || *v.Max != 2147483646 {
+			t.Fatalf("%s range = [%v, %v], want [1, 2147483646]", path, v.Min, v.Max)
 		}
 	}
 }

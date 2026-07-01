@@ -185,6 +185,155 @@ func (r WebSiteCfg_Complete) Config() string {
   }`)
 }
 
+// WebSiteCfg_Complete_update mutates every in-place-updatable property set by
+// WebSiteCfg_Complete to a different valid value. Applying Complete then
+// Complete_update proves those properties round-trip through an in-place update
+// (Update -> config/web read -> empty plan) and that Azure accepts the new values.
+// Interdependent toggles are held stable on purpose (e.g. client_cert_enabled and
+// http_logging_enabled stay true so client_cert_mode and logs_directory_size_limit
+// keep round-tripping; auto_heal_enabled stays true so its rules survive the read),
+// while the dependent value under each is what changes.
+type WebSiteCfg_Complete_update WebSiteCfg
+
+func (r WebSiteCfg_Complete_update) Config() string {
+	return WebSiteCfg(r).config(`
+  identity = {
+    type = "SystemAssigned"
+  }
+
+  tags = {
+    environment = "acctest-update"
+    scenario    = "complete-update"
+  }
+
+  properties = {
+    server_farm_id                       = %s
+    client_affinity_enabled              = false
+    client_affinity_partitioning_enabled = false
+    client_affinity_proxy_enabled        = false
+    client_cert_enabled                  = true
+    client_cert_exclusion_paths          = "/healthz"
+    client_cert_mode                     = "Required"
+    daily_memory_time_quota              = 0
+    enabled                              = true
+    end_to_end_encryption_enabled        = false
+    host_names_disabled                  = false
+    https_only                           = false
+    hyper_v                              = false
+    is_xenon                             = false
+    public_network_access                = "Disabled"
+    reserved                             = false
+    scm_site_also_stopped                = false // held: ARM only honors true while the app is stopped, so a running site always reads back false (AzureRM omits this property entirely)
+    ssh_enabled                          = false
+
+    outbound_vnet_routing = {
+      all_traffic            = false
+      application_traffic    = false
+      backup_restore_traffic = false
+      content_share_traffic  = false
+      image_pull_traffic     = false
+    }
+
+    site_config = {
+      acr_use_managed_identity_creds = false
+      always_on                      = false
+      app_command_line               = "echo updated"
+      auto_heal_enabled              = true
+      detailed_error_logging_enabled = false
+      ftps_state                     = "AllAllowed"
+      health_check_path              = "/healthz"
+      http20_enabled                 = false
+      http20_proxy_flag              = 0
+      http_logging_enabled           = true
+      load_balancing                 = "WeightedRoundRobin"
+      local_my_sql_enabled           = false
+      logs_directory_size_limit      = 50
+      managed_pipeline_mode          = "Classic"
+      min_tls_cipher_suite           = "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+      min_tls_version                = "1.2"
+      net_framework_version          = "v6.0"
+      number_of_workers              = 1
+      public_network_access          = "Disabled"
+      remote_debugging_enabled       = true
+      remote_debugging_version       = "VS2022"
+      request_tracing_enabled        = false
+      scm_min_tls_version            = "1.2"
+      scm_type                       = "None"
+      use32_bit_worker_process       = true
+      vnet_route_all_enabled         = false
+      web_sockets_enabled            = false
+      website_time_zone              = "UTC" // held: WEBSITE_TIME_ZONE app setting takes precedence over this config field (per ARM), so a non-default value reads back UTC (AzureRM omits this property entirely)
+
+      api_definition = {
+        url = "https://example.com/updated-openapi.json"
+      }
+
+      auto_heal_rules = {
+        actions = {
+          action_type                = "Recycle"
+          min_process_execution_time = "00:10:00"
+        }
+        triggers = {
+          status_codes = [{
+            count         = 5
+            status        = 501
+            time_interval = "00:05:00"
+          }]
+        }
+      }
+
+      cors = {
+        allowed_origins = [
+          "https://updated.contoso.com",
+        ]
+        support_credentials = false
+      }
+
+      default_documents = [
+        "updated.html",
+        "index.html",
+        "hostingstart.html",
+      ]
+
+      handler_mappings = [{
+        extension        = "html"
+        script_processor = "C:\\Program Files (x86)\\Common Files\\Microsoft Shared\\Phone Tools\\11.0\\WebResources\\Microsoft.Web.Deployment\\3.6.0\\msdeploy.axd"
+      }]
+
+      ip_security_restrictions = [{
+        action      = "Deny"
+        description = "Deny updated documentation range"
+        ip_address  = "203.0.113.0/24"
+        name        = "deny-updated-range"
+        priority    = 200
+        tag         = "Default"
+      }]
+      ip_security_restrictions_default_action = "Deny"
+
+      scm_ip_security_restrictions = [{
+        action      = "Deny"
+        description = "Deny updated documentation range"
+        ip_address  = "203.0.113.128/25"
+        name        = "deny-updated-scm-range"
+        priority    = 200
+        tag         = "Default"
+      }]
+      scm_ip_security_restrictions_default_action = "Deny"
+      scm_ip_security_restrictions_use_main       = false
+
+      virtual_applications = [{
+        virtual_path    = "/"
+        physical_path   = "site\\wwwroot"
+        preload_enabled = false
+        virtual_directories = [{
+          virtual_path  = "/static"
+          physical_path = "site\\wwwroot\\static"
+        }]
+      }]
+    }
+  }`)
+}
+
 func (r WebSiteCfg) config(bodyFmt string) string {
 	return fmt.Sprintf(`
 resource %q %q {

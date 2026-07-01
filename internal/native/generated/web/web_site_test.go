@@ -48,6 +48,13 @@ var _ = Describe("Azure Web", Ordered, func() {
 			It("updates common site properties in place", func() {
 				site.Apply(web.WebSiteCfg_Complete(cfg)).ImportVerify()
 			})
+
+			It("re-updates every mutable site property in place", func() {
+				// Complete_update flips each in-place-updatable value set by Complete;
+				// each Apply re-plans for drift, so the update round-trips through the
+				// config/web read without per-value assertions.
+				site.Apply(web.WebSiteCfg_Complete_update(cfg)).ImportVerify()
+			})
 		})
 	})
 })

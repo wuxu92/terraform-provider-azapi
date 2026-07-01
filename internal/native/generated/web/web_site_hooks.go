@@ -78,7 +78,7 @@ func filterDefaultAccessRestriction(siteConfig map[string]interface{}, key strin
 	}
 	filtered := make([]interface{}, 0, len(restrictions))
 	for _, restriction := range restrictions {
-		if isDefaultAllowAllRestriction(armjson.AsMap(restriction)) {
+		if isDefaultRestriction(armjson.AsMap(restriction)) {
 			continue
 		}
 		filtered = append(filtered, restriction)
@@ -90,10 +90,16 @@ func filterDefaultAccessRestriction(siteConfig map[string]interface{}, key strin
 	siteConfig[key] = filtered
 }
 
-func isDefaultAllowAllRestriction(restriction map[string]interface{}) bool {
-	return restriction["action"] == "Allow" &&
-		restriction["description"] == "Allow all access" &&
-		restriction["ipAddress"] == "Any" &&
-		restriction["name"] == "Allow all" &&
-		armjson.Int64(restriction["priority"]) == 2147483647
+// webSiteDefaultRestrictionPriority is the reserved priority (int32 max) Azure assigns
+// to the implicit default access-restriction rule.
+const webSiteDefaultRestrictionPriority int64 = 2147483647
+
+// isDefaultRestriction reports whether an access-restriction entry is Azure's implicit
+// default rule. ARM tags that rule — the one governed by the *DefaultAction property —
+// with the reserved priority above and returns it on every site GET even though it is
+// not user-configurable, so the read hook strips it to keep it from drifting against
+// the user's configuration. The schema forbids that priority for user rules (see
+// customizers.customizeWebSite), so a match is always the default rule.
+func isDefaultRestriction(restriction map[string]interface{}) bool {
+	return armjson.Int64(restriction["priority"]) == webSiteDefaultRestrictionPriority
 }

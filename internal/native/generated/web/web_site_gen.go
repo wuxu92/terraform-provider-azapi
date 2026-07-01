@@ -1886,6 +1886,9 @@ func AzapiWebSiteSchema() schema.Schema {
 											Description: "Priority of IP restriction rule.",
 											Optional:    true,
 											Computed:    true,
+											Validators: []validator.Int64{
+												int64validator.Between(1, 2147483646),
+											},
 											PlanModifiers: []planmodifier.Int64{
 												int64planmodifier.UseStateForUnknown(),
 											},
@@ -2451,6 +2454,9 @@ func AzapiWebSiteSchema() schema.Schema {
 											Description: "Priority of IP restriction rule.",
 											Optional:    true,
 											Computed:    true,
+											Validators: []validator.Int64{
+												int64validator.Between(1, 2147483646),
+											},
 											PlanModifiers: []planmodifier.Int64{
 												int64planmodifier.UseStateForUnknown(),
 											},
