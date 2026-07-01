@@ -505,6 +505,7 @@ sequenceDiagram
 | Shared type node + per-path overlay | bicep dedups structurally identical types; a customizer can un-share an **array** element via `IsolateArrayElement` (e.g. `ipRules` vs `ipv6Rules`). Object-node sharing (e.g. `encryption.services.*.key_type`) remains a **known limitation** for azwise overlays; fix = path-aware emission |
 | additionalProperties maps (`tags` content, user-assigned identities) | not modeled as typed sub-attributes (empty nested object) — **known limitation** |
 | ARM omits an Optional+Computed field on GET | `FlattenInto` keeps prior value; `ResolveUnknowns` nulls leftover unknowns |
+| ARM accepts a writable property on PUT but normalizes/overrides it on GET (write-accepted, not honored — e.g. `Microsoft.Web/sites` `scmSiteAlsoStopped`, `siteConfig.websiteTimeZone`) | provider reflects the server value (never fabricate the read); hold the property at its round-tripping value in acceptance configs so the update chain stays drift-free |
 | Name collisions across ARM types | build-time collision detection (9/3,246); resolved via namespace prefix |
 | Resource not found on read | `RemoveResource` |
 | azwise has no knowledge for a type | overlay is a no-op; schema from spec + descriptions only |
@@ -539,7 +540,8 @@ sequenceDiagram
 3. **Schema validity gate**: every shipped generated resource MUST pass
    `Schema.ValidateImplementation` in a resource-layer test.
 4. **Acceptance** (Ginkgo, gated on `TF_ACC` + `ARM_SUBSCRIPTION_ID`): one BDD suite
-   per resource; scenarios = create+import, in-place update, conditional ForceNew,
+   per resource; scenarios = create+import, in-place update, full-mutation updatability
+   (`*_Complete` → `*_Complete_update`), conditional ForceNew,
    verified default; CheckDestroy verifies deletion via ARM GET.
 5. **Manual workspaces** (`pkg/azapin/`, `pkg/azapi/`, gitignored): dev-override
    Terraform configs for hands-on debugging and the azapi-vs-azapin demo.

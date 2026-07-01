@@ -184,6 +184,10 @@ resource.RegisterHooks(ExampleResource.Name, &resource.Hooks{
 - Read ARM type/version from the local generated descriptor (`<Descriptor>.ARMType`,
   `<Descriptor>.APIVersion`), never hardcode.
 - Append to `Diags`/`resp.Diagnostics` and `return` to abort; the base checks after each hook.
+- If a hook strips or normalizes a server value on read (e.g. Azure's reserved-priority
+  default access rule), the schema must **forbid a user from configuring that value** via a
+  customizer validator/cap — otherwise every plan that sets it drifts. The read-side filter
+  and the schema cap are one feature; ship them together.
 
 ---
 
@@ -357,6 +361,13 @@ sa.Apply(storage.StorageAccountCfg_SKU{StorageAccountCfg: cfg, SKU: "Standard_ZR
   less safe, default.
 - `*_Complete` — as many optional properties as one valid in-place configuration covers,
   exercising the whole resource surface.
+- `*_Complete_update` — the same shape as `*_Complete` with **every in-place-updatable
+  property set to a different valid value**, so applying `*_Complete` → `*_Complete_update`
+  proves each one survives an in-place Update (Update → Read → empty plan) and that Azure
+  accepts the new value. Hold a property equal to `*_Complete` (exclude it from the mutation
+  set) only when it is genuinely **not** in-place-updatable here: a ForceNew / platform-identity
+  field, one needing a dependency the suite doesn't provision, an enabling toggle held on so
+  its dependent value is what changes, or a write-accepted-but-not-honored property (next note).
 - Additional named scenarios encode their dependency/input explicitly in fields (e.g.
   `StorageAccountCfg_SKU{SKU: "Standard_ZRS"}` or
   `BlobServiceCfg_ChangeFeed{Enabled: false}`).
@@ -366,6 +377,14 @@ sa.Apply(storage.StorageAccountCfg_SKU{StorageAccountCfg: cfg, SKU: "Standard_ZR
   `RequiresReplace` field) out of `*_Complete` and in their own scenario so the chain
   stays in-place. `tags` is modeled as an empty object, not a map — set what the schema
   accepts.
+
+**Write-accepted-but-not-honored properties.** A property can be writable in the bicep flags
+(`flags: 0`) yet the service normalizes or overrides it on GET, so a non-default value never
+round-trips on a live resource — e.g. `Microsoft.Web/sites` `scmSiteAlsoStopped` (honored only
+while the app is stopped) and `siteConfig.websiteTimeZone` (the `WEBSITE_TIME_ZONE` app setting
+wins). AzureRM tends to omit such fields entirely. Never fabricate the value in an `AfterRead`
+hook to hide the diff — that asserts state Azure contradicts (inconsistent-apply). Hold the
+property at its round-tripping value in the config and record why in a comment.
 
 **Template placeholders** — HCL Go-template fields rendered once per workspace
 (`acceptance/render.go`, `tmplData`), fixed for its lifetime so the shared base and every
