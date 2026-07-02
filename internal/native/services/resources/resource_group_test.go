@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 
 	acc "github.com/Azure/terraform-provider-azapi/internal/native/acceptance"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated/resources"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 )
 
 // Azure Resource Group exercises a subscription-scoped top-level resource. It has no

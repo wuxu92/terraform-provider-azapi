@@ -4,8 +4,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 
 	acc "github.com/Azure/terraform-provider-azapi/internal/native/acceptance"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated/resources"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated/storage"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/storage"
 )
 
 // Azure Storage Blob Service demonstrates deeper reuse: a resource group (root) and a

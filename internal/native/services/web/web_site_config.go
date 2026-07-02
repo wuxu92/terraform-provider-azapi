@@ -3,15 +3,15 @@ package web
 import (
 	"fmt"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated/resources"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 )
 
 // WebSiteCfg carries the Terraform address metadata and dependencies for
 // azapi_web_site acceptance-test scenarios. Construct it with NewWebSiteCfg,
 // then wrap it in a scenario type when applying.
 type WebSiteCfg struct {
-	generated.ResourceConfigBase
+	services.ResourceConfigBase
 	resourceGroup resources.ResourceGroupCfg
 	serverFarm    WebServerFarmCfg
 }
@@ -20,7 +20,7 @@ type WebSiteCfg struct {
 // and the native App Service plan config. The label is optional.
 func NewWebSiteCfg(resourceGroup resources.ResourceGroupCfg, serverFarm WebServerFarmCfg, label ...string) WebSiteCfg {
 	return WebSiteCfg{
-		ResourceConfigBase: generated.NewResourceConfigBase(WebSite.Name, label...),
+		ResourceConfigBase: services.NewResourceConfigBase(WebSite.Name, label...),
 		resourceGroup:      resourceGroup,
 		serverFarm:         serverFarm,
 	}

@@ -80,7 +80,7 @@ by what it does and route it to the right home:
 | --- | --- | --- |
 | `StringInSlice` (enum), `IntBetween`/`FloatBetween` (range), `StringLenBetween` (length), `StringMatch` (regex) | declarative | azwise `StringRules`/`IntRules`/`FloatRules` (often already baked as `stringvalidator.OneOf` etc.) |
 | `validation.IsUUID`, `azure.ValidateResourceID`/`commonids.Validate*ID` | generic semantic | a **shared** validator in `internal/native/schema` (e.g. `UUID()`, `AzureResourceID()`), attached with `generator.SharedValidator("UUID()")` |
-| resource-specific semantic, e.g. `storage/validate.StorageAccountIpRule` (regex + public-vs-private IP) | resource-specific semantic | a validator in `internal/native/generated/<service>/validators/<rule>.go` (package `validators`), attached with `generator.CustomValidator("StorageAccountIPRule()")` |
+| resource-specific semantic, e.g. `storage/validate.StorageAccountIpRule` (regex + public-vs-private IP) | resource-specific semantic | a validator in `internal/native/services/<service>/validators/<rule>.go` (package `validators`), attached with `generator.CustomValidator("StorageAccountIPRule()")` |
 | sub-service validator (e.g. `BlobPropertiesDefaultServiceVersion` on `blob_properties`) | sub-service | the sub-service resource's customizer, NOT the parent (see Sub-service API separation) |
 | a check over a representation that has no single ARM body field (e.g. a composite Key Vault key URI that ARM splits into keyName/keyVaultUri/keyVersion, or a map-key validator) | non-mappable | skip, and note why in the customizer |
 
@@ -91,7 +91,7 @@ Workflow for the semantic ones (generic and resource-specific):
    new shared validator there when the rule is genuinely cross-resource.
 2. **Otherwise write it** as a `validator.String` (or the matching typed validator):
    generic → `internal/native/schema/validator_<rule>.go` (package `schema`);
-   resource-specific → `internal/native/generated/<service>/validators/<rule>.go`
+   resource-specific → `internal/native/services/<service>/validators/<rule>.go`
    (package `validators`). One validator per file, exported constructor, mirroring
    the AzureRM logic exactly and citing the source file/line.
 3. **Attach it** in the resource customizer

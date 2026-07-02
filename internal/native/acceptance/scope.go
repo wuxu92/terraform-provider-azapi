@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	gomega "github.com/onsi/gomega"
 )
@@ -57,7 +57,7 @@ func (s *Scope) ApplyAll(staged ...Staged) {
 }
 
 func newResource(s *Scope, tfType, label string) *Resource {
-	d, ok := generated.Registry[tfType]
+	d, ok := services.Registry[tfType]
 	if !ok {
 		panic(fmt.Sprintf("nativeacc: no generated descriptor for %q", tfType))
 	}

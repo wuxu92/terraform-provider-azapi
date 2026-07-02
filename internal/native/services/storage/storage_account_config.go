@@ -3,8 +3,8 @@ package storage
 import (
 	"fmt"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated/resources"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 )
 
 // StorageAccountCfg carries the Terraform address metadata and resource-group
@@ -14,7 +14,7 @@ import (
 // reference (e.g. "azapi_resource_group.rg.id"). The returned HCL is a template
 // rendered by the acceptance framework ({{.RandomString}}, {{.Location}}).
 type StorageAccountCfg struct {
-	generated.ResourceConfigBase
+	services.ResourceConfigBase
 	resourceGroup resources.ResourceGroupCfg
 }
 
@@ -25,7 +25,7 @@ type StorageAccountCfg struct {
 // than one. The resource type is read from the StorageAccount descriptor.
 func NewStorageAccountCfg(resourceGroup resources.ResourceGroupCfg, label ...string) StorageAccountCfg {
 	return StorageAccountCfg{
-		ResourceConfigBase: generated.NewResourceConfigBase(StorageAccount.Name, label...),
+		ResourceConfigBase: services.NewResourceConfigBase(StorageAccount.Name, label...),
 		resourceGroup:      resourceGroup,
 	}
 }

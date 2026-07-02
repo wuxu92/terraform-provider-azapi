@@ -6,8 +6,8 @@ generated static schemas. It precedes any implementation. It builds on:
 - **DESIGN.md** — generator architecture and resource naming
 - **GENERATOR.md** — schema emission rules (flags, defaults, validators, naming)
 
-The generated schema (e.g. `generated/storage`'s `AzapiStorageAccountSchema()`,
-reachable layout-agnostically as `generated.Registry["azapi_storage_account"].Schema()`)
+The generated schema (e.g. `services/storage`'s `AzapiStorageAccountSchema()`,
+reachable layout-agnostically as `services.Registry["azapi_storage_account"].Schema()`)
 describes the
 **ARM request body** as typed Terraform attributes. This document describes the
 runtime that turns those schemas into working resources: a shared base that
@@ -46,7 +46,7 @@ polling:
 | Resource ID | `internal/services/parse` | `NewResourceID(name, parentID, "type@version")`, `ResourceIDWithResourceType(id, type)` |
 | Op knowledge | `internal/azure/azwise` | `TimeoutDefault`, `CheckForceNew`, `Validate`, `StripComputedFields` |
 | ARM type graph | `internal/azure` / `internal/native/generator` | `azure.GetResourceDefinition` / `generator.ParseTypesJSON` |
-| Registry | `internal/native/generated` | `Registry map[string]SchemaFunc` |
+| Registry | `internal/native/services` | `Registry map[string]SchemaFunc` |
 
 Provider registration appends to the existing list in `provider.go`:
 
@@ -56,7 +56,7 @@ func (p Provider) Resources(ctx context.Context) []func() resource.Resource {
         func() resource.Resource { return &services.AzapiResource{} },
         // … existing …
     }
-    for name := range generated.Registry {           // native static resources
+    for name := range services.Registry {           // native static resources
         name := name
         list = append(list, func() resource.Resource { return nativeresource.New(name) })
     }
@@ -118,7 +118,7 @@ Each generated resource is described by a small data value. The generator emits 
 per resource (alongside the schema func) and registers it:
 
 ```go
-// In package generated (emitted; each generated file calls Register in its init())
+// In package services (emitted; each generated file calls Register in its init())
 type Descriptor struct {
     Name           string               // "azapi_storage_account"
     ARMType        string               // "Microsoft.Storage/storageAccounts"
@@ -139,7 +139,7 @@ validator's convenience but the descriptor is the source of truth at runtime.
 
 Runtime **behavior** hooks are **not** on the descriptor. `internal/native/resource`
 owns the hook types and `hookRegistry`; hand-written `<resource>_hooks.go` files live
-beside the generated resource schema in `internal/native/generated/<service>/` and
+beside the generated resource schema in `internal/native/services/<service>/` and
 register via `resource.RegisterHooks`. `Base` looks hooks up once at construction
 (`hookRegistry[name]`); a resource with no hooks simply uses the base behavior.
 
@@ -148,13 +148,13 @@ register via `resource.RegisterHooks`. `Base` looks hooks up once at constructio
 ```go
 // package resource
 type Base struct {
-    desc      generated.Descriptor
+    desc      services.Descriptor
     hooks     *Hooks               // hookRegistry[name]; nil = base behavior only
     provider  *clients.Client      // set in Configure
     typeGraph *generator.Type      // lazily resolved ARM body type graph (cached)
 }
 
-func New(name string) resource.Resource { return &Base{desc: generated.Lookup(name)} }
+func New(name string) resource.Resource { return &Base{desc: services.Lookup(name)} }
 ```
 
 `Base` implements the full framework method set; every generated resource uses it
@@ -359,7 +359,7 @@ unified flow entirely.
 3. **ModifyPlan/ValidateConfig/ImportState** + azwise ForceNew integration.
 4. **Hooks** + one generated-service hook file (storage_account SKU zone-migration
    ForceNew) to prove the seam.
-5. **Provider registration** of the full `generated.Registry`; acceptance test a
+5. **Provider registration** of the full `services.Registry`; acceptance test a
    handful of representative resources.
 
 ### v1 status (implemented)
@@ -374,15 +374,15 @@ unified flow entirely.
   `azure.StaticFiles` (`loader.go`).
 - **Hooks** — `hooks.go`: runtime behavior only — `Before/After` per op +
   `ValidateConfig`/`ModifyPlan` overrides; generated-service hook files such as
-  `generated/storage/storage_account_hooks.go` implement resource-specific runtime
+  `services/storage/storage_account_hooks.go` implement resource-specific runtime
   behavior like the SKU zone-migration ForceNew via `azwise.CheckForceNew`.
 - **Schema customizers** — `internal/native/generator/customizers`: generation-time, per-ARM-type
   Go hooks that bake validators/defaults/parent-name into the generated schema
   (see GENERATOR.md Rule 9d). Not part of the provider runtime.
-- **Generated descriptor** — `generated.Descriptor{Name, ARMType, APIVersion, Schema, WritableScopes, ParentAttr}`
+- **Generated descriptor** — `services.Descriptor{Name, ARMType, APIVersion, Schema, WritableScopes, ParentAttr}`
   registered via each generated file's `init()`.
 - **Provider** — `Resources()` appends `nativeresource.New(name)` for every
-  `generated.Registry` entry.
+  `services.Registry` entry.
 - Not yet exercised against live ARM (acceptance tests need credentials); unit and
   schema-validation coverage in place.
 

@@ -6,9 +6,9 @@ import (
 
 	"reflect"
 
-	// Populate generated.Registry and hookRegistry so New("azapi_storage_account") resolves.
-	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
+	// Populate services.Registry and hookRegistry so New("azapi_storage_account") resolves.
 	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
+	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/all"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 

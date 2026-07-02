@@ -17,9 +17,9 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/azure/tags"
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/features"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
-	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
 	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
+	nativeservices "github.com/Azure/terraform-provider-azapi/internal/native/services"
+	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/all"
 	"github.com/Azure/terraform-provider-azapi/internal/services"
 	"github.com/Azure/terraform-provider-azapi/internal/services/functions"
 	"github.com/Azure/terraform-provider-azapi/internal/services/myvalidator"
@@ -796,7 +796,7 @@ func (p Provider) Resources(ctx context.Context) []func() resource.Resource {
 	}
 	// native static resources (generated from bicep types). Each generated
 	// descriptor becomes a typed resource backed by the shared base.
-	for name := range generated.Registry {
+	for name := range nativeservices.Registry {
 		name := name
 		resources = append(resources, func() resource.Resource {
 			return nativeresource.New(name)

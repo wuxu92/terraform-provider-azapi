@@ -18,7 +18,7 @@ type StringConfigure string
 func (s StringConfigure) Config() string { return string(s) }
 
 // ResourceConfig is implemented by a generated resource config builder via the
-// embedded generated.ResourceConfigBase: it names the Terraform type and state label
+// embedded services.ResourceConfigBase: it names the Terraform type and state label
 // of the resource it configures. A scope's ResourceFor takes one and vends the
 // matching Resource handle, so the literal type and label are spelled exactly once —
 // set from the resource's generated Descriptor.Name in the builder's NewXxxCfg

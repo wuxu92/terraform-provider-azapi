@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
-	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/all"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
@@ -16,7 +16,7 @@ func TestStorageAccountSchemaAgainstBicep(t *testing.T) {
 	// Validate the compiled schema against the bicep body for the SAME API version
 	// it was generated at — read from the schema's [azapin:<type>@<version>] tag —
 	// rather than a hardcoded version that silently drifts from the generator.
-	s := generated.Registry["azapi_storage_account"].Schema()
+	s := services.Registry["azapi_storage_account"].Schema()
 
 	tag, ok := ExtractResourceTag(s.Description)
 	if !ok {
@@ -54,7 +54,7 @@ func TestStorageAccountSchemaAgainstBicep(t *testing.T) {
 	}
 
 	// Validate; exclude the synthesized envelope attributes (name / parent / id).
-	d := generated.Registry["azapi_storage_account"]
+	d := services.Registry["azapi_storage_account"]
 	mismatches := SchemaAgainstBicep(s, body, "name", d.ParentAttr, "id")
 
 	errors := 0

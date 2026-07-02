@@ -93,9 +93,9 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	if needs.defaults || needs.shared || needs.nativeSchema {
 		b.WriteString("\tnativeschema \"github.com/Azure/terraform-provider-azapi/internal/native/schema\"\n")
 	}
-	b.WriteString("\t\"github.com/Azure/terraform-provider-azapi/internal/native/generated\"\n")
+	b.WriteString("\t\"github.com/Azure/terraform-provider-azapi/internal/native/services\"\n")
 	if needs.custom {
-		b.WriteString(fmt.Sprintf("\t\"github.com/Azure/terraform-provider-azapi/internal/native/generated/%s/validators\"\n", service))
+		b.WriteString(fmt.Sprintf("\t\"github.com/Azure/terraform-provider-azapi/internal/native/services/%s/validators\"\n", service))
 	}
 	b.WriteString(")\n\n")
 
@@ -120,7 +120,7 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	// Descriptor used by config builders and registry init.
 	descName := strings.TrimPrefix(structName, "Azapi")
 	b.WriteString(fmt.Sprintf("// %s describes %s for registration and config builders.\n", descName, tfName))
-	b.WriteString(fmt.Sprintf("var %s = generated.Descriptor{\n", descName))
+	b.WriteString(fmt.Sprintf("var %s = services.Descriptor{\n", descName))
 	b.WriteString(fmt.Sprintf("\tName:       %q,\n", tfName))
 	b.WriteString(fmt.Sprintf("\tARMType:    %q,\n", armType))
 	b.WriteString(fmt.Sprintf("\tAPIVersion: %q,\n", def.APIVersion))
@@ -130,7 +130,7 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	}
 	b.WriteString(fmt.Sprintf("\tParentAttr: %q,\n", def.Envelope.Parent.Name))
 	b.WriteString("}\n\n")
-	b.WriteString(fmt.Sprintf("func init() { generated.Register(%s) }\n", descName))
+	b.WriteString(fmt.Sprintf("func init() { services.Register(%s) }\n", descName))
 
 	formatted, err := format.Source([]byte(b.String()))
 	if err != nil {
@@ -162,7 +162,7 @@ type importNeeds struct {
 	pmObject        bool // objectplanmodifier
 	pmList          bool // listplanmodifier
 	pmMap           bool // mapplanmodifier
-	custom          bool // for a service-specific generated/<service>/validators reference
+	custom          bool // for a service-specific services/<service>/validators reference
 	shared          bool // for a generic nativeschema validator reference (SharedValidator)
 	nativeSchema    bool // for generic native schema helpers that are not validators/defaults
 }

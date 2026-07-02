@@ -22,7 +22,7 @@ bicep flags (types.json)    Required/ReadOnly/WriteOnly → schema flags
      └ customizers           hand-written Go, runs last, final say (Rule 9d)
 ```
 
-The result is baked into `internal/native/generated/<service>/<name>_gen.go`. The
+The result is baked into `internal/native/services/<service>/<name>_gen.go`. The
 **runtime never mutates the schema** — it serves the generated `Schema()` plus a
 `timeouts` block. Per-resource runtime *behavior* (not schema) lives beside the
 generated resource in `<name>_hooks.go`; see [Runtime behavior hooks](#runtime-behavior-hooks).
@@ -43,10 +43,10 @@ Two failure modes to internalize:
 | Generation targets | `internal/native/generator/cmd/generate_poc.go` |
 | Customizers (generation-time schema) | `internal/native/generator/customizers/<resource>.go` + `register.go` |
 | Shared validators (cross-resource) | `internal/native/schema/validator_<rule>.go` |
-| Per-service validators | `internal/native/generated/<service>/validators/<rule>.go` |
-| Generated output | `internal/native/generated/<service>/<name>_gen.go` |
-| Runtime hooks for a generated resource | `internal/native/generated/<service>/<name>_hooks.go` |
-| Service aggregator (blank imports) | `internal/native/generated/all/all.go` |
+| Per-service validators | `internal/native/services/<service>/validators/<rule>.go` |
+| Generated output | `internal/native/services/<service>/<name>_gen.go` |
+| Runtime hooks for a generated resource | `internal/native/services/<service>/<name>_hooks.go` |
+| Service aggregator (blank imports) | `internal/native/services/all/all.go` |
 | Runtime base / mapper / hook registry | `internal/native/resource/` |
 | Bicep types manifest | `internal/azure/generated/index.json` (+ `…/<ns>/<date>/types.json`) |
 | Validator CLI | `internal/native/cmd/azapin-validate/` |
@@ -71,7 +71,7 @@ go run ./internal/native/cmd/azapin-validate/
 go test ./internal/native/... ./internal/azure/azwise/...
 
 # 5. acceptance (live Azure; needs TF_ACC=1 + ARM_SUBSCRIPTION_ID, else skips)
-TF_ACC=1 go test ./internal/native/generated/<service>/ -run <TestXxxAcceptance>
+TF_ACC=1 go test ./internal/native/services/<service>/ -run <TestXxxAcceptance>
 ```
 
 `azapin-validate` is load-bearing: it confirms the schema covers every bicep body
@@ -89,10 +89,10 @@ attribute from a hook (bake it into the schema); never read ARM state from a cus
 
 Register per Terraform name from the generated service package. Hook files are
 hand-written, named `<name>_hooks.go`, and live beside `<name>_gen.go`; the existing
-`generated/all` blank import for that service makes them compile into the provider:
+`services/all` blank import for that service makes them compile into the provider:
 
 ```go
-// internal/native/generated/<service>/<name>_hooks.go
+// internal/native/services/<service>/<name>_hooks.go
 package <service>
 
 func init() {
@@ -145,7 +145,7 @@ A static plan modifier can't express "replace only when migrating between zonal 
 non-zonal SKUs", so it lives in a `ModifyPlan` hook consulting `azwise.CheckForceNew`:
 
 ```go
-// internal/native/generated/storage/storage_account_hooks.go
+// internal/native/services/storage/storage_account_hooks.go
 func storageAccountModifyPlan(ctx context.Context, req fwresource.ModifyPlanRequest, resp *fwresource.ModifyPlanResponse) {
     if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
         return // updates only
@@ -286,7 +286,7 @@ description-mining). Common moves:
   - Generic/cross-resource → `SharedValidator("UUID()")`, ctor in
     `schema/validator_<rule>.go`. Reuse `UUID()`, `AzureResourceID()`, … before adding one.
   - Resource-specific → `CustomValidator("StorageAccountIPRule()")`, ctor in
-    `generated/<service>/validators/<rule>.go`.
+    `services/<service>/validators/<rule>.go`.
 - **Array element shared with a sibling** (`ipRules` vs `ipv6Rules`) — call
   `IsolateArrayElement(def, "<path>")` **first** so the validator doesn't leak to the sibling.
 
@@ -299,7 +299,7 @@ go run ./internal/native/generator/cmd/generate_poc.go
 ```
 
 `<name>_gen.go` self-registers via `init()`. A **new service** → add one blank import to
-`generated/all/all.go`. No provider edits (`provider.go` iterates `generated.Registry`).
+`services/all/all.go`. No provider edits (`provider.go` iterates `services.Registry`).
 
 ### Step 6 — Validate
 
@@ -315,11 +315,11 @@ Three surfaces (model on storage account / blob service):
 |---|---|---|
 | Runtime composition | `resource/base_test.go` (`TestBlobServiceSchemaComposition`) | schema composes (envelope + body + timeouts), parent attr resolves |
 | azwise overlay | `generator/azwise_overlay_test.go` (`TestApplyAzwiseBlobService`) | the overlay baked into the live-parsed body |
-| Acceptance | `generated/<service>/<resource>_test.go` (a `Describe`) + `<resource>_config.go` (a `<Resource>Cfg` config builder) | live create/read/update against Azure |
+| Acceptance | `services/<service>/<resource>_test.go` (a `Describe`) + `<resource>_config.go` (a `<Resource>Cfg` config builder) | live create/read/update against Azure |
 
 **Native dependency rule (hard stop).** Acceptance configs for native resources must
 depend only on other native generated resources. If a scenario needs a prerequisite ARM
-resource and `generated.Registry`/`internal/native/generated/<service>` has no native
+resource and `services.Registry`/`internal/native/services/<service>` has no native
 descriptor for it, stop the workflow: print a clear error naming the missing ARM type
 and terminate generation/development for that resource until the dependency is added.
 Never hide a missing native dependency by embedding generic `azapi_resource` HCL in a
@@ -329,7 +329,7 @@ its typed `<Dependency>Cfg` and `scope.ResourceFor` handle.
 **Config builders** live in `<resource>_config.go` beside the schema. Split address
 metadata from scenario HCL:
 
-- `<Resource>Cfg` (e.g. `StorageAccountCfg`) embeds `generated.ResourceConfigBase`, is
+- `<Resource>Cfg` (e.g. `StorageAccountCfg`) embeds `services.ResourceConfigBase`, is
   constructed via `New<Resource>Cfg(parentCfgs..., optionalLabel)`, and carries only
   the Terraform type/label plus dependencies needed by every scenario. Pass this to
   `ws.ResourceFor(cfg)` / `scope.ResourceFor(cfg)` to get the acceptance handle.
@@ -410,7 +410,7 @@ status changed.
 - [ ] Sub-service settings in the sub-service file, not the parent
 - [ ] Target added to `generate_poc.go`
 - [ ] Customizer added *only if* bicep + azwise can't express the rule
-- [ ] New service → blank import in `generated/all/all.go`
+- [ ] New service → blank import in `services/all/all.go`
 - [ ] Regenerate → `0 mismatches`
 - [ ] Composition + azwise + acceptance tests
 - [ ] Verification gate green
@@ -430,16 +430,16 @@ Golden rule: **never hand-edit `<name>_gen.go`** (it carries
 | A ForceNew / default / validator / enum from AzureRM | azwise `<resource>.go` | regenerate |
 | A name constraint, semantic validator, or rule bicep+azwise can't express | customizer `<resource>.go` | regenerate |
 | A cross-resource validator | `internal/native/schema/validator_<rule>.go` | regenerate |
-| Runtime behavior (mutate body before PUT, normalize on read) | `generated/<service>/<name>_hooks.go` (`resource.RegisterHooks`) | no regenerate (runtime) |
+| Runtime behavior (mutate body before PUT, normalize on read) | `services/<service>/<name>_hooks.go` (`resource.RegisterHooks`) | no regenerate (runtime) |
 
 1. Edit the source layer.
 2. Regenerate: `go run ./internal/native/generator/cmd/generate_poc.go`.
 3. **Sanity-check the diff is intentional** — a *no-op* edit must leave `<name>_gen.go`
-   byte-identical: `git diff --stat internal/native/generated/`.
+   byte-identical: `git diff --stat internal/native/services/`.
 4. Run the verification gate. `azapin-validate` stays at `0 mismatches`; the azwise overlay
    test still asserts your rule baked in.
 
-Runtime-only changes (hooks in `generated/<service>/<name>_hooks.go`) need no regeneration —
+Runtime-only changes (hooks in `services/<service>/<name>_hooks.go`) need no regeneration —
 just `go build` + tests.
 
 ---

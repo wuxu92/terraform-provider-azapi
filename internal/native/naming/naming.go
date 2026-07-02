@@ -71,7 +71,7 @@ func dedupRepeatedWords(tokens []string) []string {
 // ServiceName returns the service folder/package name for an ARM resource type:
 // the namespace's service segment, lowercased. "Microsoft.Storage/storageAccounts"
 // -> "storage", "Dynatrace.Observability/monitors" -> "dynatrace". Generated
-// resources are grouped by service (generated/<service>/...).
+// resources are grouped by service (services/<service>/...).
 func ServiceName(armType string) string {
 	namespace := armType
 	if i := strings.Index(armType, "/"); i >= 0 {

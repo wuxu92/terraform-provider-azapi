@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
-	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/mapper"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/all"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -22,7 +22,7 @@ func loadStorageBody(t *testing.T) *generator.Type {
 func TestRoundTripStorageAccount(t *testing.T) {
 	ctx := context.Background()
 	body := loadStorageBody(t)
-	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+	objType := services.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
 
 	// A representative ARM GET response (subset of fields across types).
 	arm := map[string]interface{}{
@@ -115,7 +115,7 @@ func TestRoundTripStorageAccount(t *testing.T) {
 func TestFlattenIntoPreservesEquivalentLocationBase(t *testing.T) {
 	ctx := context.Background()
 	body := loadStorageBody(t)
-	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+	objType := services.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
 
 	planObj, diags := mapper.Flatten(ctx, map[string]interface{}{
 		"kind":     "StorageV2",
@@ -147,7 +147,7 @@ func TestFlattenIntoPreservesEquivalentLocationBase(t *testing.T) {
 func TestFlattenIntoOverwritesDifferentLocation(t *testing.T) {
 	ctx := context.Background()
 	body := loadStorageBody(t)
-	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+	objType := services.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
 
 	baseObj, diags := mapper.Flatten(ctx, map[string]interface{}{
 		"kind":     "StorageV2",
@@ -176,7 +176,7 @@ func TestFlattenIntoOverwritesDifferentLocation(t *testing.T) {
 func TestExpandSkipsNullAndUnknown(t *testing.T) {
 	ctx := context.Background()
 	body := loadStorageBody(t)
-	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+	objType := services.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
 
 	// Minimal ARM body — only required-ish fields.
 	arm := map[string]interface{}{
@@ -208,7 +208,7 @@ func TestExpandSkipsNullAndUnknown(t *testing.T) {
 func TestRoundTripObjectMap(t *testing.T) {
 	ctx := context.Background()
 	body := loadStorageBody(t)
-	objType := generated.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+	objType := services.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
 
 	const uaiID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai1"
 	arm := map[string]interface{}{
@@ -289,7 +289,7 @@ func loadBody(t *testing.T, armType string) *generator.Type {
 func TestFlattenIntoPreservesNestedOmitted(t *testing.T) {
 	ctx := context.Background()
 	body := loadBody(t, "Microsoft.Storage/storageAccounts/blobServices")
-	objType := generated.Registry["azapi_storage_account_blob_service"].Schema().Type().(basetypes.ObjectType)
+	objType := services.Registry["azapi_storage_account_blob_service"].Schema().Type().(basetypes.ObjectType)
 
 	// Plan: user explicitly set both flags to false (plus an echoed sibling).
 	plan := map[string]interface{}{
@@ -346,7 +346,7 @@ func TestFlattenIntoPreservesNestedOmitted(t *testing.T) {
 func TestFlattenApplyIntoPreservesKnownWebSiteCompleteValues(t *testing.T) {
 	ctx := context.Background()
 	body := loadBody(t, "Microsoft.Web/sites")
-	objType := generated.Registry["azapi_web_site"].Schema().Type().(basetypes.ObjectType)
+	objType := services.Registry["azapi_web_site"].Schema().Type().(basetypes.ObjectType)
 	serverFarmID := "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Web/serverfarms/plan"
 
 	planObj, diags := mapper.Flatten(ctx, map[string]interface{}{
@@ -419,7 +419,7 @@ func TestFlattenApplyIntoPreservesKnownWebSiteCompleteValues(t *testing.T) {
 func TestFlattenIntoPreservesSensitiveWebSiteConfig(t *testing.T) {
 	ctx := context.Background()
 	body := loadBody(t, "Microsoft.Web/sites")
-	objType := generated.Registry["azapi_web_site"].Schema().Type().(basetypes.ObjectType)
+	objType := services.Registry["azapi_web_site"].Schema().Type().(basetypes.ObjectType)
 
 	planObj, diags := mapper.Flatten(ctx, map[string]interface{}{
 		"kind":     "app",
@@ -461,7 +461,7 @@ func TestFlattenIntoPreservesSensitiveWebSiteConfig(t *testing.T) {
 func TestBlobServiceCorsSetRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	body := loadBody(t, "Microsoft.Storage/storageAccounts/blobServices")
-	objType := generated.Registry["azapi_storage_account_blob_service"].Schema().Type().(basetypes.ObjectType)
+	objType := services.Registry["azapi_storage_account_blob_service"].Schema().Type().(basetypes.ObjectType)
 
 	arm := map[string]interface{}{
 		"properties": map[string]interface{}{

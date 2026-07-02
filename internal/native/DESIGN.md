@@ -20,13 +20,13 @@ generation time:
                        -> customizers.Apply -> Emitter
                               |
                               v
-    internal/native/generated/<service>/<name>_gen.go
-        Schema() + Descriptor, self-registers into generated.Registry via init()
+    internal/native/services/<service>/<name>_gen.go
+        Schema() + Descriptor, self-registers into services.Registry via init()
 
 runtime:
 
     internal/native/resource (Base) serves Descriptor.Schema() + a timeouts block.
-    Per-resource CRUD behavior: generated/<service>/<resource>_hooks.go via RegisterHooks.
+    Per-resource CRUD behavior: services/<service>/<resource>_hooks.go via RegisterHooks.
 ```
 
 ### Components
@@ -39,7 +39,7 @@ runtime:
 | `internal/native/generator/emitter.go` | Renders type graph → Go source with Terraform schema, conditional imports |
 | `internal/native/naming` | ARM type → Terraform resource name + property name conversion |
 | `internal/native/schema` | Runtime utilities: `StaticBool`, `StaticString`, `StaticInt64` default implementations |
-| `internal/native/generated/` | Registry (`Registry`, `Descriptor`, `Register`); per-service sub-packages `generated/<service>/` hold generated schemas, config builders, validators, and hand-written `<resource>_hooks.go`; `generated/all` aggregates them |
+| `internal/native/services/` | Registry (`Registry`, `Descriptor`, `Register`); per-service sub-packages `services/<service>/` hold generated schemas, config builders, validators, and hand-written `<resource>_hooks.go`; `services/all` aggregates them |
 | `internal/native/generator/customizers/` | Per-resource generation-time schema customizers (Rule 9d), keyed by ARM type via `register.go` |
 | `internal/azure/azwise/` | Curated AzureRM operational knowledge (ForceNew, validation, defaults, timeouts) overlaid at generation time (`ApplyAzwise`) |
 | `internal/native/resource/` | Runtime `Base` (generic CRUD), the mapper, hook types, and the hook registry (`RegisterHooks`) |
@@ -189,9 +189,9 @@ Generate all 2,631 stable resource types. Ship alongside `azapi_resource`.
 | Post-processing | ✓ Complete | `generator/postprocess.go` |
 | Schema emitter | ✓ Complete | `generator/emitter.go`, `emitter_test.go` |
 | Runtime defaults | ✓ Complete | `schema/defaults.go` |
-| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site` | `generated/{storage,resources,web}/*_gen.go` |
+| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site` | `services/{storage,resources,web}/*_gen.go` |
 | Generator command | ✓ Working | `generator/cmd/generate_poc.go` |
 | CRUD methods | ✓ Complete | `resource/base.go`, `mapper/mapper.go` |
-| Provider registration | ✓ Complete | `internal/provider/provider.go` (iterates `generated.Registry`) |
+| Provider registration | ✓ Complete | `internal/provider/provider.go` (iterates `services.Registry`) |
 | Schema customization | ✓ Complete | `generator/customizers/` |
 | Full generation tool | ◐ PoC (storage + resources services) | `generator/cmd/generate_poc.go` |

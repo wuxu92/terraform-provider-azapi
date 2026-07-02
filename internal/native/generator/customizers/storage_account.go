@@ -8,7 +8,7 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/generator"
 //     constraints (3-24 characters, lowercase letters and digits only) are
 //     attached to the envelope name attribute.
 //   - network_acls.ip_rules[].value must be a public IPv4 address or CIDR range
-//     (StorageAccountIPRule, in generated/storage/validators).
+//     (StorageAccountIPRule, in services/storage/validators).
 //   - Several body fields carry generic AzureRM validators ported as shared
 //     nativeschema validators: UUID for the AD domain GUID and resource-access-rule
 //     tenant IDs, and AzureResourceID for resource-access-rule resource IDs.

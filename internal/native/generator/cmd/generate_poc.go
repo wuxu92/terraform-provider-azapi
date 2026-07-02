@@ -1,6 +1,6 @@
 // Command generate-poc generates native static resource schemas from the bicep
 // types.json embedded under internal/azure/generated and writes one Go file per
-// resource into internal/native/generated/<service>/.
+// resource into internal/native/services/<service>/.
 //
 //go:build ignore
 
@@ -125,7 +125,7 @@ func generate(def *generator.ResourceDefinition) error {
 	}
 
 	// Write to file (path includes the service folder, e.g. storage/storage_account_gen.go).
-	outPath := filepath.Join("internal", "native", "generated", generator.FileName(def))
+	outPath := filepath.Join("internal", "native", "services", generator.FileName(def))
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 		return fmt.Errorf("creating output dir for %s: %w", def.Name, err)
 	}

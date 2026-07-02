@@ -100,7 +100,7 @@ const (
 	ValidatorIntRange                           // Numeric min/max
 	ValidatorStringOneOf                        // String enum (azwise AllowedValues)
 	ValidatorStringLength                       // String length min/max (azwise)
-	ValidatorCustom                             // Service-specific validator: generated/<service>/validators (validators.X())
+	ValidatorCustom                             // Service-specific validator: services/<service>/validators (validators.X())
 	ValidatorShared                             // Generic shared validator: internal/native/schema (nativeschema.X())
 )
 

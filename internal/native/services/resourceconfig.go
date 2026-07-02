@@ -1,4 +1,4 @@
-package generated
+package services
 
 // ResourceConfigBase carries the Terraform type and state label shared by every
 // acceptance-test config builder. A builder embeds it (constructing it via

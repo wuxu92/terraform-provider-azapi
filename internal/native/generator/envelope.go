@@ -161,7 +161,7 @@ func IntRangeValidator(min, max int64) DescriptionValidator {
 }
 
 // CustomValidator builds a reference to a resource-/service-specific validator
-// that lives with the generated schema in generated/<service>/validators. The
+// that lives with the generated schema in services/<service>/validators. The
 // call is emitted qualified with that package (validators.<call>), so it must name
 // an exported constructor there returning a validator.String. Use it for a
 // semantic rule unique to one resource, e.g. CustomValidator("StorageAccountIPRule()").

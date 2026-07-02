@@ -148,7 +148,7 @@ User stories with acceptance criteria. **MUST/SHOULD/MAY** per RFC 2119.
   passes `Schema.ValidateImplementation`.
 - The generated schema MUST cover exactly the bicep body properties (validated by
   the schema↔bicep cross-validator: no extra, no missing, no type-mismatched).
-- The resource auto-registers (via `init()` → `generated.Registry`) and the provider
+- The resource auto-registers (via `init()` → `services.Registry`) and the provider
   exposes it with no further wiring.
 
 ### 2.6 Maintainer — customize a resource
@@ -232,7 +232,7 @@ internal/azure/generated/*/types.json  (embedded source of truth)
   ParseTypesJSON ─► PostProcess(+ApplyAzwise from azwise, +envelope) ─► customizers.Apply ─► EmitSchema
         │                                                       │
         ▼ ValidateEmittedSchema (source-string)                 ▼
-  internal/native/generated/<service>/<resource>_gen.go  ──compiled──►  runtime Registry
+  internal/native/services/<service>/<resource>_gen.go  ──compiled──►  runtime Registry
         ▲
   internal/native/validate (compiled-schema cross-check, run as test/CLI)
 ```
@@ -249,7 +249,7 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 | `internal/native/schema` | Runtime static-default impls (`Static*`), shared generic validators (`UUID`, `AzureResourceID`), plan-modifier anchors |
 | `internal/native/mapper` | Generic state ↔ ARM JSON (`Expand`/`Flatten`/`FlattenInto`/`ResolveUnknowns`) |
 | `internal/native/resource` | Generic `Base` resource, hook types/registry, body loader |
-| `internal/native/generated` | Registry (`Descriptor`/`Register`/`Registry`); per-service sub-packages `generated/<service>` (schemas) + `generated/<service>/validators/` + hand-written `<resource>_hooks.go`; `generated/all` blank-imports every service to populate the registry and hooks |
+| `internal/native/services` | Registry (`Descriptor`/`Register`/`Registry`); per-service sub-packages `services/<service>` (schemas) + `services/<service>/validators/` + hand-written `<resource>_hooks.go`; `services/all` blank-imports every service to populate the registry and hooks |
 | `internal/native/validate` | Compiled-schema ↔ bicep cross-validator |
 | `internal/native/acceptance` | Ginkgo BDD acceptance framework |
 | `internal/native/cmd/azapin-validate` | Standalone validation CLI |
@@ -315,7 +315,7 @@ type SchemaKnowledge interface { // consumed by the generator
 #### Generated descriptor & runtime base
 
 ```go
-// internal/native/generated
+// internal/native/services
 type Descriptor struct {
     Name           string // "azapi_storage_account"
     ARMType        string // "Microsoft.Storage/storageAccounts"
@@ -324,7 +324,7 @@ type Descriptor struct {
     WritableScopes int                  // bicep scope bitmask (metadata)
     ParentAttr     string               // generated parent-reference attr, e.g. "resource_group_id"
 }
-var Registry = map[string]Descriptor{} // each generated init() calls Register; generated/all blank-imports every service package to populate it
+var Registry = map[string]Descriptor{} // each generated init() calls Register; services/all blank-imports every service package to populate it
 
 // internal/native/resource
 type Base struct { desc Descriptor; hooks *Hooks; provider *clients.Client }
@@ -369,7 +369,7 @@ sequenceDiagram
     participant C as customizers
     participant E as Emitter
     participant V as ValidateEmitted
-    participant FS as generated/*.go
+    participant FS as services/*.go
 
     CLI->>W: ParseTypesJSON(types.json)
     W-->>CLI: DAG (cycle/discriminated-safe)
@@ -386,7 +386,7 @@ sequenceDiagram
     E-->>CLI: Go source (package <service>, flags, validators, plan modifiers, init())
     CLI->>V: ValidateEmittedSchema(source, body)
     V-->>CLI: 0 mismatches (else fail)
-    CLI->>FS: write generated/storage/storage_account_gen.go
+    CLI->>FS: write services/storage/storage_account_gen.go
 ```
 
 ### 4.4 Create / Update (runtime sequence)
@@ -457,7 +457,7 @@ sequenceDiagram
 - **Add a resource** (maintainer): run generator → file auto-registers → ship.
 - **Customize** (maintainer): register a generation-time customizer (bakes
   validators/defaults/ForceNew into the schema), and/or runtime hooks in
-  `generated/<service>/<name>_hooks.go`, or embed `*Base` to override a method.
+  `services/<service>/<name>_hooks.go`, or embed `*Base` to override a method.
 - **Curate knowledge** (maintainer): edit/add an azwise `BaseKnowledge` entry →
   regenerate → overlay flows into the schema.
 
@@ -479,7 +479,7 @@ sequenceDiagram
   (`loader.go`) for the plugin process lifetime.
 - The provider binary already embeds the bicep types (~334 MB); generated Go adds
   marginal size. Generated resources are sub-packaged by service
-  (`generated/<service>/`) to bound compile time as coverage grows.
+  (`services/<service>/`) to bound compile time as coverage grows.
 
 **Reliability / correctness**
 - The generated schema MUST pass `Schema.ValidateImplementation`.
@@ -530,7 +530,7 @@ sequenceDiagram
      `TestParseDiscriminatedObjectType`), post-processing, azwise overlay
      (`TestApplyAzwiseStorageAccount`), emitter.
    - `mapper` — round-trip Expand/Flatten on storage; null/unknown handling.
-   - `validate` — compiled schema (`generated.Registry[...].Schema()`) ↔ bicep (0 mismatches);
+   - `validate` — compiled schema (`services.Registry[...].Schema()`) ↔ bicep (0 mismatches);
      synthetic mismatch detection.
    - `resource` — `Schema.ValidateImplementation`; interface assertions; hook
      registration; cached body loader.
@@ -605,7 +605,7 @@ go run ./internal/native/cmd/azapin-validate/ -r azapi_storage_account
 TF_ACC= go test ./internal/native/... ./internal/azure/azwise/...
 
 # acceptance (creates real Azure resources)
-TF_ACC=1 go test ./internal/native/generated/storage/ -run TestStorageAcceptance \
+TF_ACC=1 go test ./internal/native/services/storage/ -run TestStorageAcceptance \
   -ginkgo.focus "creates a basic account and imports it" -timeout 900s
 
 # build the dev provider for manual workspaces

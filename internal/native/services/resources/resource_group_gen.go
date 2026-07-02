@@ -4,8 +4,8 @@ package resources
 import (
 	"regexp"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
@@ -98,7 +98,7 @@ func AzapiResourceGroupSchema() schema.Schema {
 }
 
 // ResourceGroup describes azapi_resource_group for registration and config builders.
-var ResourceGroup = generated.Descriptor{
+var ResourceGroup = services.Descriptor{
 	Name:           "azapi_resource_group",
 	ARMType:        "Microsoft.Resources/resourceGroups",
 	APIVersion:     "2025-04-01",
@@ -107,4 +107,4 @@ var ResourceGroup = generated.Descriptor{
 	ParentAttr:     "subscription_id",
 }
 
-func init() { generated.Register(ResourceGroup) }
+func init() { services.Register(ResourceGroup) }

@@ -12,9 +12,9 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/native/armjson"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/mapper"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/Azure/terraform-provider-azapi/internal/services/parse"
 	"github.com/Azure/terraform-provider-azapi/internal/tf"
 	"github.com/Azure/terraform-provider-azapi/utils"
@@ -31,10 +31,10 @@ import (
 )
 
 // Base is the generic resource implementation shared by every native static
-// resource. It is constructed per Terraform name from a generated.Descriptor
+// resource. It is constructed per Terraform name from a services.Descriptor
 // plus optional Hooks.
 type Base struct {
-	desc     generated.Descriptor
+	desc     services.Descriptor
 	hooks    *Hooks
 	provider *clients.Client
 }
@@ -49,9 +49,9 @@ var (
 )
 
 // New builds a resource for the given generated Terraform name. The provider
-// constructs one per entry in generated.Registry.
+// constructs one per entry in services.Registry.
 func New(name string) resource.Resource {
-	d, ok := generated.Registry[name]
+	d, ok := services.Registry[name]
 	if !ok {
 		// Programmer error: provider iterates the registry, so this can't happen
 		// in normal operation.

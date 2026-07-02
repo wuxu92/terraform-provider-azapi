@@ -1,4 +1,4 @@
-package generated
+package services
 
 import "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 

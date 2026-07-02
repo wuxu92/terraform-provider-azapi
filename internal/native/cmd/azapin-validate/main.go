@@ -20,9 +20,9 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/validate"
 
 	// generated provides the Registry/Descriptor types; the all aggregator's blank
-	// import runs each service package's init() to populate generated.Registry.
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
-	_ "github.com/Azure/terraform-provider-azapi/internal/native/generated/all"
+	// import runs each service package's init() to populate services.Registry.
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/all"
 )
 
 func main() {
@@ -31,17 +31,17 @@ func main() {
 	flag.Parse()
 
 	// Determine which schemas to validate
-	targets := generated.Registry
+	targets := services.Registry
 	if *res != "" {
-		d, ok := generated.Registry[*res]
+		d, ok := services.Registry[*res]
 		if !ok {
 			fmt.Fprintf(os.Stderr, "Unknown resource: %s\nAvailable:\n", *res)
-			for k := range generated.Registry {
+			for k := range services.Registry {
 				fmt.Fprintf(os.Stderr, "  %s\n", k)
 			}
 			os.Exit(1)
 		}
-		targets = map[string]generated.Descriptor{*res: d}
+		targets = map[string]services.Descriptor{*res: d}
 	}
 
 	totalErrors := 0

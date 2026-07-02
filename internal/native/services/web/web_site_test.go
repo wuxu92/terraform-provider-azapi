@@ -4,8 +4,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 
 	acc "github.com/Azure/terraform-provider-azapi/internal/native/acceptance"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated/resources"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated/web"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/web"
 )
 
 // Azure Web exercises Microsoft.Web native resources with a native server farm

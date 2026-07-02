@@ -12,7 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -91,7 +91,7 @@ func TestPutRefusesExistingResourceOnCreate(t *testing.T) {
 	// resource_group: simplest native resource, subscription-scoped. Descriptor is
 	// built inline (not via New) so the test needs no registry import, which would
 	// cycle back through the generated hook packages into this package.
-	desc := generated.Descriptor{
+	desc := services.Descriptor{
 		Name:       "azapi_resource_group",
 		ARMType:    "Microsoft.Resources/resourceGroups",
 		APIVersion: "2025-04-01",

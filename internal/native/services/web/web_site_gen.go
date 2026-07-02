@@ -4,8 +4,8 @@ package web
 import (
 	"regexp"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -2851,7 +2851,7 @@ func AzapiWebSiteSchema() schema.Schema {
 }
 
 // WebSite describes azapi_web_site for registration and config builders.
-var WebSite = generated.Descriptor{
+var WebSite = services.Descriptor{
 	Name:           "azapi_web_site",
 	ARMType:        "Microsoft.Web/sites",
 	APIVersion:     "2025-03-01",
@@ -2860,4 +2860,4 @@ var WebSite = generated.Descriptor{
 	ParentAttr:     "resource_group_id",
 }
 
-func init() { generated.Register(WebSite) }
+func init() { services.Register(WebSite) }

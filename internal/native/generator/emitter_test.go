@@ -60,13 +60,13 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 	// Registration: the descriptor is exposed as a named package var (StorageAccount)
 	// and registered at init — not an inline Register(Descriptor{...}). It is the single
 	// source of truth a same-package config builder reads as StorageAccount.Name.
-	if !strings.Contains(source, "var StorageAccount = generated.Descriptor{") {
+	if !strings.Contains(source, "var StorageAccount = services.Descriptor{") {
 		t.Error("missing exposed descriptor var StorageAccount")
 	}
-	if !strings.Contains(source, "func init() { generated.Register(StorageAccount) }") {
+	if !strings.Contains(source, "func init() { services.Register(StorageAccount) }") {
 		t.Error("missing init registration of the StorageAccount descriptor var")
 	}
-	if strings.Contains(source, "generated.Register(generated.Descriptor{") {
+	if strings.Contains(source, "services.Register(services.Descriptor{") {
 		t.Error("descriptor must be a named package var, not an inline Register(Descriptor{...})")
 	}
 	// Verify computed-only fields don't have validators

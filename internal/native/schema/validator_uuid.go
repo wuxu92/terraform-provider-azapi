@@ -10,7 +10,7 @@ import (
 
 // UUID and AzureResourceID are generic, cross-resource schema validators shared by
 // every generated resource. Resource-specific validators instead live with their
-// service in internal/native/generated/<service>/validators. A customizer attaches
+// service in internal/native/services/<service>/validators. A customizer attaches
 // a shared validator via generator.SharedValidator("UUID()"), emitted as a
 // qualified nativeschema.UUID() call in the generated schema.
 

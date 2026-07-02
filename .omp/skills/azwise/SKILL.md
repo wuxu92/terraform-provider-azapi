@@ -100,8 +100,8 @@ Transfer **every** other `ValidateFunc` too, routed by reusability:
   …) via `generator.SharedValidator("UUID()")`. Add a new one there only when the
   rule is genuinely cross-resource.
 - **Resource-specific** (e.g. `StorageAccountIpRule` — regex *plus* a public-vs-private
-  IP check): a `validator.String` in `internal/native/generated/<service>/validators/<rule>.go`
-  (package `validators`, e.g. `generated/storage/validators/ip_rules.go`), one per
+  IP check): a `validator.String` in `internal/native/services/<service>/validators/<rule>.go`
+  (package `validators`, e.g. `services/storage/validators/ip_rules.go`), one per
   file, referenced via `generator.CustomValidator("StorageAccountIPRule()")`.
 - **Sub-service** (e.g. `BlobPropertiesDefaultServiceVersion`): goes on the
   sub-service resource, not the parent. **Non-mappable** (composite Key Vault key

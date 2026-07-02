@@ -4,9 +4,9 @@ package storage
 import (
 	"regexp"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated/storage/validators"
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/storage/validators"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -2155,7 +2155,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 }
 
 // StorageAccount describes azapi_storage_account for registration and config builders.
-var StorageAccount = generated.Descriptor{
+var StorageAccount = services.Descriptor{
 	Name:           "azapi_storage_account",
 	ARMType:        "Microsoft.Storage/storageAccounts",
 	APIVersion:     "2025-06-01",
@@ -2164,4 +2164,4 @@ var StorageAccount = generated.Descriptor{
 	ParentAttr:     "resource_group_id",
 }
 
-func init() { generated.Register(StorageAccount) }
+func init() { services.Register(StorageAccount) }

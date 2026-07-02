@@ -4,8 +4,8 @@ package web
 import (
 	"regexp"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -799,7 +799,7 @@ func AzapiWebServerFarmSchema() schema.Schema {
 }
 
 // WebServerFarm describes azapi_web_server_farm for registration and config builders.
-var WebServerFarm = generated.Descriptor{
+var WebServerFarm = services.Descriptor{
 	Name:           "azapi_web_server_farm",
 	ARMType:        "Microsoft.Web/serverfarms",
 	APIVersion:     "2025-03-01",
@@ -808,4 +808,4 @@ var WebServerFarm = generated.Descriptor{
 	ParentAttr:     "resource_group_id",
 }
 
-func init() { generated.Register(WebServerFarm) }
+func init() { services.Register(WebServerFarm) }

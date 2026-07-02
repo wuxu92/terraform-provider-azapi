@@ -4,8 +4,8 @@ package storage
 import (
 	"regexp"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -453,7 +453,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 }
 
 // StorageAccountBlobService describes azapi_storage_account_blob_service for registration and config builders.
-var StorageAccountBlobService = generated.Descriptor{
+var StorageAccountBlobService = services.Descriptor{
 	Name:           "azapi_storage_account_blob_service",
 	ARMType:        "Microsoft.Storage/storageAccounts/blobServices",
 	APIVersion:     "2025-06-01",
@@ -462,4 +462,4 @@ var StorageAccountBlobService = generated.Descriptor{
 	ParentAttr:     "storage_account_id",
 }
 
-func init() { generated.Register(StorageAccountBlobService) }
+func init() { services.Register(StorageAccountBlobService) }

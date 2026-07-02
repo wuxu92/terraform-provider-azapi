@@ -3,7 +3,7 @@ package storage
 import (
 	"fmt"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generated"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 )
 
 // BlobServiceCfg carries the Terraform address metadata and storage-account
@@ -13,7 +13,7 @@ import (
 // StorageAccountCfg is held so every scenario renders the same storage_account_id
 // reference (e.g. "azapi_storage_account.sa.id").
 type BlobServiceCfg struct {
-	generated.ResourceConfigBase
+	services.ResourceConfigBase
 	storageAccount StorageAccountCfg
 }
 
@@ -24,7 +24,7 @@ type BlobServiceCfg struct {
 // StorageAccountBlobService descriptor.
 func NewBlobServiceCfg(storageAccount StorageAccountCfg, label ...string) BlobServiceCfg {
 	return BlobServiceCfg{
-		ResourceConfigBase: generated.NewResourceConfigBase(StorageAccountBlobService.Name, label...),
+		ResourceConfigBase: services.NewResourceConfigBase(StorageAccountBlobService.Name, label...),
 		storageAccount:     storageAccount,
 	}
 }
