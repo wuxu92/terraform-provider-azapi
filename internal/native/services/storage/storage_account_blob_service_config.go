@@ -198,8 +198,7 @@ func (r BlobServiceCfg) completeUpdateProps() string {
       enable = true // held: only writable field; granularity/name/blob types are server-populated
     }
     restore_policy = {
-      days    = 10
-      enabled = true // held: keep point-in-time restore on (the scenario's meaningful state)
+      enabled = false
     }
   }`
 }
