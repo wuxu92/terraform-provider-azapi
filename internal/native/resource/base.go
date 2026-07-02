@@ -247,7 +247,9 @@ func (b *Base) put(ctx context.Context, planObj types.Object, isNew bool, to tim
 	// On create, refuse to silently adopt a pre-existing resource: CreateOrUpdate is a
 	// PUT that would overwrite whatever already lives at this ID. Mirror azapi_resource —
 	// GET first and, if the resource already exists, tell the user to import it instead.
-	if isNew {
+	// A Singleton default (e.g. blobServices/default) is exempt: it always exists because
+	// ARM has no create for it, so a "create" is really an in-place update of the default.
+	if isNew && (b.hooks == nil || b.hooks.Singleton == nil) {
 		if _, err := b.provider.ResourceClient.Get(ctx, id.AzureResourceId, id.ApiVersion, clients.DefaultRequestOptions()); err == nil {
 			diags.AddError("Resource already exists", tf.ImportAsExistsError(b.desc.Name, id.ID()).Error())
 			return
@@ -359,11 +361,6 @@ func (b *Base) Read(ctx context.Context, req resource.ReadRequest, resp *resourc
 }
 
 func (b *Base) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	if b.hooks != nil && b.hooks.SkipARMDelete {
-		// No ARM delete operation for this resource (e.g. a singleton child like
-		// blobServices/default); the framework removes it from state on return.
-		return
-	}
 	if b.provider == nil {
 		resp.Diagnostics.AddError("Provider not configured", "the azapi provider was not configured")
 		return
@@ -392,6 +389,16 @@ func (b *Base) Delete(ctx context.Context, req resource.DeleteRequest, resp *res
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	// A Singleton default has no ARM delete: removing it from Terraform means
+	// resetting the singleton to its baseline state. PUT the default body; the
+	// framework then removes the resource from Terraform state on return.
+	if b.hooks != nil && b.hooks.Singleton != nil {
+		if _, err := b.provider.ResourceClient.CreateOrUpdate(ctx, id.AzureResourceId, id.ApiVersion, b.hooks.Singleton.DefaultBody, clients.DefaultRequestOptions()); err != nil {
+			resp.Diagnostics.AddError("Failed to reset resource", fmt.Errorf("resetting %s to its default on destroy: %w", id.ID(), err).Error())
+		}
+		return
+	}
 
 	if b.hooks != nil && b.hooks.BeforeDelete != nil {
 		hc := &CrudCtx{Ctx: ctx, Client: b.provider, ID: id, State: stateObj, Diags: &resp.Diagnostics}

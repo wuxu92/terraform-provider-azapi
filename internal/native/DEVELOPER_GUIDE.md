@@ -115,6 +115,7 @@ field — means "use the base behavior".
 | `BeforeDelete` | delete, before the DELETE call | preflight/guard using `ctx.State` |
 | `ValidateConfig` | config validation (plan-time; values may be unknown) | cross-field rules one validator can't express |
 | `ModifyPlan` | plan, **after** the base's default work | conditional `RequiresReplace`, plan-time derivation |
+| `Singleton` (data) | create/delete of a fixed-named default child ARM never creates or deletes | skip the create existence check + reset to `DefaultBody` via PUT on destroy (e.g. `blobServices/default`) |
 
 `Before/AfterCreate` vs `Before/AfterUpdate` dispatch by whether the op is a create
 (same body-composition path). `ValidateConfig`/`ModifyPlan` use framework signatures and

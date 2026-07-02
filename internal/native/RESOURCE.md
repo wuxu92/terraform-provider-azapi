@@ -213,8 +213,9 @@ create (`Get` → "already exists") mirrors `azapi_resource`.
 ```
 1. id := parse.ResourceIDWithResourceType(state.id, ARMType@APIVersion)
 2. timeout := azwise.TimeoutDefault(..., "delete", 30m)
-3. hook.BeforeDelete (optional)
-4. client.Delete(...)           // 404 tolerated
+3. if hooks.Singleton: client.CreateOrUpdate(..., Singleton.DefaultBody) → return  // fixed-name default with no ARM delete: reset to baseline
+4. hook.BeforeDelete (optional)
+5. client.Delete(...)           // 404 tolerated
 ```
 
 ## The Mapper (state ↔ ARM JSON)

@@ -243,31 +243,35 @@ func TestStorageAccountHookRegistered(t *testing.T) {
 	}
 }
 
-func TestBlobServiceSkipARMDelete(t *testing.T) {
-	// blobServices/default is a singleton with no ARM delete operation, so its
-	// generated-service hook registers a state-only delete (SkipARMDelete) to avoid a 405.
-	if !hookField(t, nativeresource.New("azapi_storage_account_blob_service"), "SkipARMDelete").Bool() {
-		t.Error("blob service SkipARMDelete should be true")
+func TestBlobServiceSingletonReset(t *testing.T) {
+	// blobServices/default always exists and has no ARM create/delete: its generated-
+	// service hook marks it a Singleton default so a create updates the always-present
+	// default in place and a destroy resets it to DefaultBody instead of issuing a
+	// 405 DELETE.
+	blob := nativeresource.New("azapi_storage_account_blob_service")
+	singleton := hookField(t, blob, "Singleton")
+	if singleton.IsNil() {
+		t.Fatal("blob service Singleton hook should be set")
+	}
+	body := singleton.Elem().FieldByName("DefaultBody")
+	if body.IsNil() || body.Len() == 0 {
+		t.Fatal("blob service Singleton.DefaultBody must carry the reset body")
+	}
+	if !body.MapIndex(reflect.ValueOf("properties")).IsValid() {
+		t.Error("reset body must contain a properties block")
 	}
 
-	ctx := context.Background()
+	// A regular resource is not a Singleton default.
+	if !hookField(t, nativeresource.New("azapi_storage_account"), "Singleton").IsNil() {
+		t.Error("storage account should not be a Singleton default")
+	}
 
-	// With SkipARMDelete, Delete returns before touching the provider (nil here) and
-	// records no error — the framework then removes the resource from state.
-	skip := nativeresource.New("azapi_storage_account_blob_service")
+	// Delete now takes the reset path (a PUT) instead of the old no-op state removal,
+	// so a nil-provider Delete reaches the provider check and errors.
 	resp := &resource.DeleteResponse{}
-	skip.Delete(ctx, resource.DeleteRequest{}, resp)
-	if resp.Diagnostics.HasError() {
-		t.Fatalf("SkipARMDelete Delete should not error, got: %v", resp.Diagnostics)
-	}
-
-	// Without the flag the same nil-provider Delete reaches the provider check and
-	// errors — confirming the early return is what bypasses the ARM delete path.
-	plain := nativeresource.New("azapi_storage_account")
-	resp2 := &resource.DeleteResponse{}
-	plain.Delete(ctx, resource.DeleteRequest{}, resp2)
-	if !resp2.Diagnostics.HasError() {
-		t.Error("Delete without SkipARMDelete and nil provider should error")
+	blob.Delete(context.Background(), resource.DeleteRequest{}, resp)
+	if !resp.Diagnostics.HasError() {
+		t.Error("blob service Delete with nil provider should error (reset needs the provider)")
 	}
 }
 

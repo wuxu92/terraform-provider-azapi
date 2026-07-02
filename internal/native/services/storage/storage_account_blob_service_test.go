@@ -15,8 +15,9 @@ import (
 // address (sa.IDRef).
 //
 // The blob service lives in the SAME scope as its storage account: blobServices is a
-// singleton with no ARM delete operation, so it can only be torn down together with
-// the account (the scope's Teardown destroys both and then asserts both are gone).
+// singleton with no ARM delete — a Terraform destroy resets it to Azure's default
+// rather than removing it — so its scope Teardown destroys it together with the
+// account (which does delete), then asserts both are gone.
 var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 	ws := acc.NewWorkspace()
 	BeforeAll(ws.Start)
