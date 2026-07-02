@@ -55,6 +55,22 @@ func (r StorageAccountCfg_Complete) Config() string {
 	return base.config("Standard_LRS", base.completeProps())
 }
 
+// StorageAccountCfg_Complete_update mutates every in-place-updatable property set by
+// StorageAccountCfg_Complete to a different valid value, so applying Complete then
+// Complete_update proves each survives an in-place update (Update -> Read -> empty
+// plan) and that Azure accepts the new value. A property is held at its Complete value
+// only where a flip cannot round-trip: large_file_shares_state is irreversible once
+// enabled; minimum_tls_version stays TLS1_2 because subscriptions commonly pin the
+// floor via Azure Policy; public_network_access stays Enabled so the network_acls Deny
+// rule is the meaningful, control-plane-safe change; allow_cross_tenant_replication
+// stays false because a restrictive allowed_copy_scope forbids it.
+type StorageAccountCfg_Complete_update StorageAccountCfg
+
+func (r StorageAccountCfg_Complete_update) Config() string {
+	base := StorageAccountCfg(r)
+	return base.config("Standard_LRS", base.completeUpdateProps())
+}
+
 // StorageAccountCfg_SKU overrides the SKU, e.g. Standard_ZRS to exercise the storage
 // account hook's zone-migration (Standard_LRS -> Standard_ZRS) ForceNew rule. Like
 // Basic it carries a present (empty) properties block so the replacement account
@@ -110,6 +126,36 @@ func (r StorageAccountCfg) completeProps() string {
     }
     key_policy = {
       key_expiration_period_in_days = 7
+    }
+  }`
+}
+
+// completeUpdateProps is the StorageAccountCfg properties fragment for Complete_update:
+// it flips each in-place-updatable value from completeProps and holds the handful that
+// cannot round-trip (see StorageAccountCfg_Complete_update).
+func (r StorageAccountCfg) completeUpdateProps() string {
+	return `
+  properties = {
+    access_tier                      = "Hot"
+    allow_blob_public_access         = true
+    allow_cross_tenant_replication   = false // held: a restrictive allowed_copy_scope forbids cross-tenant replication
+    allow_shared_key_access          = false
+    allowed_copy_scope               = "PrivateLink"
+    default_to_o_auth_authentication = true
+    large_file_shares_state          = "Enabled" // held: cannot be disabled once enabled
+    minimum_tls_version              = "TLS1_2"   // held: subscriptions commonly pin the TLS floor via Azure Policy, which rejects a lower value
+    public_network_access            = "Enabled"  // held: keeps the network_acls Deny rule the meaningful change; the ARM control plane is never gated by network_acls
+    supports_https_traffic_only      = false
+    network_acls = {
+      bypass         = "AzureServices"
+      default_action = "Deny"
+    }
+    sas_policy = {
+      expiration_action     = "Log"
+      sas_expiration_period = "2.00:00:00"
+    }
+    key_policy = {
+      key_expiration_period_in_days = 14
     }
   }`
 }

@@ -65,7 +65,16 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 			It("enable", func() { blob.Apply(storage.BlobServiceCfg_ChangeFeed{BlobServiceCfg: blobCfg, Enabled: true}) })
 		})
 
-		It("complete", func() { blob.Apply(storage.BlobServiceCfg_Complete(blobCfg)) })
+		When("complete", func() {
+			It("from basic", func() { blob.Apply(storage.BlobServiceCfg_Complete(blobCfg)) })
+
+			It("updates complete", func() {
+				// Complete_update flips each in-place-updatable value set by Complete; each
+				// Apply re-plans for drift, so the update round-trips without per-value
+				// assertions.
+				blob.Apply(storage.BlobServiceCfg_Complete_update(blobCfg))
+			})
+		})
 
 		It("rejects a blob service name other than \"default\"", func() {
 			invalid := storage.NewBlobServiceCfg(saCfg, "invalid")

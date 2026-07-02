@@ -51,6 +51,22 @@ func (r BlobServiceCfg_Complete) Config() string {
 	return base.config("default", base.completeProps())
 }
 
+// BlobServiceCfg_Complete_update mutates every in-place-updatable property set by
+// BlobServiceCfg_Complete to a different valid value, so applying Complete then
+// Complete_update proves each survives an in-place update (Update -> Read -> empty
+// plan). The point-in-time-restore prerequisites are held on purpose: restore_policy
+// requires versioning, change feed and blob soft delete enabled, so is_versioning_enabled,
+// change_feed.enabled, delete_retention_policy.enabled and restore_policy.enabled stay
+// true; allow_permanent_delete stays false on both retention policies because it
+// conflicts with versioning/restore; last_access_time_tracking_policy.enable stays true
+// because the block's other fields are server-populated.
+type BlobServiceCfg_Complete_update BlobServiceCfg
+
+func (r BlobServiceCfg_Complete_update) Config() string {
+	base := BlobServiceCfg(r)
+	return base.config("default", base.completeUpdateProps())
+}
+
 // BlobServiceCfg_ChangeFeed sets properties.change_feed.enabled.
 type BlobServiceCfg_ChangeFeed struct {
 	BlobServiceCfg
@@ -141,6 +157,49 @@ func (r BlobServiceCfg) completeProps() string {
     restore_policy = {
       days    = 7
       enabled = true
+    }
+  }`
+}
+
+// completeUpdateProps is the BlobServiceCfg properties fragment for Complete_update: it
+// flips each in-place-updatable value from completeProps while keeping restore days
+// below delete-retention days and holding the point-in-time-restore prerequisites (see
+// BlobServiceCfg_Complete_update).
+func (r BlobServiceCfg) completeUpdateProps() string {
+	return `
+  properties = {
+    automatic_snapshot_policy_enabled = true
+    change_feed = {
+      enabled           = true // held: point-in-time restore requires change feed enabled
+      retention_in_days = 14
+    }
+    container_delete_retention_policy = {
+      allow_permanent_delete = false // held: conflicts with versioning/point-in-time restore
+      days                   = 21
+      enabled                = true
+    }
+    cors = {
+      cors_rules = [{
+        allowed_headers    = ["x-ms-meta-*"]
+        allowed_methods    = ["GET", "POST", "HEAD"]
+        allowed_origins    = ["https://updated.example.com"]
+        exposed_headers    = ["x-ms-meta-*"]
+        max_age_in_seconds = 7200
+      }]
+    }
+    default_service_version = "2021-12-02"
+    delete_retention_policy = {
+      allow_permanent_delete = false // held: conflicts with versioning/point-in-time restore
+      days                   = 21
+      enabled                = true // held: point-in-time restore requires blob soft delete
+    }
+    is_versioning_enabled = true // held: point-in-time restore requires versioning
+    last_access_time_tracking_policy = {
+      enable = true // held: only writable field; granularity/name/blob types are server-populated
+    }
+    restore_policy = {
+      days    = 10
+      enabled = true // held: keep point-in-time restore on (the scenario's meaningful state)
     }
   }`
 }

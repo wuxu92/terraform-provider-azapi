@@ -51,6 +51,13 @@ var _ = Describe("Azure Storage", Ordered, func() {
 			sa.Apply(storage.StorageAccountCfg_Complete(cfg))
 		})
 
+		It("re-updates every mutable account property in place", func() {
+			// Complete_update flips each in-place-updatable value set by Complete; each
+			// Apply re-plans for drift, so the update round-trips without per-value
+			// assertions.
+			sa.Apply(storage.StorageAccountCfg_Complete_update(cfg))
+		})
+
 		It("replaces the account when migrating Standard_LRS to Standard_ZRS", func() {
 			// Exercises the storage account hook's azwise.CheckForceNew SKU zone-migration
 			// rule: Standard_LRS -> Standard_ZRS forces a replace. Exists confirms the
