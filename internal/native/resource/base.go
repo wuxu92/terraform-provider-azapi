@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/mapper"
 	"github.com/Azure/terraform-provider-azapi/internal/services/parse"
+	"github.com/Azure/terraform-provider-azapi/internal/tf"
 	"github.com/Azure/terraform-provider-azapi/utils"
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -242,6 +243,19 @@ func (b *Base) put(ctx context.Context, planObj types.Object, isNew bool, to tim
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	// On create, refuse to silently adopt a pre-existing resource: CreateOrUpdate is a
+	// PUT that would overwrite whatever already lives at this ID. Mirror azapi_resource —
+	// GET first and, if the resource already exists, tell the user to import it instead.
+	if isNew {
+		if _, err := b.provider.ResourceClient.Get(ctx, id.AzureResourceId, id.ApiVersion, clients.DefaultRequestOptions()); err == nil {
+			diags.AddError("Resource already exists", tf.ImportAsExistsError(b.desc.Name, id.ID()).Error())
+			return
+		} else if !utils.ResponseErrorWasNotFound(err) {
+			diags.AddError("Failed to retrieve resource", fmt.Errorf("checking for presence of existing %s: %w", id.ID(), err).Error())
+			return
+		}
+	}
 
 	// Compose the ARM body and strip server-computed read-only fields.
 	armBody := mapper.Expand(planObj, bt)
