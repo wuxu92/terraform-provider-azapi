@@ -26,7 +26,7 @@ func NewResourceGroupCfg(label ...string) ResourceGroupCfg {
 type ResourceGroupCfg_Basic ResourceGroupCfg
 
 func (r ResourceGroupCfg_Basic) Config() string {
-	return ResourceGroupCfg(r).config("acctest-rg-{{.RandomInteger}}")
+	return ResourceGroupCfg(r).config("accazapi-rg-{{.RandomInteger}}")
 }
 
 // ResourceGroupCfg_Named renders a resource group with an explicit name, for

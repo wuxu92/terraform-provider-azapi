@@ -77,7 +77,7 @@ func applyAll(w *Workspace, staged []Staged) {
 	if dumpTFConfigOnlyEnabled() {
 		return
 	}
-	gomega.Expect(w.tf.Apply(ctx, tfexec.Reattach(w.reattach))).
+	gomega.Expect(w.tf.Apply(ctx, tfexec.Reattach(w.reattach), tfexec.Refresh(false))).
 		NotTo(gomega.HaveOccurred(), "terraform apply (%s)", label)
 	expectNoPlanDrift(ctx, w, label, "plan after apply")
 	for _, s := range staged {
@@ -133,7 +133,7 @@ func (r *Resource) ApplyExpectError(config Configure, errRegex string) {
 	if dumpTFConfigOnlyEnabled() {
 		return
 	}
-	_, err := r.scope.ws.tf.Plan(context.Background(), tfexec.Reattach(r.scope.ws.reattach))
+	_, err := r.scope.ws.tf.Plan(context.Background(), tfexec.Reattach(r.scope.ws.reattach), tfexec.Refresh(false))
 	gomega.Expect(err).To(gomega.HaveOccurred(), "expected plan to fail for %s", r.address())
 	gomega.Expect(err.Error()).To(gomega.MatchRegexp(errRegex))
 }

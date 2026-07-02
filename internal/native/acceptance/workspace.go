@@ -395,11 +395,11 @@ func quietProviderLogs() {
 func buildData() acceptance.TestData {
 	loc := os.Getenv("ARM_TEST_LOCATION")
 	if loc == "" {
-		loc = "westeurope"
+		loc = "westus2"
 	}
 	locAlt := os.Getenv("ARM_TEST_LOCATION_ALT")
 	if locAlt == "" {
-		locAlt = "eastus"
+		locAlt = "eastus2"
 	}
 	return acceptance.TestData{
 		RandomInteger:     acceptance.RandTimeInt(),
