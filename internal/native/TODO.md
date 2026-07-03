@@ -76,3 +76,8 @@ Current design is one native resource per ARM type at latest stable. Multiple ve
 
 Azwise is currently compiled into provider behavior and generator overlay. Extracting it needs module boundary, versioning, generated artifacts or Go API, validation access to Azure SDK types, and synchronized provider/generator releases. Benefit: reuse by tools and independent knowledge lifecycle.  
 **Workload:** [INFERENCE] 3-6 weeks initial extraction; release/process cost continues.
+
+## 16. Live-API schema verification harness
+
+Generated native schema derives from lossy sources (bicep/swagger + azwise/AzureRM); neither faithfully mirrors ARM API behavior for validation ranges, enum completeness, `MaxItems`, `Required`, immutability/ForceNew, real defaults, or write-accepted-but-not-honored properties. Design a mechanism to verify per-property knowledge against the live API by probing with boundary values and diffing PUT→GET, classifying each outcome (Confirmed / Refuted / Coerced / Inconclusive) into suggested azwise/customizer edits. Primary engine = raw `ResourceClient` REST (bypasses the typed schema that would otherwise filter the signal); typed-resource TF path (`nativeacc.Workspace`, `-debuggable`) reserved for regression and interactive debugging. See `SCHEMA_VERIFICATION.md`. Depends conceptually on #6 (schema diff) and #10 (constraint engine).  
+**Workload:** [INFERENCE] 1 week REST PoC on one resource; 2-4 weeks planner+classifier+reporter; batching/governor + CI cadence ongoing.
