@@ -10,14 +10,24 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Storage account hooks add the conditional SKU zone-migration rule that a
-// static schema plan modifier cannot express. Generated schema already carries
-// declarative ForceNew rules from azwise; this hook only handles the dynamic
-// replacement decision encoded by azwise.CheckForceNew.
+// Storage account hooks add the conditional replacement rules that a static schema
+// plan modifier cannot express. Generated schema already carries the declarative
+// ForceNew rules from azwise as schema-level RequiresReplace; this hook handles the
+// value-dependent decisions encoded by azwise.CheckForceNew (SKU zone migration,
+// account_kind migration, large-file-share disablement).
 func init() {
 	nativeresource.RegisterHooks(StorageAccount.Name, &nativeresource.Hooks{
 		ModifyPlan: storageAccountModifyPlan,
 	})
+}
+
+// condReplaceRule pairs the attribute whose change is evaluated with the attribute
+// path marked as forcing replacement, plus a wrapper that lifts the read value into
+// an isolated ARM body so only this rule's logic fires in azwise.CheckForceNew.
+type condReplaceRule struct {
+	attr   path.Path
+	marker path.Path
+	body   func(value string) map[string]interface{}
 }
 
 func storageAccountModifyPlan(ctx context.Context, req fwresource.ModifyPlanRequest, resp *fwresource.ModifyPlanResponse) {
@@ -26,21 +36,47 @@ func storageAccountModifyPlan(ctx context.Context, req fwresource.ModifyPlanRequ
 		return
 	}
 
-	var oldName, newName types.String
-	skuName := path.Root("sku").AtName("name")
-	resp.Diagnostics.Append(req.State.GetAttribute(ctx, skuName, &oldName)...)
-	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, skuName, &newName)...)
-	if resp.Diagnostics.HasError() {
-		return
+	rules := []condReplaceRule{
+		{
+			// SKU zone migration (e.g. Standard_LRS <-> Standard_ZRS). The whole sku
+			// block is marked because account_replication_type is encoded in sku.name.
+			attr:   path.Root("sku").AtName("name"),
+			marker: path.Root("sku"),
+			body:   func(v string) map[string]interface{} { return map[string]interface{}{"sku": map[string]interface{}{"name": v}} },
+		},
+		{
+			// account_kind migration — only Storage -> StorageV2 is allowed in place.
+			attr:   path.Root("kind"),
+			marker: path.Root("kind"),
+			body:   func(v string) map[string]interface{} { return map[string]interface{}{"kind": v} },
+		},
+		{
+			// large_file_shares_state cannot be disabled once enabled.
+			attr:   path.Root("properties").AtName("large_file_shares_state"),
+			marker: path.Root("properties").AtName("large_file_shares_state"),
+			body: func(v string) map[string]interface{} {
+				return map[string]interface{}{"properties": map[string]interface{}{"largeFileSharesState": v}}
+			},
+		},
 	}
 
-	// Minimal bodies isolate the conditional SKU rule: the declarative ForceNew
-	// paths (already enforced as schema-level RequiresReplace) compare nil == nil
-	// here, so only the SKU zone-migration logic in the storage knowledge fires.
-	oldBody := map[string]interface{}{"sku": map[string]interface{}{"name": oldName.ValueString()}}
-	newBody := map[string]interface{}{"sku": map[string]interface{}{"name": newName.ValueString()}}
-
-	if azwise.CheckForceNew(StorageAccount.ARMType, StorageAccount.APIVersion, oldBody, newBody) {
-		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("sku"))
+	for _, r := range rules {
+		var oldVal, newVal types.String
+		// A read failure means the attribute isn't meaningfully present in this
+		// config shape (e.g. a null parent block); skip rather than abort the plan.
+		if req.State.GetAttribute(ctx, r.attr, &oldVal).HasError() {
+			continue
+		}
+		if req.Plan.GetAttribute(ctx, r.attr, &newVal).HasError() {
+			continue
+		}
+		if oldVal.IsUnknown() || newVal.IsUnknown() {
+			continue
+		}
+		oldBody := r.body(oldVal.ValueString())
+		newBody := r.body(newVal.ValueString())
+		if azwise.CheckForceNew(StorageAccount.ARMType, StorageAccount.APIVersion, oldBody, newBody) {
+			resp.RequiresReplace = append(resp.RequiresReplace, r.marker)
+		}
 	}
 }

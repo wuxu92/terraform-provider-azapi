@@ -6,7 +6,8 @@ import (
 )
 
 // StorageAccount provides resource knowledge for Microsoft.Storage/storageAccounts.
-// It overrides CheckForceNew to implement conditional SKU zone-migration logic.
+// It overrides CheckForceNew to add conditional replacement rules (SKU zone
+// migration, account_kind migration, large-file-share disablement).
 //
 // Sources:
 //   - AzureRM internal/services/storage/storage_account_resource.go (schema + CustomizeDiff + expand)
@@ -23,28 +24,65 @@ type StorageAccount struct {
 
 var _ ResourceKnowledge = (*StorageAccount)(nil)
 
-// CheckForceNew extends BaseKnowledge — checks standard ForceNew rules first, then adds
-// conditional SKU zone-migration logic (cross-zone changes require recreation).
+// CheckForceNew extends BaseKnowledge with the conditional replacement rules a
+// static ForceNew list cannot express, mirroring AzureRM's storage account
+// CustomizeDiff (storage_account_resource.go): declarative rules first, then SKU
+// zone migration, account_kind migration, and large-file-share disablement.
 func (s *StorageAccount) CheckForceNew(oldBody, newBody map[string]interface{}) bool {
 	if s.BaseKnowledge.CheckForceNew(oldBody, newBody) {
 		return true
 	}
+	return skuZoneMigration(oldBody, newBody) ||
+		accountKindRequiresReplace(oldBody, newBody) ||
+		largeFileShareDisabled(oldBody, newBody)
+}
+
+// skuZoneMigration reports whether the account_replication_type (the suffix of
+// sku.name, e.g. "ZRS" in "Standard_ZRS") crosses the zonal/non-zonal boundary,
+// which requires recreation. Matches AzureRM ForceNewIfChange("account_replication_type")
+// on the replication suffix alone — tier-agnostic, so Premium_LRS <-> Premium_ZRS is
+// covered as well as Standard.
+func skuZoneMigration(oldBody, newBody map[string]interface{}) bool {
 	oldSku := strings.ToUpper(extractStringValue(oldBody, "sku.name"))
 	newSku := strings.ToUpper(extractStringValue(newBody, "sku.name"))
 	if oldSku == "" || newSku == "" || oldSku == newSku {
 		return false
 	}
-	zonal := map[string]bool{
-		"STANDARD_ZRS":    true,
-		"STANDARD_GZRS":   true,
-		"STANDARD_RAGZRS": true,
+	oldRep := replicationType(oldSku)
+	newRep := replicationType(newSku)
+	zonal := map[string]bool{"ZRS": true, "GZRS": true, "RAGZRS": true}
+	nonZonal := map[string]bool{"LRS": true, "GRS": true, "RAGRS": true}
+	return (zonal[oldRep] && nonZonal[newRep]) || (nonZonal[oldRep] && zonal[newRep])
+}
+
+// replicationType returns the redundancy suffix of an upper-cased sku.name, e.g.
+// "STANDARD_RAGZRS" -> "RAGZRS", "PREMIUMV2_LRS" -> "LRS".
+func replicationType(sku string) string {
+	if i := strings.LastIndex(sku, "_"); i >= 0 {
+		return sku[i+1:]
 	}
-	nonZonal := map[string]bool{
-		"STANDARD_LRS":   true,
-		"STANDARD_GRS":   true,
-		"STANDARD_RAGRS": true,
+	return sku
+}
+
+// accountKindRequiresReplace reports whether an account_kind change forces
+// replacement. AzureRM permits exactly one in-place migration, Storage -> StorageV2;
+// every other kind change requires recreation (storage_account_resource.go:1103).
+func accountKindRequiresReplace(oldBody, newBody map[string]interface{}) bool {
+	oldKind := extractStringValue(oldBody, "kind")
+	newKind := extractStringValue(newBody, "kind")
+	if oldKind == "" || oldKind == newKind {
+		return false
 	}
-	return (zonal[oldSku] && nonZonal[newSku]) || (nonZonal[oldSku] && zonal[newSku])
+	return oldKind != "Storage" && newKind != "StorageV2"
+}
+
+// largeFileShareDisabled reports whether large file shares are being turned off.
+// Once enabled the feature cannot be disabled in place; Enabled -> anything else
+// forces replacement (storage_account_resource.go:1116).
+func largeFileShareDisabled(oldBody, newBody map[string]interface{}) bool {
+	oldLFS := extractStringValue(oldBody, "properties.largeFileSharesState")
+	newLFS := extractStringValue(newBody, "properties.largeFileSharesState")
+	return strings.EqualFold(oldLFS, "Enabled") && !strings.EqualFold(newLFS, "Enabled")
 }
 
 // NewStorageAccount returns a StorageAccount knowledge instance.

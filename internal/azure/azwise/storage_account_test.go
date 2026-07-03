@@ -54,6 +54,17 @@ func TestStorageCheckForceNew(t *testing.T) {
 
 		// Case insensitivity
 		{"case insensitive", "standard_lrs", "STANDARD_ZRS", true},
+
+		// Tier-agnostic: the zone rule matches the replication suffix, so Premium,
+		// PremiumV2 and StandardV2 cross-zone changes are covered too — not just Standard.
+		{"Premium LRS to ZRS", "Premium_LRS", "Premium_ZRS", true},
+		{"Premium ZRS to LRS", "Premium_ZRS", "Premium_LRS", true},
+		{"PremiumV2 LRS to ZRS", "PremiumV2_LRS", "PremiumV2_ZRS", true},
+		{"StandardV2 GRS to GZRS", "StandardV2_GRS", "StandardV2_GZRS", true},
+		{"Premium LRS unchanged", "Premium_LRS", "Premium_LRS", false},
+		// Tier change alone (same replication suffix) is not a zone migration; the
+		// unconditional sku.tier ForceNew handles that path and is not exercised here.
+		{"tier change same replication", "Standard_LRS", "Premium_LRS", false},
 	}
 
 	for _, tc := range tests {
@@ -96,6 +107,91 @@ func TestStorageCheckForceNew(t *testing.T) {
 			t.Error("expected no ForceNew when isHnsEnabled unchanged")
 		}
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Storage Account: account_kind migration ForceNew
+// ---------------------------------------------------------------------------
+
+func TestStorageCheckForceNewAccountKind(t *testing.T) {
+	k := NewStorageAccount()
+
+	tests := []struct {
+		name    string
+		oldKind string
+		newKind string
+		expect  bool
+	}{
+		// Storage -> StorageV2 is the one supported in-place migration.
+		{"Storage to StorageV2 in place", "Storage", "StorageV2", false},
+		{"any to StorageV2 in place", "BlobStorage", "StorageV2", false},
+		{"Storage to any in place", "Storage", "BlockBlobStorage", false},
+
+		// Every other kind change forces replacement.
+		{"StorageV2 to BlobStorage replaces", "StorageV2", "BlobStorage", true},
+		{"BlobStorage to FileStorage replaces", "BlobStorage", "FileStorage", true},
+
+		// No change / create.
+		{"unchanged", "StorageV2", "StorageV2", false},
+		{"create (no old kind)", "", "StorageV2", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			oldBody := map[string]interface{}{}
+			newBody := map[string]interface{}{}
+			if tc.oldKind != "" {
+				oldBody["kind"] = tc.oldKind
+			}
+			if tc.newKind != "" {
+				newBody["kind"] = tc.newKind
+			}
+			if got := k.CheckForceNew(oldBody, newBody); got != tc.expect {
+				t.Errorf("CheckForceNew(kind %q → %q) = %v, want %v", tc.oldKind, tc.newKind, got, tc.expect)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Storage Account: large_file_shares_state disablement ForceNew
+// ---------------------------------------------------------------------------
+
+func TestStorageCheckForceNewLargeFileShare(t *testing.T) {
+	k := NewStorageAccount()
+
+	tests := []struct {
+		name   string
+		oldLFS string
+		newLFS string
+		expect bool
+	}{
+		// Enabled cannot be turned off in place.
+		{"enabled to disabled replaces", "Enabled", "Disabled", true},
+		{"enabled to absent replaces", "Enabled", "", true},
+
+		// Enabling (or no change) is an in-place update.
+		{"disabled to enabled in place", "Disabled", "Enabled", false},
+		{"absent to enabled in place", "", "Enabled", false},
+		{"enabled unchanged", "Enabled", "Enabled", false},
+		{"disabled unchanged", "Disabled", "Disabled", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			oldBody := map[string]interface{}{}
+			newBody := map[string]interface{}{}
+			if tc.oldLFS != "" {
+				oldBody["properties"] = map[string]interface{}{"largeFileSharesState": tc.oldLFS}
+			}
+			if tc.newLFS != "" {
+				newBody["properties"] = map[string]interface{}{"largeFileSharesState": tc.newLFS}
+			}
+			if got := k.CheckForceNew(oldBody, newBody); got != tc.expect {
+				t.Errorf("CheckForceNew(largeFileSharesState %q → %q) = %v, want %v", tc.oldLFS, tc.newLFS, got, tc.expect)
+			}
+		})
+	}
 }
 
 // ---------------------------------------------------------------------------
