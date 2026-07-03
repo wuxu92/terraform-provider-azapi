@@ -106,6 +106,13 @@ func NewStorageAccountBlobService() *StorageAccountBlobService {
 				{PropertyPath: "properties.deleteRetentionPolicy.days", Value: 7},
 				{PropertyPath: "properties.containerDeleteRetentionPolicy.days", Value: 7},
 			},
+			// restore_policy requires delete_retention_policy — AzureRM
+			// storage_account_resource.go:522 (RequiredWith). Enabling RestorePolicy
+			// without a DeleteRetentionPolicy is rejected (point-in-time restore
+			// prerequisite).
+			RequiredWith: []RelationalRule{
+				{Paths: []string{"properties.restorePolicy", "properties.deleteRetentionPolicy"}},
+			},
 		},
 	}
 }

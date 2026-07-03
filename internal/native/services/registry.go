@@ -24,6 +24,35 @@ type Descriptor struct {
 	// runtime reads it to compose/parse the ARM resource ID; the schema validator
 	// for it is already baked into Schema.
 	ParentAttr string
+	// Relational carries resource-level cross-property constraints (ConflictsWith /
+	// RequiredWith / ExactlyOneOf / AtLeastOneOf) lowered from azwise at generation
+	// time. The runtime resource layer builds framework ConfigValidators from these.
+	Relational []RelationalConstraint
+}
+
+// RelationalKind identifies a resource-level cross-property constraint kind.
+type RelationalKind int
+
+const (
+	// ConflictsWith: subject (Paths[0]) must not be set together with any of Paths[1:].
+	ConflictsWith RelationalKind = iota
+	// RequiredWith: when subject (Paths[0]) is set, every path in Paths[1:] must be set.
+	RequiredWith
+	// ExactlyOneOf: exactly one of Paths must be set.
+	ExactlyOneOf
+	// AtLeastOneOf: at least one of Paths must be set.
+	AtLeastOneOf
+)
+
+// RelationalConstraint is a cross-property constraint over Terraform attribute
+// paths, each a slice of snake_case segments absolute from the schema root (e.g.
+// {"properties", "curve_name"}). For ConflictsWith and RequiredWith, Paths[0] is
+// the subject. Lowered from azwise by the generator; consumed by the runtime
+// resource layer to build framework ConfigValidators.
+type RelationalConstraint struct {
+	Kind    RelationalKind
+	Paths   [][]string
+	Message string
 }
 
 // Registry maps Terraform resource names to their descriptors.

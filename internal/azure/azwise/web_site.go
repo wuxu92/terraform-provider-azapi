@@ -27,6 +27,36 @@ import "time"
 //   - terraform-provider-azurerm vendor/github.com/hashicorp/go-azure-sdk/resource-manager/web/2023-12-01/webapps/model_siteconfig.go:12-85
 //   - terraform-provider-azurerm vendor/github.com/hashicorp/go-azure-sdk/resource-manager/web/2023-12-01/webapps/constants.go
 //
+// Cross-field / relational constraints:
+//   The relational rule fields (ConflictsWith/RequiredWith/ExactlyOneOf/AtLeastOneOf on
+//   BaseKnowledge) are now expressible, but only for object/scalar ARM paths that resolve
+//   inside the Microsoft.Web/sites body. Every cross-field constraint AzureRM declares on
+//   site/site_config/auth properties was evaluated; each resolves to an array-element, a
+//   separate subresource API, a map-key (app setting), or an app-kind-specific stack field,
+//   so none map to two object-level scalar body paths and none are encoded here. The
+//   constraints considered and why each is skipped:
+//     - application_stack ExactlyOneOf/AtLeastOneOf/RequiredWith/ConflictsWith
+//       (helpers/app_stack.go:84-198,373-428; helpers/function_app_schema.go:1370-1750):
+//       app-kind-specific stack fields (linuxFxVersion/windowsFxVersion + app settings).
+//     - health_check_path <-> health_check_eviction_time_in_min RequiredWith
+//       (helpers/linux_web_app_schema.go:219-228, helpers/windows_web_app_schema.go:223-232,
+//       helpers/function_app_schema.go:280-289): the eviction side is only the app setting
+//       WEBSITE_HEALTHCHECK_MAXPINGFAILURES (map-key; linux_web_app_resource.go:423-424), so
+//       the relation cannot be expressed with two object-level paths.
+//     - function storage_account_name/storage_account_access_key/storage_uses_managed_identity/
+//       storage_key_vault_secret_id ExactlyOneOf/ConflictsWith (linux_function_app_resource.go:140-176,
+//       windows_function_app_resource.go:132-168): these expand to AzureWebJobsStorage* app
+//       settings (map-keys; linux_function_app_resource.go:485-531), not siteConfig scalars.
+//     - auth_settings / auth_settings_v2 ExactlyOneOf/ConflictsWith/AtLeastOneOf
+//       (helpers/shared_schema.go:701-1160, helpers/auth_v2_schema.go:354-2000): AzureRM
+//       manages these via the config/authsettings and config/authsettingsV2 subresources.
+//     - logs.http_logs file_system <-> azure_blob_storage ConflictsWith
+//       (helpers/common_web_app_schema.go:806,850): config/logs subresource.
+//     - sticky_settings app_setting_names/connection_string_names AtLeastOneOf
+//       (helpers/shared_schema.go:1680-1697): config/slotConfigNames subresource.
+//     - ip_restriction / scm_ip_restriction action one-of checks: array-element paths
+//       (ipSecurityRestrictions[*] / scmIpSecurityRestrictions[*]); see below.
+//
 // Intentionally skipped here:
 //   - App-kind-specific stack/runtime fields (linuxFxVersion, windowsFxVersion,
 //     application_stack, functions_extension_version, storage-account app settings) because
@@ -35,9 +65,12 @@ import "time"
 //   - Auth, backup, diagnostic log, sticky-setting, publishing-credential policy, and
 //     storage-account mount rules that AzureRM manages through separate Web Apps subresource
 //     APIs rather than the Microsoft.Web/sites body.
-//   - AzureRM semantic map validators such as validate.AppSettings and IP restriction
-//     one-of checks; azwise has no map-key/cross-field rule type and this assignment does
-//     not permit native customizer changes.
+//   - AzureRM semantic map validators such as validate.AppSettings, and cross-field
+//     constraints whose paths are array-element or map-key (IP restriction one-of action
+//     checks, the health_check app-setting RequiredWith, function-app storage one-of, and
+//     the auth/logs/sticky-setting relations above). Relational rules now cover cross-field
+//     constraints, but only for object/scalar ARM paths; array-element and map-key relations
+//     remain unexpressible.
 //   - IP restriction priority numeric ranges inside arrays; IntRule currently does not
 //     evaluate [*] array-element paths, though StringRule does for action enums.
 //   - AzureRM computed attributes (default_hostname, outbound IPs, hosting environment,

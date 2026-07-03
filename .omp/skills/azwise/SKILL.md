@@ -114,6 +114,36 @@ customizer (`internal/native/generator/customizers/<resource>.go`); call
 be shared with a sibling (e.g. `ipRules`/`ipv6Rules`, `resourceAccessRules`). See
 GENERATOR.md "Schema Customization Plugins".
 
+### Relational / cross-property constraints
+Look for `ConflictsWith`, `RequiredWith`, `ExactlyOneOf`, and `AtLeastOneOf` on `pluginsdk.Schema` fields. These encode dependencies *between* properties (not a constraint on a single value). Each lowers to a `RelationalRule` whose `Paths` are **ARM body dot-paths** (camelCase, e.g. `properties.publicNetworkAccess`) — never Terraform snake_case field names. Translate every AzureRM field reference to its ARM path (reuse `category=automap`/`mapping`) before writing it.
+```go
+// RelationalRule: { Paths []string; Message string }
+ConflictsWith: []RelationalRule{
+    // Paths[0] is the subject; it conflicts with Paths[1:]
+    {Paths: []string{"properties.publicNetworkAccess", "properties.networkAcls"}, Message: "cannot combine public network access with network ACLs"},
+},
+RequiredWith: []RelationalRule{
+    // directional: if Paths[0] is set, all of Paths[1:] are required
+    {Paths: []string{"properties.a", "properties.b"}},
+},
+ExactlyOneOf: []RelationalRule{
+    // symmetric: exactly one of Paths must be set
+    {Paths: []string{"properties.one", "properties.two"}},
+},
+AtLeastOneOf: []RelationalRule{
+    // symmetric: at least one of Paths must be set
+    {Paths: []string{"properties.x", "properties.y"}},
+},
+```
+**Semantics:** `ConflictsWith`/`RequiredWith` treat `Paths[0]` as the subject (`RequiredWith` is directional — setting the subject makes `Paths[1:]` required); `ExactlyOneOf`/`AtLeastOneOf` are symmetric across all `Paths`. These lower in the generator to **resource-level `ConfigValidators`** (one per rule group), not per-field validators.
+
+**Extraction:** `azwise_extract category=relational resource_name=azurerm_<resource>` returns, for each occurrence, the subject Terraform field, the referenced fields, the kind (`ConflictsWith`/`RequiredWith`/`ExactlyOneOf`/`AtLeastOneOf`), and the source `file:line`. Omit `resource_name` for a service-wide sweep grouped by service.
+
+**Out of scope — document with a note, do NOT emit a rule:**
+- **Array-element paths** (`properties.foo[*].bar`): the generator and `azwise_validate` cannot lower or resolve a path through an array element — skip them.
+- **Map-key rules**: constraints keyed on a specific map entry are unsupported.
+- **Sub-service paths**: a path that belongs to a separate ARM API (e.g. `blob_properties` under `azurerm_storage_account`) goes on that sub-service's knowledge file, not the parent — same rule as the other categories.
+
 ## Output Format
 
 Each resource type gets a Go file in `internal/azure/azwise/`. The file:
@@ -178,6 +208,7 @@ Before finalizing a knowledge file:
 4. **Computed vs user-settable**: `ComputedFields` must only include fields that are absent from the ARM Create/Update model (truly read-only). Verify against the SDK's `model_*createparameters.go` — if a field is present there, it is settable by AzAPI users and MUST NOT be in `ComputedFields` (even if AzureRM doesn't support it yet). Fields that are optional-but-server-defaulted belong in `DefaultValues`, not `ComputedFields`. `StripComputedFields()` removes these from the body, so a false positive silently discards user-provided values.
 5. **Method override base calls**: Every method override (e.g., `func (s *Type) CheckForceNew(...)`) must call `s.BaseKnowledge.<Method>(...)` first. An override that omits the base call silently disables the declarative rules.
 6. **Sub-service API separation**: Verify every `PropertyPath` belongs to the resource's own ARM API, not a sub-service API. AzureRM bundles sub-service settings (e.g., `blob_properties`, `share_properties`, `queue_properties` in `azurerm_storage_account`) but ARM manages them as separate resources (`Microsoft.Storage/storageAccounts/blobServices/default`, etc.). Rules for sub-service properties must go in their own knowledge file.
+7. **Relational path resolution**: Every `RelationalRule.Paths` entry (across `ConflictsWith`/`RequiredWith`/`ExactlyOneOf`/`AtLeastOneOf`) must be an ARM body path that resolves through the SDK struct chain — same standard as item 3, and `azwise_validate` warns on unresolvable ones. **Skip array-element paths** (`properties.foo[*].bar`), map-key rules, and sub-service paths; document them with a note instead of emitting a rule.
 
 ## Registration
 
@@ -203,13 +234,13 @@ The source code is needed for details the schema file doesn't capture: validatio
 
 ## Using azwise_extract
 
-The tool supports five modes, each with per-resource and service-wide variants:
+The tool supports six modes, each with per-resource and service-wide variants:
 
 1. **Schema mode** (`category=schema`): reads `provider-schema.json` for field flags + API versions from Go imports. Returns classified fields, API version, and a list of nested `blocks`. Use `block=blob_properties` to narrow to a sub-tree.
 2. **Automap mode** (`category=automap`): combines schema + d.Set/d.Get mappings + mechanical snake→camelCase to produce ARM paths for all fields. Partitions results into `mapped` (verified from source), `automapped` (mechanical, needs checking), and `skipped` (envelope/provider-internal). Emits a `recommendation` when the resource has >30 fields, suggesting block-by-block processing.
 3. **Mapping mode** (`category=mapping`): extracts Terraform→ARM property path mappings from Go source. With `resource_name`, detects property aliases, discovers expand/flatten functions, and reports **unmapped fields**. Use `block=` to filter.
 4. **Validation mode** (`category=validation`): extracts `ValidateFunc`/`ValidateDiagFunc` patterns. Returns structured rules: enums, ranges, regexes, UUID, custom. Use `block=` to filter.
-5. **Grep mode** (`category=forcenew|sensitive|timeouts|softdelete`): scans Go source for specific code patterns.
+5. **Grep mode** (`category=forcenew|sensitive|timeouts|softdelete|relational`): scans Go source for specific code patterns. `relational` returns structured cross-property constraints — each `ConflictsWith`/`RequiredWith`/`ExactlyOneOf`/`AtLeastOneOf` occurrence with its subject field, referenced fields, kind, and `file:line` (per-resource with `resource_name`, service-wide otherwise).
 
 Use `category=all` to run all modes at once.
 
@@ -223,7 +254,7 @@ Narrows schema/mapping/validation/automap to a nested block sub-tree (e.g. `bloc
 1. `category=schema` → classified fields + API version + blocks list
 2. `category=automap` → ARM paths for all fields
 3. `category=validation` → validation rules
-4. `category=timeouts` + `category=softdelete` → timeout values + soft-delete
+4. `category=timeouts` + `category=softdelete` + `category=relational` → timeouts, soft-delete, cross-property constraints
 5. Read Go source only for `automapped` fields that need verification
 6. Write the Go knowledge file
 
@@ -232,7 +263,7 @@ Narrows schema/mapping/validation/automap to a nested block sub-tree (e.g. `bloc
 2. `category=automap` → ARM paths for top-level scalar fields
 3. For each block: `category=automap, block=<name>` + `category=validation, block=<name>` → focused extraction
 4. Read the expand/flatten function for each block to verify ARM paths
-5. `category=timeouts` + `category=softdelete`
+5. `category=timeouts` + `category=softdelete` + `category=relational`
 6. Aggregate all results into the knowledge file
 
 ### Mapping patterns supported
@@ -257,7 +288,7 @@ The automap output's `automapped` list shows exactly which fields were mechanica
 
 ### azwise_validate tool
 
-After generating or modifying knowledge files, run `azwise_validate` to cross-reference rules against the ARM SDK. The tool reads each Go knowledge file, parses all StringRules/IntRules/FloatRules/ComputedFields/ForceNew/DefaultValues, then traces every PropertyPath through the SDK struct chain via `json:"..."` tags.
+After generating or modifying knowledge files, run `azwise_validate` to cross-reference rules against the ARM SDK. The tool reads each Go knowledge file, parses all StringRules/IntRules/FloatRules/ComputedFields/ForceNew/DefaultValues plus the relational constraints (ConflictsWith/RequiredWith/ExactlyOneOf/AtLeastOneOf), then traces every PropertyPath — including each `RelationalRule.Paths` entry — through the SDK struct chain via `json:"..."` tags.
 
 **Usage:**
 - `azwise_validate` — validate all knowledge files
@@ -268,6 +299,7 @@ After generating or modifying knowledge files, run `azwise_validate` to cross-re
 2. **Invalid paths**: PropertyPath segments that don't match any `json:"..."` tag in the SDK struct chain
 3. **Incomplete enums**: AllowedValues missing values from `PossibleValuesFor*()` in the SDK constants
 4. **Extra enum values**: AllowedValues containing values not present in the SDK
+5. **Relational paths**: each `RelationalRule.Paths` entry must resolve through the SDK struct chain; unresolvable paths emit a `warning` (array-element `[*]` paths are skipped, like elsewhere)
 
 **Issue severities:**
 - `error` — definite bug, must fix (type mismatches, invalid paths)

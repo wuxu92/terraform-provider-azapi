@@ -144,6 +144,21 @@ type ResourceDefinition struct {
 	// into the generated schema. PostProcess populates it from the ARM type and
 	// WritableScopes; a customizer plugin may override it before emission.
 	Envelope Envelope
+	// Relational holds cross-property constraints lowered from azwise (ConflictsWith /
+	// RequiredWith / ExactlyOneOf / AtLeastOneOf). ApplyAzwise populates it; the
+	// emitter writes it into the generated services.Descriptor.
+	Relational []RelationalConstraintDef
+}
+
+// RelationalConstraintDef is a lowered cross-property constraint ready for
+// emission. Kind is the services.RelationalKind constant name ("ConflictsWith",
+// "RequiredWith", "ExactlyOneOf", "AtLeastOneOf"). Paths are snake_case schema
+// segments, absolute from the schema root; Paths[0] is the subject for
+// ConflictsWith/RequiredWith.
+type RelationalConstraintDef struct {
+	Kind    string
+	Paths   [][]string
+	Message string
 }
 
 // rawEntry is a JSON entry in types.json.

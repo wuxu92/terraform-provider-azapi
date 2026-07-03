@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
+	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
 )
 
 // ApplyAzwise overlays curated AzureRM-derived knowledge (azwise) onto a parsed
@@ -98,6 +99,34 @@ func ApplyAzwise(def *ResourceDefinition) {
 			})
 		}
 	}
+
+	// Relational cross-property constraints → lowered onto the ResourceDefinition
+	// for emission as resource-level ConfigValidators. Paths that do not resolve to
+	// object-level attributes (missing, array-element, scalar mid-path) are skipped.
+	lower := func(kind string, rules []azwise.RelationalRule) {
+		for _, r := range rules {
+			if len(r.Paths) < 2 {
+				continue
+			}
+			segsList := make([][]string, 0, len(r.Paths))
+			ok := true
+			for _, p := range r.Paths {
+				segs, good := resolveObjectPathSegments(def.Body, p)
+				if !good {
+					ok = false
+					break
+				}
+				segsList = append(segsList, segs)
+			}
+			if ok {
+				def.Relational = append(def.Relational, RelationalConstraintDef{Kind: kind, Paths: segsList, Message: r.Message})
+			}
+		}
+	}
+	lower("ConflictsWith", sk.GetConflictsWith())
+	lower("RequiredWith", sk.GetRequiredWith())
+	lower("ExactlyOneOf", sk.GetExactlyOneOf())
+	lower("AtLeastOneOf", sk.GetAtLeastOneOf())
 }
 
 // navigate resolves an ARM dot path (e.g. "properties.networkAcls.defaultAction")
@@ -129,6 +158,37 @@ func navigate(body *Type, path string) *Property {
 		}
 	}
 	return nil
+}
+
+// resolveObjectPathSegments resolves an ARM dot-path to snake_case schema segments,
+// walking ONLY object properties. It returns ok=false when a segment is missing,
+// when the path contains "[*]", or when it traverses an array or scalar mid-path —
+// relational validators address object-level attributes, never array elements.
+func resolveObjectPathSegments(body *Type, armPath string) ([]string, bool) {
+	if armPath == "" || strings.Contains(armPath, "[*]") {
+		return nil, false
+	}
+	cur := body
+	segments := strings.Split(armPath, ".")
+	out := make([]string, 0, len(segments))
+	for i, seg := range segments {
+		if cur == nil || cur.Kind != KindObject {
+			return nil, false
+		}
+		prop, ok := cur.Properties[seg]
+		if !ok {
+			return nil, false
+		}
+		out = append(out, naming.CamelToSnake(seg))
+		if i == len(segments)-1 {
+			return out, true
+		}
+		if prop.Type.Kind != KindObject {
+			return nil, false
+		}
+		cur = prop.Type
+	}
+	return nil, false
 }
 
 // applyStringRule appends OneOf / length / regex validators from an azwise StringRule.

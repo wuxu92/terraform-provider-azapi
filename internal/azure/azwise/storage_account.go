@@ -7,6 +7,16 @@ import (
 
 // StorageAccount provides resource knowledge for Microsoft.Storage/storageAccounts.
 // It overrides CheckForceNew to implement conditional SKU zone-migration logic.
+//
+// Sources:
+//   - AzureRM internal/services/storage/storage_account_resource.go (schema + CustomizeDiff + expand)
+//   - go-azure-sdk .../storage/2025-08-01/storageaccounts: model_storageaccountpropertiescreateparameters.go,
+//     model_encryption.go, model_encryptionidentity.go, model_storageaccountcreateparameters.go (ARM body paths),
+//     constants.go (enum values)
+//
+// Cross-field (relational) constraints — see the RequiredWith block below for the one
+// account-body, object-level relation that is representable, plus inline notes on the two
+// schema relations that are deliberately NOT encoded (non-mappable / sub-service).
 type StorageAccount struct {
 	BaseKnowledge
 }
@@ -217,6 +227,31 @@ func NewStorageAccount() *StorageAccount {
 				{PropertyPath: "properties.routingPreference.publishInternetEndpoints", Value: false},
 				{PropertyPath: "properties.routingPreference.publishMicrosoftEndpoints", Value: false},
 			},
+			// ── Relational (cross-property) constraints ──
+			// Genuine ARM constraint: a customer-managed-key encryption identity references a
+			// user-assigned identity that MUST be assigned to the account. AzureRM enforces this in
+			// expandAccountCustomerManagedKey (storage_account_resource.go L2524-2526) — CMK "can only
+			// be configured when the storage account uses a `UserAssigned` or `SystemAssigned,
+			// UserAssigned` managed identity" — and marks customer_managed_key.user_assigned_identity_id
+			// Required (storage_account_resource.go L1248-1252). Both paths are account-body and
+			// object-level (verified in model_encryption.go / model_encryptionidentity.go).
+			RequiredWith: []RelationalRule{
+				{
+					Paths: []string{
+						"properties.encryption.identity.userAssignedIdentity",
+						"identity.userAssignedIdentities",
+					},
+					Message: "customer-managed key encryption requires the account to carry the referenced user-assigned identity",
+				},
+			},
+			// Schema relations found in storage_account_resource.go but NOT encoded as RelationalRules:
+			//   - customer_managed_key {key_vault_key_id ExactlyOneOf managed_hsm_key_id}
+			//     (L1236/L1244): both Terraform fields expand to the SAME ARM path
+			//     properties.encryption.keyvaultproperties (keyName/keyVersion/keyVaultUri), so the
+			//     ExactlyOneOf has no distinct object-level ARM representation. Skipped (non-mappable).
+			//   - blob_properties {restore_policy RequiredWith delete_retention_policy} (L522):
+			//     sub-service — belongs to Microsoft.Storage/storageAccounts/blobServices/default,
+			//     not the account body. Encode on the blob-service knowledge file. Skipped.
 		},
 	}
 }

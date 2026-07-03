@@ -53,11 +53,11 @@ const factory: CustomToolFactory = (pi) => ({
   name: "azwise_extract",
   label: "Azwise Extract",
   description:
-    "Scans terraform-provider-azurerm source to extract knowledge patterns. Categories: forcenew, sensitive, timeouts, softdelete (grep Go source), schema (reads provider-schema.json for field flags), mapping (d.Set/d.Get → ARM paths), validation (ValidateFunc patterns), automap (combines schema+mapping to produce ARM paths mechanically — handles snake_case→camelCase, block nesting, envelope exclusion). Use block= to narrow schema/mapping/validation/automap to a nested block subtree (e.g. block=blob_properties). The azurerm repo path is auto-detected.",
+    "Scans terraform-provider-azurerm source to extract knowledge patterns. Categories: forcenew, sensitive, timeouts, softdelete, relational (grep Go source — relational scans ConflictsWith/RequiredWith/ExactlyOneOf/AtLeastOneOf cross-property constraints), schema (reads provider-schema.json for field flags), mapping (d.Set/d.Get → ARM paths), validation (ValidateFunc patterns), automap (combines schema+mapping to produce ARM paths mechanically — handles snake_case→camelCase, block nesting, envelope exclusion). Use block= to narrow schema/mapping/validation/automap to a nested block subtree (e.g. block=blob_properties). The azurerm repo path is auto-detected.",
   parameters: pi.zod.object({
     azurerm_path: pi.zod.string().optional().describe("Path to azurerm repo root (auto-detected if omitted)"),
     category: pi.zod
-      .enum(["forcenew", "sensitive", "timeouts", "softdelete", "schema", "mapping", "validation", "automap", "all"])
+      .enum(["forcenew", "sensitive", "timeouts", "softdelete", "relational", "schema", "mapping", "validation", "automap", "all"])
       .default("all")
       .describe("Which pattern category to extract"),
     service: pi.zod
@@ -98,7 +98,7 @@ const factory: CustomToolFactory = (pi) => ({
     const searchPath = service ? join(servicesDir, service) : servicesDir;
     const categories =
       category === "all"
-        ? (["forcenew", "sensitive", "timeouts", "softdelete", "schema", "mapping", "validation", "automap"] as const)
+        ? (["forcenew", "sensitive", "timeouts", "softdelete", "relational", "schema", "mapping", "validation", "automap"] as const)
         : ([category] as const);
 
     // Run grep, returning matched lines. Exit code 1 = no matches (not an error).
@@ -1131,6 +1131,131 @@ const factory: CustomToolFactory = (pi) => ({
       };
     }
 
+    // --- Relational / cross-property constraints extraction ---
+    // Scans schema fields for ConflictsWith / RequiredWith / ExactlyOneOf /
+    // AtLeastOneOf attributes. Each occurrence records the subject Terraform
+    // field (the field the attribute is declared on), the referenced Terraform
+    // field paths, the kind, and the source file:line.
+    async function extractRelational() {
+      onUpdate?.({ content: [{ type: "text", text: "Scanning for relational / cross-property constraints..." }] });
+
+      const KINDS = ["ConflictsWith", "RequiredWith", "ExactlyOneOf", "AtLeastOneOf"] as const;
+      type Kind = (typeof KINDS)[number];
+
+      interface RelationalOccurrence {
+        kind: Kind;
+        subject: string;      // enclosing schema field the attribute is declared on
+        references: string[]; // referenced Terraform field paths
+        relativePath: string;
+        line: number;
+      }
+
+      // Collect the string literals of a `[]string{...}` attribute value that
+      // begins on lines[startIdx]. Handles single-line and multi-line forms.
+      function collectStringSlice(lines: string[], startIdx: number): string[] {
+        let buf = lines[startIdx];
+        const braceIdx = buf.search(/\[\]string\s*\{/);
+        if (braceIdx >= 0) buf = buf.slice(braceIdx);
+        if (!buf.includes("}")) {
+          for (let j = startIdx + 1; j < Math.min(startIdx + 40, lines.length); j++) {
+            buf += " " + lines[j];
+            if (lines[j].includes("}")) break;
+          }
+        }
+        return [...buf.matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+      }
+
+      // Extract all relational occurrences from a file's lines.
+      function occurrencesFromLines(lines: string[], relPath: string): RelationalOccurrence[] {
+        const found: RelationalOccurrence[] = [];
+        for (let i = 0; i < lines.length; i++) {
+          for (const kind of KINDS) {
+            if (new RegExp(`\\b${kind}:\\s*\\[\\]string\\s*\\{`).test(lines[i])) {
+              found.push({
+                kind,
+                subject: extractFieldName(lines, i),
+                references: collectStringSlice(lines, i),
+                relativePath: relPath,
+                line: i + 1,
+              });
+              break; // at most one kind per line
+            }
+          }
+        }
+        return found;
+      }
+
+      function countByKind(occ: RelationalOccurrence[]) {
+        const byKind = { ConflictsWith: 0, RequiredWith: 0, ExactlyOneOf: 0, AtLeastOneOf: 0 };
+        for (const o of occ) byKind[o.kind]++;
+        return byKind;
+      }
+
+      // --- Per-resource mode ---
+      if (resource_name) {
+        const filePath = await findResourceFile(resource_name);
+        if (!filePath) {
+          return { error: `Resource file not found for ${resource_name}` };
+        }
+        const lines = await getFileLines(filePath);
+        let occurrences = occurrencesFromLines(lines, relative(azurerm_path, filePath));
+
+        // When block= is set, keep occurrences whose subject or references fall
+        // inside that block sub-tree.
+        if (block) {
+          const blockLeaf = block.split(".").pop() ?? block;
+          occurrences = occurrences.filter(
+            (o) =>
+              o.subject === blockLeaf ||
+              o.references.some((r) => r.startsWith(block) || r.split(".").includes(blockLeaf)),
+          );
+        }
+
+        return {
+          resource: resource_name,
+          ...(block ? { block } : {}),
+          resourceFile: relative(azurerm_path, filePath),
+          occurrences,
+          totalOccurrences: occurrences.length,
+          byKind: countByKind(occurrences),
+        };
+      }
+
+      // --- Service-wide mode ---
+      const grepLines = await grep(
+        "ConflictsWith:\\|RequiredWith:\\|ExactlyOneOf:\\|AtLeastOneOf:",
+        searchPath,
+      );
+      const files = new Set<string>();
+      for (const raw of grepLines) {
+        const parsed = parseGrepLine(raw);
+        if (parsed) files.add(parsed.file);
+      }
+
+      const byService = new Map<string, { relativePath: string; occurrences: RelationalOccurrence[] }[]>();
+      let totalOccurrences = 0;
+      for (const filePath of files) {
+        const lines = await getFileLines(filePath);
+        const occ = occurrencesFromLines(lines, relative(azurerm_path, filePath));
+        if (occ.length === 0) continue;
+        totalOccurrences += occ.length;
+        const svc = serviceFromPath(filePath);
+        let arr = byService.get(svc);
+        if (!arr) { arr = []; byService.set(svc, arr); }
+        arr.push({ relativePath: relative(azurerm_path, filePath), occurrences: occ });
+      }
+
+      const services = [...byService.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([svc, filesArr]) => ({
+          service: svc,
+          files: filesArr,
+          totalOccurrences: filesArr.reduce((s, f) => s + f.occurrences.length, 0),
+        }));
+
+      return { totalFiles: byService.size, totalOccurrences, services };
+    }
+
     // --- Execute requested categories ---
     const details: Record<string, unknown> = {};
     const summaryParts: string[] = [];
@@ -1222,6 +1347,21 @@ const factory: CustomToolFactory = (pi) => ({
             summaryParts.push(
               `automap: ${r.resource}${r.block ? ` [${r.block}]` : ""} — ${r.totalWithArmPath} ARM paths (${r.mapped.length} from d.Set/d.Get, ${r.automapped.length} mechanical), ${r.totalSkipped} skipped${r.recommendation ? ` ⚠ ${r.recommendation}` : ""}`,
             );
+          }
+          break;
+        }
+        case "relational": {
+          const r = await extractRelational();
+          details.relational = r;
+          if ("error" in r) {
+            summaryParts.push(`relational: error - ${r.error}`);
+          } else if ("resource" in r) {
+            const b = r.byKind;
+            summaryParts.push(
+              `relational: ${r.resource}${r.block ? ` [${r.block}]` : ""} — ${r.totalOccurrences} constraints (${b.ConflictsWith} conflictsWith, ${b.RequiredWith} requiredWith, ${b.ExactlyOneOf} exactlyOneOf, ${b.AtLeastOneOf} atLeastOneOf)`,
+            );
+          } else {
+            summaryParts.push(`relational: ${r.totalFiles} files, ${r.totalOccurrences} constraints`);
           }
           break;
         }

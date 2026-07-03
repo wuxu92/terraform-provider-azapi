@@ -80,6 +80,7 @@ function parseKnowledgeFile(source: string): {
   forceNewPaths: string[];
   sensitiveFields: string[];
   defaultValuePaths: string[];
+  relational: { field: string; paths: string[] }[];
 } {
   const resourceType =
     source.match(/ResourceType:\s*"([^"]+)"/)?.[1] ?? "";
@@ -190,6 +191,21 @@ function parseKnowledgeFile(source: string): {
     }
   }
 
+  // Extract relational cross-property constraint paths
+  // (ConflictsWith / RequiredWith / ExactlyOneOf / AtLeastOneOf → RelationalRule.Paths).
+  const relational: { field: string; paths: string[] }[] = [];
+  for (const field of ["ConflictsWith", "RequiredWith", "ExactlyOneOf", "AtLeastOneOf"]) {
+    const relBlock = extractSliceBlock(source, field);
+    if (!relBlock) continue;
+    const paths: string[] = [];
+    for (const rm of relBlock.matchAll(/Paths:\s*\[\]string\{([^}]*)\}/g)) {
+      for (const pm of rm[1].matchAll(/"([^"]+)"/g)) {
+        paths.push(pm[1]);
+      }
+    }
+    if (paths.length > 0) relational.push({ field, paths });
+  }
+
   return {
     resourceType,
     apiVersions,
@@ -198,6 +214,7 @@ function parseKnowledgeFile(source: string): {
     forceNewPaths,
     sensitiveFields,
     defaultValuePaths,
+    relational,
   };
 }
 
@@ -988,7 +1005,8 @@ const factory: CustomToolFactory = (pi) => ({
   description:
     "Validates azwise knowledge files against ARM SDK model structs and enum constants. " +
     "Detects type mismatches (StringRule on int field), incomplete enum values, " +
-    "invalid property paths, and more. Reads generated Go files from internal/azure/azwise/ " +
+    "invalid property paths, and more. Also resolves relational cross-property constraint paths " +
+    "(ConflictsWith/RequiredWith/ExactlyOneOf/AtLeastOneOf). Reads generated Go files from internal/azure/azwise/ " +
     "and cross-references with the SDK vendor directory in the azurerm repo.",
   parameters: pi.zod.object({
     azurerm_path: pi.zod
@@ -1072,7 +1090,7 @@ const factory: CustomToolFactory = (pi) => ({
       }
 
       onUpdate(
-        `Validating ${file} (${parsed.resourceType}) — ${parsed.rules.length} rules, ${parsed.computedFields.length + parsed.forceNewPaths.length + parsed.defaultValuePaths.length} paths...`
+        `Validating ${file} (${parsed.resourceType}) — ${parsed.rules.length} rules, ${parsed.computedFields.length + parsed.forceNewPaths.length + parsed.defaultValuePaths.length + parsed.relational.reduce((s, r) => s + r.paths.length, 0)} paths...`
       );
 
       const apiVersion = parsed.apiVersions[0] ?? "";
@@ -1186,10 +1204,32 @@ const factory: CustomToolFactory = (pi) => ({
         )
       );
 
+      // Validate relational cross-property constraint paths
+      // (ConflictsWith / RequiredWith / ExactlyOneOf / AtLeastOneOf). Each
+      // RelationalRule.Paths entry must resolve through the SDK struct chain;
+      // array-element ([*]) paths are skipped by validatePaths.
+      let relationalPaths = 0;
+      for (const rel of parsed.relational) {
+        relationalPaths += rel.paths.length;
+        issues.push(
+          ...validatePaths(
+            rel.paths,
+            rel.field,
+            rootStruct,
+            responseStruct,
+            topStruct,
+            sdk.structs,
+            sdk.enums,
+            sdk.constants
+          )
+        );
+      }
+
       const pathsChecked =
         parsed.computedFields.length +
         parsed.forceNewPaths.length +
-        parsed.defaultValuePaths.length;
+        parsed.defaultValuePaths.length +
+        relationalPaths;
 
       results[file] = {
         resourceType: parsed.resourceType,

@@ -11,8 +11,10 @@ import "time"
 //     (create mapping to appserviceplans.AppServicePlan)
 //   - terraform-provider-azurerm internal/services/appservice/service_plan_resource.go:236-340
 //     (read/update/delete timeouts and update mapping)
-//   - terraform-provider-azurerm internal/services/appservice/service_plan_resource.go:352-391
+//   - terraform-provider-azurerm internal/services/appservice/service_plan_resource.go:352-392
 //     (CustomizeDiff SKU cross-field checks and conditional zone_balancing_enabled ForceNew)
+//   - terraform-provider-azurerm internal/services/appservice/service_plan_resource.go:205-208
+//     (Create-time app_service_environment_id isolated-SKU cross-field check)
 //   - terraform-provider-azurerm internal/services/appservice/service_plan_resource.go:394-441
 //     (flatten mapping from ARM response)
 //   - terraform-provider-azurerm internal/services/appservice/helpers/service_plan.go:27-84,210-220
@@ -39,10 +41,24 @@ import "time"
 //     booleans are covered as ForceNew, but there is no single ARM string property to validate.
 //   - os_type Required: for the same reason, RequiredFields does not force a particular
 //     reserved/hyperV boolean combination on raw ARM users.
-//   - app_service_environment_id isolated-SKU check, premium_plan_auto_scale_enabled SKU check,
-//     maximum_elastic_worker_count SKU/autoscale check, and zone_balancing_enabled SKU-family
-//     support check: these are cross-field SKU-category rules and cannot be represented by the
-//     current azwise StringRule/IntRule/FloatRule types. The ASE ID syntax itself is captured.
+//   - Cross-field SKU-category constraints from CustomizeDiff (service_plan_resource.go:352-392)
+//     and the ASE isolated-SKU check in Create (service_plan_resource.go:205-208):
+//       * app_service_environment_id (properties.hostingEnvironmentProfile.id) requires an
+//         Isolated ("I...") sku.name (Create:206-208);
+//       * premium_plan_auto_scale_enabled (properties.elasticScaleEnabled) requires a Premium
+//         sku.name (CustomizeDiff:360-364);
+//       * maximum_elastic_worker_count > 1 requires an Elastic Premium sku.name, or a Premium
+//         sku.name with premium_plan_auto_scale_enabled = true (CustomizeDiff:366-370);
+//       * zone_balancing_enabled (properties.zoneRedundant) requires a zone-balancing-capable
+//         sku.name (CustomizeDiff:372-377).
+//     These are all conditional on the *value* of sku.name (its SKU category), not presence-based
+//     relations. The azwise RelationalRule kinds (ConflictsWith / RequiredWith / ExactlyOneOf /
+//     AtLeastOneOf) only test whether a path is set, and sku.name is Required (always present), so a
+//     presence-based relation would be trivially satisfied and could not capture the SKU-category
+//     rule; these constraints are therefore deliberately omitted rather than fabricated. AzureRM's
+//     service_plan schema declares no ConflictsWith/RequiredWith/ExactlyOneOf/AtLeastOneOf fields
+//     (verified against Arguments(), service_plan_resource.go:69-142), so there are no object-level
+//     relational rules to add. The ASE ID syntax itself is still captured as a StringRule.
 //   - Deprecated azurerm_app_service_plan legacy-only kind, reserved/is_xenon relationships,
 //     sku.tier/sku.size list shape, maximum_number_of_workers, and zone_redundant ForceNew:
 //     azurerm_service_plan supersedes that resource and maps the same ARM type through
@@ -108,6 +124,7 @@ func NewWebServerFarm() *WebServerFarm {
 					PropertyPath: "sku.name",
 					AllowedValues: []string{
 						"B1", "B2", "B3",
+						"S1", "S2", "S3",
 						"Y1",
 						"EP1", "EP2", "EP3",
 						"FC1",

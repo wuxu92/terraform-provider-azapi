@@ -206,6 +206,27 @@ func (r *ArrayRule) Validate(body map[string]interface{}) error {
 	return nil
 }
 
+// RelationalRule expresses a cross-property constraint over a group of ARM
+// property paths, mirroring AzureRM's schema-level ConflictsWith / RequiredWith /
+// ExactlyOneOf / AtLeastOneOf. Paths are ARM dot-paths (e.g. "properties.curveName",
+// "properties.keySize"). Semantics depend on which BaseKnowledge field holds it:
+//
+//   - ConflictsWith: Paths[0] is the subject; it must not be set at the same time
+//     as any of Paths[1:].
+//   - RequiredWith:  Paths[0] is the subject; when it is set, every path in
+//     Paths[1:] must also be set (directional, matching AzureRM RequiredWith).
+//   - ExactlyOneOf:  exactly one of Paths must be set.
+//   - AtLeastOneOf:  at least one of Paths must be set.
+//
+// The generator lowers each rule to a resource-level ConfigValidator on the
+// generated resource (see internal/native/resource Base.ConfigValidators). Array
+// element paths (containing "[*]") are not supported and are skipped by the
+// generator.
+type RelationalRule struct {
+	Paths   []string
+	Message string
+}
+
 // Timeouts overrides default timeout values. Zero means use provider default.
 type Timeouts struct {
 	Create time.Duration
@@ -245,6 +266,13 @@ type BaseKnowledge struct {
 	// valid resource creation. Derived from AzureRM Required:true schema fields,
 	// excluding envelope properties (name, location, resourceGroup).
 	RequiredFields []string
+	// Relational cross-property constraints (mirror AzureRM ConflictsWith /
+	// RequiredWith / ExactlyOneOf / AtLeastOneOf). The generator lowers these to
+	// resource-level ConfigValidators baked onto the generated resource.
+	ConflictsWith []RelationalRule
+	RequiredWith  []RelationalRule
+	ExactlyOneOf  []RelationalRule
+	AtLeastOneOf  []RelationalRule
 }
 
 func (b *BaseKnowledge) GetResourceType() string          { return b.ResourceType }
@@ -268,6 +296,10 @@ type SchemaKnowledge interface {
 	GetStringRules() []StringRule
 	GetIntRules() []IntRule
 	GetFloatRules() []FloatRule
+	GetConflictsWith() []RelationalRule
+	GetRequiredWith() []RelationalRule
+	GetExactlyOneOf() []RelationalRule
+	GetAtLeastOneOf() []RelationalRule
 }
 
 // GetForceNewPaths returns the property paths of the declarative ForceNew rules.
@@ -286,6 +318,11 @@ func (b *BaseKnowledge) GetSensitiveFields() []string { return b.SensitiveFields
 func (b *BaseKnowledge) GetStringRules() []StringRule { return b.StringRules }
 func (b *BaseKnowledge) GetIntRules() []IntRule       { return b.IntRules }
 func (b *BaseKnowledge) GetFloatRules() []FloatRule   { return b.FloatRules }
+
+func (b *BaseKnowledge) GetConflictsWith() []RelationalRule { return b.ConflictsWith }
+func (b *BaseKnowledge) GetRequiredWith() []RelationalRule  { return b.RequiredWith }
+func (b *BaseKnowledge) GetExactlyOneOf() []RelationalRule  { return b.ExactlyOneOf }
+func (b *BaseKnowledge) GetAtLeastOneOf() []RelationalRule  { return b.AtLeastOneOf }
 
 func (b *BaseKnowledge) GetDefaultFields() []string {
 	if len(b.DefaultValues) == 0 {
