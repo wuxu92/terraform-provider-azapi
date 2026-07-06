@@ -38,7 +38,7 @@ runtime:
 | `internal/native/generator/postprocess.go` | Extracts defaults from descriptions, description-based validators, promotes single-optional children |
 | `internal/native/generator/emitter.go` | Renders type graph → Go source with Terraform schema, conditional imports |
 | `internal/native/naming` | ARM type → Terraform resource name + property name conversion |
-| `internal/native/schema` | Runtime utilities: `StaticBool`, `StaticString`, `StaticInt64` default implementations |
+| `internal/native/schema` | Runtime helpers for generated schemas: `ManagedServiceIdentity`, shared validators, `UseStateForEquivalentLocation` (scalar defaults use the framework's `booldefault`/`stringdefault`/`int64default` directly) |
 | `internal/native/services/` | Registry (`Registry`, `Descriptor`, `Register`); per-service sub-packages `services/<service>/` hold generated schemas, config builders, validators, and hand-written `<resource>_hooks.go`; `services/all` aggregates them |
 | `internal/native/generator/customizers/` | Per-resource generation-time schema customizers (Rule 9d), keyed by ARM type via `register.go` |
 | `internal/azure/azwise/` | Curated AzureRM operational knowledge (ForceNew, validation, defaults, timeouts) overlaid at generation time (`ApplyAzwise`) |

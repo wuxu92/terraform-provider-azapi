@@ -1,6 +1,6 @@
 package customizers
 
-import "github.com/Azure/terraform-provider-azapi/internal/native/generator"
+import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 
 // webSiteMaxRestrictionPriority caps access-restriction priority one below Azure's
 // reserved default-rule sentinel (int32 max, 2147483647). ARM tags the implicit
@@ -21,10 +21,10 @@ const webSiteMaxRestrictionPriority = 2147483646
 //   - siteConfig is a write-only ARM shape. Static child defaults there create
 //     synthetic Terraform plan diffs because Azure read responses cannot reliably
 //     confirm omitted/defaulted children; keep explicit user values only.
-func customizeWebSite(def *generator.ResourceDefinition) {
-	def.Envelope.Name.Validators = []generator.DescriptionValidator{
-		generator.LengthValidator(1, 60),
-		generator.RegexValidator(
+func customizeWebSite(def *typegraph.ResourceDefinition) {
+	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{typegraph.
+		LengthValidator(1, 60), typegraph.
+		RegexValidator(
 			`^[0-9A-Za-z-]+$`,
 			"site name may only contain alphanumeric characters and dashes, up to 60 characters",
 		),
@@ -34,32 +34,32 @@ func customizeWebSite(def *generator.ResourceDefinition) {
 		"properties.serverFarmId",
 		"properties.virtualNetworkSubnetId",
 	} {
-		p := generator.FindProperty(def, path)
-		p.Validators = append(p.Validators, generator.SharedValidator("AzureResourceID()"))
+		p := typegraph.FindProperty(def, path)
+		p.Validators = append(p.Validators, typegraph.SharedValidator("AzureResourceID()"))
 	}
 
-	siteConfig := generator.FindProperty(def, "properties.siteConfig")
+	siteConfig := typegraph.FindProperty(def, "properties.siteConfig")
 	clearDefaultValues(siteConfig.Type)
 
 	for _, path := range []string{
 		"properties.siteConfig.ipSecurityRestrictions",
 		"properties.siteConfig.scmIpSecurityRestrictions",
 	} {
-		elem := generator.IsolateArrayElement(def, path)
+		elem := typegraph.IsolateArrayElement(def, path)
 		priority := elem.Properties["priority"]
 		if priority == nil {
 			panic("native: customizeWebSite: " + path + " element has no priority property")
 		}
-		priority.Validators = append(priority.Validators, generator.IntRangeValidator(1, webSiteMaxRestrictionPriority))
+		priority.Validators = append(priority.Validators, typegraph.IntRangeValidator(1, webSiteMaxRestrictionPriority))
 	}
 }
 
-func clearDefaultValues(typ *generator.Type) {
+func clearDefaultValues(typ *typegraph.Type) {
 	if typ == nil {
 		return
 	}
 	switch typ.Kind {
-	case generator.KindObject:
+	case typegraph.KindObject:
 		for _, prop := range typ.Properties {
 			if prop == nil {
 				continue
@@ -67,7 +67,7 @@ func clearDefaultValues(typ *generator.Type) {
 			prop.DefaultValue = ""
 			clearDefaultValues(prop.Type)
 		}
-	case generator.KindArray, generator.KindMap:
+	case typegraph.KindArray, typegraph.KindMap:
 		clearDefaultValues(typ.ElementType)
 	}
 }

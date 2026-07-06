@@ -8,9 +8,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 	"github.com/Azure/terraform-provider-azapi/internal/services/dynamic"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -23,14 +23,14 @@ import (
 // ARM JSON, keyed by the ARM property names from the bicep type graph. Attributes
 // that are null/unknown, system-managed, or absent from the type graph (the
 // envelope: name, parent_id, id, timeouts) are skipped.
-func Expand(obj types.Object, body *generator.Type) map[string]interface{} {
-	if obj.IsNull() || obj.IsUnknown() || body == nil || body.Kind != generator.KindObject {
+func Expand(obj types.Object, body *typegraph.Type) map[string]interface{} {
+	if obj.IsNull() || obj.IsUnknown() || body == nil || body.Kind != typegraph.KindObject {
 		return map[string]interface{}{}
 	}
 	return expandObject(obj, body)
 }
 
-func expandObject(obj types.Object, t *generator.Type) map[string]interface{} {
+func expandObject(obj types.Object, t *typegraph.Type) map[string]interface{} {
 	out := make(map[string]interface{})
 	attrs := obj.Attributes()
 	for armName, prop := range t.Properties {
@@ -50,33 +50,33 @@ func expandObject(obj types.Object, t *generator.Type) map[string]interface{} {
 	return out
 }
 
-func expandValue(v attr.Value, t *generator.Type) (interface{}, bool) {
+func expandValue(v attr.Value, t *typegraph.Type) (interface{}, bool) {
 	if v == nil || v.IsNull() || v.IsUnknown() {
 		return nil, false
 	}
 	switch t.Kind {
-	case generator.KindString, generator.KindStringLiteral:
+	case typegraph.KindString, typegraph.KindStringLiteral:
 		if s, ok := v.(types.String); ok {
 			return s.ValueString(), true
 		}
-	case generator.KindBool:
+	case typegraph.KindBool:
 		if b, ok := v.(types.Bool); ok {
 			return b.ValueBool(), true
 		}
-	case generator.KindInt:
+	case typegraph.KindInt:
 		if n, ok := v.(types.Int64); ok {
 			return n.ValueInt64(), true
 		}
-	case generator.KindUnion:
+	case typegraph.KindUnion:
 		// enum and non-enum unions are emitted as strings
 		if s, ok := v.(types.String); ok {
 			return s.ValueString(), true
 		}
-	case generator.KindObject:
+	case typegraph.KindObject:
 		if o, ok := v.(types.Object); ok {
 			return expandObject(o, t), true
 		}
-	case generator.KindArray:
+	case typegraph.KindArray:
 		var elems []attr.Value
 		switch c := v.(type) {
 		case types.List:
@@ -93,7 +93,7 @@ func expandValue(v attr.Value, t *generator.Type) (interface{}, bool) {
 			}
 		}
 		return arr, true
-	case generator.KindMap:
+	case typegraph.KindMap:
 		if m, ok := v.(types.Map); ok {
 			elems := m.Elements()
 			out := make(map[string]interface{}, len(elems))
@@ -123,12 +123,12 @@ func expandValue(v attr.Value, t *generator.Type) (interface{}, bool) {
 // values for the non-body (envelope) attributes — id, name, parent_id, timeouts —
 // keyed by their Terraform attribute name; those win over the response. The result
 // conforms to objType, which must be schema.Type() as a basetypes.ObjectType.
-func Flatten(ctx context.Context, arm map[string]interface{}, objType basetypes.ObjectType, body *generator.Type, envelope map[string]attr.Value) (types.Object, diag.Diagnostics) {
+func Flatten(ctx context.Context, arm map[string]interface{}, objType basetypes.ObjectType, body *typegraph.Type, envelope map[string]attr.Value) (types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	// Index the body's settable properties by snake_case attribute name.
-	index := map[string]*generator.Property{}
-	if body != nil && body.Kind == generator.KindObject {
+	index := map[string]*typegraph.Property{}
+	if body != nil && body.Kind == typegraph.KindObject {
 		for armName, prop := range body.Properties {
 			if prop.Flags.IsSystemManaged() {
 				continue
@@ -164,7 +164,7 @@ func Flatten(ctx context.Context, arm map[string]interface{}, objType basetypes.
 	return obj, diags
 }
 
-func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *generator.Type) (attr.Value, diag.Diagnostics) {
+func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *typegraph.Type) (attr.Value, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	switch t := at.(type) {
@@ -185,8 +185,8 @@ func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *
 		}
 	case basetypes.ObjectType:
 		if m, ok := armVal.(map[string]interface{}); ok {
-			var nested *generator.Type
-			if bicep != nil && bicep.Kind == generator.KindObject {
+			var nested *typegraph.Type
+			if bicep != nil && bicep.Kind == typegraph.KindObject {
 				nested = bicep
 			}
 			return Flatten(ctx, m, t, nested, nil)
@@ -212,8 +212,8 @@ func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *
 	case basetypes.MapType:
 		if m, ok := armVal.(map[string]interface{}); ok {
 			elemType := t.ElementType()
-			var elemBicep *generator.Type
-			if bicep != nil && bicep.Kind == generator.KindMap {
+			var elemBicep *typegraph.Type
+			if bicep != nil && bicep.Kind == typegraph.KindMap {
 				elemBicep = bicep.ElementType
 			}
 			elems := make(map[string]attr.Value, len(m))
@@ -239,10 +239,10 @@ func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *
 	return nullOf(ctx, at), diags
 }
 
-func flattenArrayElements(ctx context.Context, arr []interface{}, elemType attr.Type, bicep *generator.Type) ([]attr.Value, diag.Diagnostics) {
+func flattenArrayElements(ctx context.Context, arr []interface{}, elemType attr.Type, bicep *typegraph.Type) ([]attr.Value, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	var elemBicep *generator.Type
-	if bicep != nil && bicep.Kind == generator.KindArray {
+	var elemBicep *typegraph.Type
+	if bicep != nil && bicep.Kind == typegraph.KindArray {
 		elemBicep = bicep.ElementType
 	}
 	elems := make([]attr.Value, 0, len(arr))
@@ -322,7 +322,7 @@ func ResolveUnknowns(ctx context.Context, v attr.Value) attr.Value {
 // body attribute the response omits. It is used for read/import refresh, so normal
 // echoed properties overwrite prior state while sensitive/write-only and semantic
 // location values are kept stable.
-func FlattenInto(ctx context.Context, arm map[string]interface{}, base types.Object, body *generator.Type) (types.Object, diag.Diagnostics) {
+func FlattenInto(ctx context.Context, arm map[string]interface{}, base types.Object, body *typegraph.Type) (types.Object, diag.Diagnostics) {
 	return flattenInto(ctx, arm, base, body, false)
 }
 
@@ -331,11 +331,11 @@ func FlattenInto(ctx context.Context, arm map[string]interface{}, base types.Obj
 // value exactly; values configured by the practitioner cannot be replaced with
 // Azure's echo/default representation during apply. Unknown planned values may
 // still be populated from the response.
-func FlattenApplyInto(ctx context.Context, arm map[string]interface{}, base types.Object, body *generator.Type) (types.Object, diag.Diagnostics) {
+func FlattenApplyInto(ctx context.Context, arm map[string]interface{}, base types.Object, body *typegraph.Type) (types.Object, diag.Diagnostics) {
 	return flattenInto(ctx, arm, base, body, true)
 }
 
-func flattenInto(ctx context.Context, arm map[string]interface{}, base types.Object, body *generator.Type, preserveKnown bool) (types.Object, diag.Diagnostics) {
+func flattenInto(ctx context.Context, arm map[string]interface{}, base types.Object, body *typegraph.Type, preserveKnown bool) (types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	if base.IsNull() || base.IsUnknown() {
 		return base, diags
@@ -347,7 +347,7 @@ func flattenInto(ctx context.Context, arm map[string]interface{}, base types.Obj
 		values[k] = v
 	}
 
-	if body != nil && body.Kind == generator.KindObject {
+	if body != nil && body.Kind == typegraph.KindObject {
 		for armName, prop := range body.Properties {
 			if prop.Flags.IsSystemManaged() {
 				continue
@@ -385,12 +385,12 @@ func flattenInto(ctx context.Context, arm map[string]interface{}, base types.Obj
 // object it recurses through flattenInto, threading the corresponding base value
 // so fields the response omits are preserved at every depth. Non-object kinds have
 // no per-element base to thread and delegate to flattenValue unchanged.
-func flattenValueInto(ctx context.Context, armVal interface{}, base attr.Value, at attr.Type, bicep *generator.Type, preserveKnown bool) (attr.Value, diag.Diagnostics) {
+func flattenValueInto(ctx context.Context, armVal interface{}, base attr.Value, at attr.Type, bicep *typegraph.Type, preserveKnown bool) (attr.Value, diag.Diagnostics) {
 	if _, ok := at.(basetypes.ObjectType); ok {
 		if m, ok := armVal.(map[string]interface{}); ok {
 			if baseObj, ok := base.(types.Object); ok && !baseObj.IsNull() && !baseObj.IsUnknown() {
-				var nested *generator.Type
-				if bicep != nil && bicep.Kind == generator.KindObject {
+				var nested *typegraph.Type
+				if bicep != nil && bicep.Kind == typegraph.KindObject {
 					nested = bicep
 				}
 				return flattenInto(ctx, m, baseObj, nested, preserveKnown)
@@ -408,8 +408,8 @@ func shouldPreserveKnownApplyValue(v attr.Value) bool {
 	return !isObject
 }
 
-func shouldPreserveEquivalentLocation(prop *generator.Property, base attr.Value, armVal interface{}) bool {
-	if prop == nil || prop.Name != "location" || prop.Type == nil || prop.Type.Kind != generator.KindString {
+func shouldPreserveEquivalentLocation(prop *typegraph.Property, base attr.Value, armVal interface{}) bool {
+	if prop == nil || prop.Name != "location" || prop.Type == nil || prop.Type.Kind != typegraph.KindString {
 		return false
 	}
 	baseString, ok := base.(types.String)
@@ -423,6 +423,6 @@ func shouldPreserveEquivalentLocation(prop *generator.Property, base attr.Value,
 	return nativeschema.NormalizeLocation(baseString.ValueString()) == nativeschema.NormalizeLocation(armString)
 }
 
-func shouldPreserveSensitiveValue(prop *generator.Property) bool {
+func shouldPreserveSensitiveValue(prop *typegraph.Property) bool {
 	return prop != nil && (prop.Sensitive || prop.Flags.IsWriteOnly())
 }

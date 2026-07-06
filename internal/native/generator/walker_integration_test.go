@@ -1,10 +1,15 @@
 package generator
 
 import (
-	"os"
 	"strings"
 	"testing"
+
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
+
+// Generation integration tests exercising the parse -> emit pipeline on real and
+// hand-built type graphs. They live in package generator because they call
+// EmitSchema; pure parse/navigation tests stay in package typegraph.
 
 func TestParseStorageAccount(t *testing.T) {
 	defs, ver := latestStorageDefs(t)
@@ -15,7 +20,7 @@ func TestParseStorageAccount(t *testing.T) {
 	}
 
 	// Find storage account
-	var sa *ResourceDefinition
+	var sa *typegraph.ResourceDefinition
 	for _, d := range defs {
 		if d.Name == tag {
 			sa = d
@@ -33,7 +38,7 @@ func TestParseStorageAccount(t *testing.T) {
 	if sa.Body == nil {
 		t.Fatal("body is nil")
 	}
-	if sa.Body.Kind != KindObject {
+	if sa.Body.Kind != typegraph.KindObject {
 		t.Fatalf("body kind = %d, want KindObject", sa.Body.Kind)
 	}
 
@@ -47,7 +52,7 @@ func TestParseStorageAccount(t *testing.T) {
 
 	// Check 'properties' is an ObjectType with sub-properties
 	propsProp := sa.Body.Properties["properties"]
-	if propsProp.Type.Kind != KindObject {
+	if propsProp.Type.Kind != typegraph.KindObject {
 		t.Fatalf("properties.type.kind = %d, want KindObject", propsProp.Type.Kind)
 	}
 
@@ -79,7 +84,7 @@ func TestParseStorageAccount(t *testing.T) {
 
 	// Check sku is an ObjectType with 'name' property
 	sku := sa.Body.Properties["sku"]
-	if sku.Type.Kind != KindObject {
+	if sku.Type.Kind != typegraph.KindObject {
 		t.Fatalf("sku kind = %d, want KindObject", sku.Type.Kind)
 	}
 	if _, ok := sku.Type.Properties["name"]; !ok {
@@ -98,60 +103,6 @@ func TestParseStorageAccount(t *testing.T) {
 	if !skuProp.Flags.IsRequired() {
 		t.Error("sku should be Required")
 	}
-}
-
-func TestParseKeyVault(t *testing.T) {
-	data, err := os.ReadFile("../../azure/generated/keyvault/microsoft.keyvault/2023-07-01/types.json")
-	if err != nil {
-		t.Skipf("types.json not found: %v", err)
-	}
-
-	defs, err := ParseTypesJSON(data)
-	if err != nil {
-		t.Fatalf("ParseTypesJSON: %v", err)
-	}
-
-	// Find vault
-	var vault *ResourceDefinition
-	for _, d := range defs {
-		if d.APIVersion == "2023-07-01" && !containsSubResource(d.Name) {
-			vault = d
-			t.Logf("Found: %s", d.Name)
-			break
-		}
-	}
-	if vault == nil {
-		// Try any vault definition
-		for _, d := range defs {
-			t.Logf("Available: %s", d.Name)
-		}
-		t.Skip("no vault definition found")
-	}
-
-	if vault.Body.Kind != KindObject {
-		t.Fatalf("body kind = %d, want KindObject", vault.Body.Kind)
-	}
-	t.Logf("Vault properties: %d top-level", len(vault.Body.Properties))
-}
-
-func containsSubResource(name string) bool {
-	// Count slashes in the resource type part (before @)
-	parts := name
-	if at := len(name) - 1; at >= 0 {
-		for i, c := range name {
-			if c == '@' {
-				parts = name[:i]
-				break
-			}
-		}
-	}
-	slashes := 0
-	for _, c := range parts {
-		if c == '/' {
-			slashes++
-		}
-	}
-	return slashes > 1
 }
 
 // TestParseSelfReferentialType ensures the walker breaks reference cycles so
@@ -178,14 +129,14 @@ func TestParseSelfReferentialType(t *testing.T) {
 		{"$type":"ResourceType","name":"Microsoft.Test/things@2024-01-01","body":{"$ref":"#/3"}}
 	]`
 
-	defs, err := ParseTypesJSON([]byte(raw))
+	defs, err := typegraph.ParseTypesJSON([]byte(raw))
 	if err != nil {
 		t.Fatalf("ParseTypesJSON: %v", err)
 	}
 	if len(defs) != 1 {
 		t.Fatalf("expected 1 resource def, got %d", len(defs))
 	}
-	PostProcess(defs)
+	typegraph.PostProcess(defs)
 
 	// EmitSchema must terminate (no stack overflow). A bounded call is the test.
 	src, err := EmitSchema(defs[0])
@@ -223,7 +174,7 @@ func TestParseDiscriminatedObjectType(t *testing.T) {
 		{"$type":"ResourceType","name":"Microsoft.Test/poly@2024-01-01","body":{"$ref":"#/3"}}
 	]`
 
-	defs, err := ParseTypesJSON([]byte(raw))
+	defs, err := typegraph.ParseTypesJSON([]byte(raw))
 	if err != nil {
 		t.Fatalf("ParseTypesJSON failed on DiscriminatedObjectType: %v", err)
 	}

@@ -428,13 +428,16 @@ sequenceDiagram
     participant B as Base
     participant C as ResourceClient
     participant M as mapper
+    participant H as Hooks
     TF->>B: Read(state)
+    B->>H: BeforeRead(CrudCtx{State})
     B->>C: Get(id, apiVersion)
     alt 404
         C-->>B: not found
         B-->>TF: RemoveResource
     else found
         C-->>B: response JSON
+        B->>H: AfterRead(CrudCtx{Response})
         B->>M: FlattenInto(response, priorState)
         B-->>TF: refreshed state
     end

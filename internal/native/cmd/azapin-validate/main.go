@@ -16,7 +16,7 @@ import (
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generator/customizers"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 	"github.com/Azure/terraform-provider-azapi/internal/native/validate"
 
 	// generated provides the Registry/Descriptor types; the all aggregator's blank
@@ -69,32 +69,27 @@ func main() {
 			continue
 		}
 
-		defs, err := generator.ParseTypesJSON(typesData)
+		// Build the graph exactly as the generated schema was compiled from
+		// (post-process + customizers), then select the resource under test.
+		defs, err := generator.BuildForGeneration(typesData)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR %s: parsing types.json: %v\n", name, err)
+			fmt.Fprintf(os.Stderr, "ERROR %s: building generation graph: %v\n", name, err)
 			totalErrors++
 			continue
 		}
-
-		// Find the matching resource definition
-		var body *generator.Type
+		var pdef *typegraph.ResourceDefinition
 		for _, def := range defs {
 			if def.Name == tag {
-				body = def.Body
+				pdef = def
 				break
 			}
 		}
-		if body == nil {
+		if pdef == nil {
 			fmt.Fprintf(os.Stderr, "ERROR %s: resource %s not found in %s\n", name, tag, location)
 			totalErrors++
 			continue
 		}
-
-		// Apply the same generation pipeline: post-process, then customizers, so the
-		// body graph matches what the generated schema was built from.
-		pdef := &generator.ResourceDefinition{Name: tag, Body: body}
-		generator.PostProcess([]*generator.ResourceDefinition{pdef})
-		customizers.Apply([]*generator.ResourceDefinition{pdef})
+		body := pdef.Body
 
 		// Validate the body; exclude the synthesized envelope attributes.
 		mismatches := validate.SchemaAgainstBicep(s, body, "name", d.ParentAttr, "id")
@@ -107,9 +102,9 @@ func main() {
 		warnings := 0
 		for _, m := range mismatches {
 			switch m.Kind {
-			case validate.MismatchExtraInSchema, validate.MismatchTypeMismatch:
+			case typegraph.MismatchExtraInSchema, typegraph.MismatchTypeMismatch:
 				errors++
-			case validate.MismatchMissingInSchema:
+			case typegraph.MismatchMissingInSchema:
 				warnings++
 			}
 		}
@@ -120,7 +115,7 @@ func main() {
 		}
 		switch {
 		case len(mismatches) > 0:
-			fmt.Fprintf(os.Stderr, "FAIL %s (%s): %s", name, tag, validate.FormatMismatches(mismatches))
+			fmt.Fprintf(os.Stderr, "FAIL %s (%s): %s", name, tag, typegraph.FormatMismatches(mismatches))
 		case errors == 0 && warnings == 0:
 			fmt.Printf("OK   %s (%s): 0 mismatches\n", name, tag)
 		}

@@ -42,7 +42,9 @@ func storageAccountModifyPlan(ctx context.Context, req fwresource.ModifyPlanRequ
 			// block is marked because account_replication_type is encoded in sku.name.
 			attr:   path.Root("sku").AtName("name"),
 			marker: path.Root("sku"),
-			body:   func(v string) map[string]interface{} { return map[string]interface{}{"sku": map[string]interface{}{"name": v}} },
+			body: func(v string) map[string]interface{} {
+				return map[string]interface{}{"sku": map[string]interface{}{"name": v}}
+			},
 		},
 		{
 			// account_kind migration — only Storage -> StorageV2 is allowed in place.

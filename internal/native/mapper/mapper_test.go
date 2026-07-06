@@ -5,16 +5,16 @@ import (
 	"testing"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/mapper"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/all"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 // loadStorageBody parses the storage account bicep body type graph.
-func loadStorageBody(t *testing.T) *generator.Type {
+func loadStorageBody(t *testing.T) *typegraph.Type {
 	t.Helper()
 	return loadBody(t, "Microsoft.Storage/storageAccounts")
 }
@@ -252,7 +252,7 @@ func TestRoundTripObjectMap(t *testing.T) {
 
 // loadBody parses an arbitrary ARM resource's bicep body type graph for its
 // latest stable API version, resolved through the azure schema loader.
-func loadBody(t *testing.T, armType string) *generator.Type {
+func loadBody(t *testing.T, armType string) *typegraph.Type {
 	t.Helper()
 	version, err := azure.GetLatestStableApiVersion(armType)
 	if err != nil {
@@ -266,11 +266,12 @@ func loadBody(t *testing.T, armType string) *generator.Type {
 	if err != nil {
 		t.Skipf("types.json not found: %v", err)
 	}
-	defs, err := generator.ParseTypesJSON(data)
+	defs, err := typegraph.ParseTypesJSON(data)
 	if err != nil {
 		t.Fatalf("ParseTypesJSON: %v", err)
 	}
-	generator.PostProcess(defs)
+	typegraph.
+		PostProcess(defs)
 	tag := armType + "@" + version
 	for _, d := range defs {
 		if d.Name == tag {

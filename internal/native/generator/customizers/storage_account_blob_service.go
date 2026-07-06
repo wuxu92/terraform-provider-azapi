@@ -1,6 +1,6 @@
 package customizers
 
-import "github.com/Azure/terraform-provider-azapi/internal/native/generator"
+import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 
 // customizeStorageAccountBlobService applies the schema rules the bicep type
 // graph cannot express for Microsoft.Storage/storageAccounts/blobServices:
@@ -8,9 +8,9 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/generator"
 //     "default". The name is not part of the body type graph, so the constraint
 //     is attached to the envelope name attribute, rejecting any other value at
 //     plan time instead of failing the ARM apply.
-func customizeStorageAccountBlobService(def *generator.ResourceDefinition) {
-	def.Envelope.Name.Validators = []generator.DescriptionValidator{
-		generator.OneOfValidator(
+func customizeStorageAccountBlobService(def *typegraph.ResourceDefinition) {
+	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{typegraph.
+		OneOfValidator(
 			`blob service name must be "default" (blobServices is a singleton child resource)`,
 			"default",
 		),
@@ -26,7 +26,8 @@ func customizeStorageAccountBlobService(def *generator.ResourceDefinition) {
 		"properties.cors.corsRules.allowedOrigins",
 		"properties.cors.corsRules.exposedHeaders",
 	} {
-		generator.FindProperty(def, path).UseSet = true
+		typegraph.
+			FindProperty(def, path).UseSet = true
 	}
 
 	// These children are server-controlled/read-only values that Azure leaves null
@@ -47,6 +48,7 @@ func customizeStorageAccountBlobService(def *generator.ResourceDefinition) {
 		"properties.lastAccessTimeTrackingPolicy.trackingGranularityInDays",
 		"properties.restorePolicy.minRestoreTime",
 	} {
-		generator.FindProperty(def, path).NonNullStateForUnknown = true
+		typegraph.
+			FindProperty(def, path).NonNullStateForUnknown = true
 	}
 }

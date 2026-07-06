@@ -111,6 +111,7 @@ field — means "use the base behavior".
 | `AfterCreate` | create, after the GET following PUT | inspect `ctx.Response`; raise diagnostics |
 | `BeforeUpdate` | update, after body composed, before PUT | mutate `ctx.Body` |
 | `AfterUpdate` | update, after the follow-up GET | inspect `ctx.Response` |
+| `BeforeRead` | read, before the GET | preflight/guard using `ctx.State` (e.g. skip or short-circuit) |
 | `AfterRead` | read, after GET, before mapping into state | massage `ctx.Response` before flatten |
 | `BeforeDelete` | delete, before the DELETE call | preflight/guard using `ctx.State` |
 | `ValidateConfig` | config validation (plan-time; values may be unknown) | cross-field rules one validator can't express |
@@ -121,8 +122,8 @@ field — means "use the base behavior".
 (same body-composition path). `ValidateConfig`/`ModifyPlan` use framework signatures and
 run *after* the base (base applies schema `RequiresReplace` first, then your `ModifyPlan`).
 
-> `Hooks.BeforeRead` exists in the struct but `Read` invokes only `AfterRead` —
-> `BeforeRead` is a **no-op today**. Wire it in `base.go`'s `Read` before relying on it.
+> `Before/AfterRead` bracket the GET: `BeforeRead` sees `ctx.State` (pre-GET), `AfterRead`
+> sees `ctx.Response` (post-GET, before flatten).
 
 ### What a hook sees — `CrudCtx`
 

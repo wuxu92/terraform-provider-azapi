@@ -7,11 +7,12 @@ import (
 	"strings"
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
 
 // EmitSchema renders Go source for a generated Terraform resource schema.
-func EmitSchema(def *ResourceDefinition) (string, error) {
-	if def.Body == nil || def.Body.Kind != KindObject {
+func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
+	if def.Body == nil || def.Body.Kind != typegraph.KindObject {
 		return "", fmt.Errorf("resource %s has no object body", def.Name)
 	}
 
@@ -29,19 +30,19 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	needs := scanImportNeeds(def.Body)
 	needs.planmodifier = true
 	needs.pmString = true
-	for _, a := range []EnvelopeAttr{def.Envelope.Name, def.Envelope.Parent} {
+	for _, a := range []typegraph.EnvelopeAttr{def.Envelope.Name, def.Envelope.Parent} {
 		for _, v := range a.Validators {
 			switch v.Kind {
-			case ValidatorArmResourceID, ValidatorRegex:
+			case typegraph.ValidatorArmResourceID, typegraph.ValidatorRegex:
 				needs.regexp = true
 				needs.stringValidator = true
-			case ValidatorStringOneOf, ValidatorStringLength:
+			case typegraph.ValidatorStringOneOf, typegraph.ValidatorStringLength:
 				needs.stringValidator = true
-			case ValidatorIntRange:
+			case typegraph.ValidatorIntRange:
 				needs.int64Validator = true
-			case ValidatorCustom:
+			case typegraph.ValidatorCustom:
 				needs.custom = true
-			case ValidatorShared:
+			case typegraph.ValidatorShared:
 				needs.shared = true
 			}
 		}
@@ -84,13 +85,22 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 	if needs.pmMap {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier\"\n")
 	}
+	if needs.defBool {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault\"\n")
+	}
+	if needs.defInt64 {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default\"\n")
+	}
+	if needs.defString {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault\"\n")
+	}
 	if needs.stringValidator || needs.int64Validator || needs.custom || needs.shared {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/schema/validator\"\n")
 	}
 	if needs.types {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/types\"\n")
 	}
-	if needs.defaults || needs.shared || needs.nativeSchema {
+	if needs.shared || needs.nativeSchema {
 		b.WriteString("\tnativeschema \"github.com/Azure/terraform-provider-azapi/internal/native/schema\"\n")
 	}
 	b.WriteString("\t\"github.com/Azure/terraform-provider-azapi/internal/native/services\"\n")
@@ -162,7 +172,7 @@ func EmitSchema(def *ResourceDefinition) (string, error) {
 }
 
 // FileName returns <service>/<resource>_gen.go for a generated descriptor.
-func FileName(def *ResourceDefinition) string {
+func FileName(def *typegraph.ResourceDefinition) string {
 	armType := def.Name
 	if at := strings.Index(armType, "@"); at >= 0 {
 		armType = armType[:at]
@@ -176,7 +186,9 @@ type importNeeds struct {
 	int64Validator  bool
 	stringValidator bool
 	types           bool // for types.StringType in ListAttribute
-	defaults        bool // for nativeschema.Static*
+	defBool         bool // for booldefault.StaticBool
+	defString       bool // for stringdefault.StaticString (string + enum defaults)
+	defInt64        bool // for int64default.StaticInt64
 	planmodifier    bool // for planmodifier.X plan-modifier slices
 	pmString        bool // stringplanmodifier
 	pmBool          bool // boolplanmodifier
@@ -189,14 +201,14 @@ type importNeeds struct {
 	nativeSchema    bool // for generic native schema helpers that are not validators/defaults
 }
 
-func scanImportNeeds(typ *Type) importNeeds {
+func scanImportNeeds(typ *typegraph.Type) importNeeds {
 	var needs importNeeds
 	scanImportNeedsRecurse(typ, &needs)
 	return needs
 }
 
-func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
-	if typ == nil || typ.Kind != KindObject {
+func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
+	if typ == nil || typ.Kind != typegraph.KindObject {
 		return
 	}
 	for _, prop := range typ.Properties {
@@ -207,9 +219,20 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 			needs.nativeSchema = true
 			continue
 		}
-		computed := effectiveComputed(prop)
+		computed := typegraph.EffectiveComputed(prop)
 		if prop.DefaultValue != "" {
-			needs.defaults = true
+			switch prop.Type.Kind {
+			case typegraph.KindBool:
+				needs.defBool = true
+			case typegraph.KindString:
+				needs.defString = true
+			case typegraph.KindInt:
+				needs.defInt64 = true
+			default:
+				if prop.Type.IsEnum() {
+					needs.defString = true
+				}
+			}
 		}
 		if usesLocationPlanModifier(prop, computed) {
 			needs.nativeSchema = true
@@ -217,26 +240,26 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 		}
 		for _, v := range prop.Validators {
 			switch v.Kind {
-			case ValidatorArmResourceID, ValidatorRegex:
+			case typegraph.ValidatorArmResourceID, typegraph.ValidatorRegex:
 				needs.regexp = true
 				needs.stringValidator = true
-			case ValidatorStringOneOf, ValidatorStringLength:
+			case typegraph.ValidatorStringOneOf, typegraph.ValidatorStringLength:
 				needs.stringValidator = true
-			case ValidatorIntRange:
+			case typegraph.ValidatorIntRange:
 				needs.int64Validator = true
-			case ValidatorCustom:
+			case typegraph.ValidatorCustom:
 				needs.custom = true
-			case ValidatorShared:
+			case typegraph.ValidatorShared:
 				needs.shared = true
 			}
 		}
 		if prop.Type.IsEnum() && !computed {
 			needs.stringValidator = true
 		}
-		if prop.Type.Kind == KindArray && (prop.Type.ElementType == nil || prop.Type.ElementType.Kind != KindObject) {
+		if prop.Type.Kind == typegraph.KindArray && (prop.Type.ElementType == nil || prop.Type.ElementType.Kind != typegraph.KindObject) {
 			needs.types = true
 		}
-		if prop.Type.Kind == KindMap && (prop.Type.ElementType == nil || prop.Type.ElementType.Kind != KindObject) {
+		if prop.Type.Kind == typegraph.KindMap && (prop.Type.ElementType == nil || prop.Type.ElementType.Kind != typegraph.KindObject) {
 			needs.types = true
 		}
 		// State reuse and ForceNew both need type-specific plan modifier imports.
@@ -262,55 +285,22 @@ func scanImportNeedsRecurse(typ *Type, needs *importNeeds) {
 				}
 			}
 		}
-		if prop.Type.Kind == KindObject {
+		if prop.Type.Kind == typegraph.KindObject {
 			scanImportNeedsRecurse(prop.Type, needs)
 		}
-		if prop.Type.Kind == KindMap && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject {
+		if prop.Type.Kind == typegraph.KindMap && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == typegraph.KindObject {
 			scanImportNeedsRecurse(prop.Type.ElementType, needs)
 		}
-		if prop.Type.Kind == KindArray && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject {
+		if prop.Type.Kind == typegraph.KindArray && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == typegraph.KindObject {
 			scanImportNeedsRecurse(prop.Type.ElementType, needs)
 		}
 	}
-}
-
-// isFullyComputed reports whether an object is entirely server-populated.
-func isFullyComputed(typ *Type) bool {
-	if typ.Kind != KindObject || len(typ.Properties) == 0 {
-		return false
-	}
-	for _, prop := range typ.Properties {
-		if prop.Flags.IsSystemManaged() || prop.Flags.IsReadOnly() {
-			continue
-		}
-		if prop.Type.Kind == KindObject && isFullyComputed(prop.Type) {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
-// effectiveComputed folds explicit read-only, azwise-computed and fully read-only
-// nested shapes into Computed-only schema attrs.
-func effectiveComputed(prop *Property) bool {
-	if prop.ForceComputed || prop.Flags.IsReadOnly() {
-		return true
-	}
-	if prop.Type.Kind == KindObject && isFullyComputed(prop.Type) {
-		return true
-	}
-	if prop.Type.Kind == KindArray && prop.Type.ElementType != nil &&
-		prop.Type.ElementType.Kind == KindObject && isFullyComputed(prop.Type.ElementType) {
-		return true
-	}
-	return false
 }
 
 // emitAttributes writes an object's Terraform attributes. Dynamic values inside
 // collection elements degrade to strings because the framework rejects nested Dynamic.
-func emitAttributes(b *strings.Builder, objType *Type, indent int, inCollection bool) {
-	if objType.Kind != KindObject {
+func emitAttributes(b *strings.Builder, objType *typegraph.Type, indent int, inCollection bool) {
+	if objType.Kind != typegraph.KindObject {
 		return
 	}
 	propNames := orderedPropertyNames(objType, indent, inCollection)
@@ -325,7 +315,7 @@ func emitAttributes(b *strings.Builder, objType *Type, indent int, inCollection 
 	}
 }
 
-func orderedPropertyNames(objType *Type, indent int, inCollection bool) []string {
+func orderedPropertyNames(objType *typegraph.Type, indent int, inCollection bool) []string {
 	propNames := make([]string, 0, len(objType.Properties))
 	for name := range objType.Properties {
 		propNames = append(propNames, name)
@@ -378,9 +368,9 @@ func stringIn(needle string, haystack []string) bool {
 	return false
 }
 
-func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs string, indent int, inCollection bool) {
+func emitAttribute(b *strings.Builder, tfName string, prop *typegraph.Property, tabs string, indent int, inCollection bool) {
 	typ := prop.Type
-	computed := effectiveComputed(prop)
+	computed := typegraph.EffectiveComputed(prop)
 
 	if isManagedServiceIdentityProperty(prop) {
 		b.WriteString(fmt.Sprintf("%s%q: nativeschema.ManagedServiceIdentity(%t, \"\"),\n", tabs, tfName, identityTypeRequired(prop)))
@@ -388,7 +378,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 	}
 
 	switch {
-	case typ.Kind == KindString:
+	case typ.Kind == typegraph.KindString:
 		b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, tfName))
 		writeAttributeFlags(b, prop, computed, tabs)
 		if !computed {
@@ -397,13 +387,13 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		emitPlanModifiers(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
-	case typ.Kind == KindBool:
+	case typ.Kind == typegraph.KindBool:
 		b.WriteString(fmt.Sprintf("%s%q: schema.BoolAttribute{\n", tabs, tfName))
 		writeAttributeFlags(b, prop, computed, tabs)
 		emitPlanModifiers(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
-	case typ.Kind == KindInt:
+	case typ.Kind == typegraph.KindInt:
 		b.WriteString(fmt.Sprintf("%s%q: schema.Int64Attribute{\n", tabs, tfName))
 		writeAttributeFlags(b, prop, computed, tabs)
 		if !computed {
@@ -431,7 +421,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		emitPlanModifiers(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
-	case typ.Kind == KindObject:
+	case typ.Kind == typegraph.KindObject:
 		b.WriteString(fmt.Sprintf("%s%q: schema.SingleNestedAttribute{\n", tabs, tfName))
 		writeAttributeFlags(b, prop, computed, tabs)
 		emitPlanModifiers(b, prop, computed, tabs)
@@ -440,8 +430,8 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 		b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
-	case typ.Kind == KindArray:
-		if typ.ElementType != nil && typ.ElementType.Kind == KindObject {
+	case typ.Kind == typegraph.KindArray:
+		if typ.ElementType != nil && typ.ElementType.Kind == typegraph.KindObject {
 			b.WriteString(fmt.Sprintf("%s%q: schema.ListNestedAttribute{\n", tabs, tfName))
 			writeAttributeFlags(b, prop, computed, tabs)
 			emitPlanModifiers(b, prop, computed, tabs)
@@ -465,8 +455,8 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
 		}
 
-	case typ.Kind == KindMap:
-		if typ.ElementType != nil && typ.ElementType.Kind == KindObject {
+	case typ.Kind == typegraph.KindMap:
+		if typ.ElementType != nil && typ.ElementType.Kind == typegraph.KindObject {
 			b.WriteString(fmt.Sprintf("%s%q: schema.MapNestedAttribute{\n", tabs, tfName))
 			writeAttributeFlags(b, prop, computed, tabs)
 			emitPlanModifiers(b, prop, computed, tabs)
@@ -484,7 +474,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
 		}
 
-	case typ.Kind == KindUnion:
+	case typ.Kind == typegraph.KindUnion:
 		// Non-enum union: accept it as a string for now.
 		b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, tfName))
 		writeAttributeFlags(b, prop, computed, tabs)
@@ -507,7 +497,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *Property, tabs strin
 }
 
 // emitPlanModifiers writes state-reuse and replacement plan modifiers.
-func emitPlanModifiers(b *strings.Builder, prop *Property, computed bool, tabs string) {
+func emitPlanModifiers(b *strings.Builder, prop *typegraph.Property, computed bool, tabs string) {
 	// State reuse keeps Optional+Computed/read-only values stable; customizers can
 	// make null prior state unknown for Azure-populated values.
 	useState := !prop.Flags.IsRequired() && prop.DefaultValue == ""
@@ -537,31 +527,31 @@ func emitPlanModifiers(b *strings.Builder, prop *Property, computed bool, tabs s
 	b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 }
 
-func usesLocationPlanModifier(prop *Property, computed bool) bool {
-	return !computed && prop.Name == "location" && prop.Type != nil && prop.Type.Kind == KindString
+func usesLocationPlanModifier(prop *typegraph.Property, computed bool) bool {
+	return !computed && prop.Name == "location" && prop.Type != nil && prop.Type.Kind == typegraph.KindString
 }
 
 // planModifierFor returns the type-specific plan-modifier package and framework type.
-func planModifierFor(prop *Property) (pkg, typ string) {
+func planModifierFor(prop *typegraph.Property) (pkg, typ string) {
 	switch {
-	case prop.Type.Kind == KindString, prop.Type.IsEnum(), prop.Type.Kind == KindUnion:
+	case prop.Type.Kind == typegraph.KindString, prop.Type.IsEnum(), prop.Type.Kind == typegraph.KindUnion:
 		return "stringplanmodifier", "String"
-	case prop.Type.Kind == KindBool:
+	case prop.Type.Kind == typegraph.KindBool:
 		return "boolplanmodifier", "Bool"
-	case prop.Type.Kind == KindInt:
+	case prop.Type.Kind == typegraph.KindInt:
 		return "int64planmodifier", "Int64"
-	case prop.Type.Kind == KindObject:
+	case prop.Type.Kind == typegraph.KindObject:
 		return "objectplanmodifier", "Object"
-	case prop.Type.Kind == KindArray:
+	case prop.Type.Kind == typegraph.KindArray:
 		return "listplanmodifier", "List"
-	case prop.Type.Kind == KindMap:
+	case prop.Type.Kind == typegraph.KindMap:
 		return "mapplanmodifier", "Map"
 	}
 	return "", ""
 }
 
-func isManagedServiceIdentityProperty(prop *Property) bool {
-	if prop == nil || prop.Name != "identity" || prop.Type == nil || prop.Type.Kind != KindObject {
+func isManagedServiceIdentityProperty(prop *typegraph.Property) bool {
+	if prop == nil || prop.Name != "identity" || prop.Type == nil || prop.Type.Kind != typegraph.KindObject {
 		return false
 	}
 	props := prop.Type.Properties
@@ -576,7 +566,7 @@ func isManagedServiceIdentityProperty(prop *Property) bool {
 	return true
 }
 
-func identityTypeRequired(prop *Property) bool {
+func identityTypeRequired(prop *typegraph.Property) bool {
 	if !isManagedServiceIdentityProperty(prop) {
 		return false
 	}
@@ -584,7 +574,7 @@ func identityTypeRequired(prop *Property) bool {
 }
 
 // writeAttributeFlags writes Description, Required/Optional/Computed, defaults and sensitivity.
-func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs string) {
+func writeAttributeFlags(b *strings.Builder, prop *typegraph.Property, computed bool, tabs string) {
 	if prop.Description != "" {
 		desc := strings.ReplaceAll(prop.Description, `"`, `\"`)
 		if len(desc) > 200 {
@@ -611,12 +601,12 @@ func writeAttributeFlags(b *strings.Builder, prop *Property, computed bool, tabs
 }
 
 // listElementType returns the Terraform element type for primitive arrays.
-func listElementType(elem *Type) string {
+func listElementType(elem *typegraph.Type) string {
 	if elem != nil {
 		switch elem.Kind {
-		case KindBool:
+		case typegraph.KindBool:
 			return "types.BoolType"
-		case KindInt:
+		case typegraph.KindInt:
 			return "types.Int64Type"
 		}
 	}
@@ -624,17 +614,17 @@ func listElementType(elem *Type) string {
 }
 
 // emitDefault writes the generated default for supported scalar types.
-func emitDefault(b *strings.Builder, prop *Property, tabs string) {
+func emitDefault(b *strings.Builder, prop *typegraph.Property, tabs string) {
 	switch prop.Type.Kind {
-	case KindBool:
-		b.WriteString(fmt.Sprintf("%s\tDefault: nativeschema.StaticBool(%s),\n", tabs, prop.DefaultValue))
-	case KindString:
-		b.WriteString(fmt.Sprintf("%s\tDefault: nativeschema.StaticString(%q),\n", tabs, prop.DefaultValue))
-	case KindInt:
-		b.WriteString(fmt.Sprintf("%s\tDefault: nativeschema.StaticInt64(%s),\n", tabs, prop.DefaultValue))
+	case typegraph.KindBool:
+		b.WriteString(fmt.Sprintf("%s\tDefault: booldefault.StaticBool(%s),\n", tabs, prop.DefaultValue))
+	case typegraph.KindString:
+		b.WriteString(fmt.Sprintf("%s\tDefault: stringdefault.StaticString(%q),\n", tabs, prop.DefaultValue))
+	case typegraph.KindInt:
+		b.WriteString(fmt.Sprintf("%s\tDefault: int64default.StaticInt64(%s),\n", tabs, prop.DefaultValue))
 	default:
 		if prop.Type.IsEnum() {
-			b.WriteString(fmt.Sprintf("%s\tDefault: nativeschema.StaticString(%q),\n", tabs, prop.DefaultValue))
+			b.WriteString(fmt.Sprintf("%s\tDefault: stringdefault.StaticString(%q),\n", tabs, prop.DefaultValue))
 		} else {
 			// Unsupported default type: leave it computed.
 			b.WriteString(fmt.Sprintf("%s\tComputed: true,\n", tabs))
@@ -643,12 +633,12 @@ func emitDefault(b *strings.Builder, prop *Property, tabs string) {
 }
 
 // emitDescriptionStringValidators writes string validators from descriptions/azwise.
-func emitDescriptionStringValidators(b *strings.Builder, prop *Property, tabs string) {
+func emitDescriptionStringValidators(b *strings.Builder, prop *typegraph.Property, tabs string) {
 	emitStringValidators(b, prop.Validators, tabs)
 }
 
 // emitStringValidators writes a String validator block.
-func emitStringValidators(b *strings.Builder, validators []DescriptionValidator, tabs string) {
+func emitStringValidators(b *strings.Builder, validators []typegraph.DescriptionValidator, tabs string) {
 	if len(validators) == 0 {
 		return
 	}
@@ -656,17 +646,17 @@ func emitStringValidators(b *strings.Builder, validators []DescriptionValidator,
 	var items []string
 	for _, v := range validators {
 		switch v.Kind {
-		case ValidatorArmResourceID:
+		case typegraph.ValidatorArmResourceID:
 			items = append(items, fmt.Sprintf(
 				"%s\t\tstringvalidator.RegexMatches(\n%s\t\t\tregexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),\n%s\t\t\t%q,\n%s\t\t)",
 				tabs, tabs, tabs, v.Message, tabs))
-		case ValidatorRegex:
+		case typegraph.ValidatorRegex:
 			if v.Pattern != "" {
 				items = append(items, fmt.Sprintf(
 					"%s\t\tstringvalidator.RegexMatches(\n%s\t\t\tregexp.MustCompile(`%s`),\n%s\t\t\t%q,\n%s\t\t)",
 					tabs, tabs, v.Pattern, tabs, v.Message, tabs))
 			}
-		case ValidatorStringOneOf:
+		case typegraph.ValidatorStringOneOf:
 			if len(v.Allowed) > 0 {
 				var sb strings.Builder
 				sb.WriteString(fmt.Sprintf("%s\t\tstringvalidator.OneOf(\n", tabs))
@@ -676,7 +666,7 @@ func emitStringValidators(b *strings.Builder, validators []DescriptionValidator,
 				sb.WriteString(fmt.Sprintf("%s\t\t)", tabs))
 				items = append(items, sb.String())
 			}
-		case ValidatorStringLength:
+		case typegraph.ValidatorStringLength:
 			switch {
 			case v.Min != nil && v.Max != nil:
 				items = append(items, fmt.Sprintf("%s\t\tstringvalidator.LengthBetween(%d, %d)", tabs, *v.Min, *v.Max))
@@ -685,11 +675,11 @@ func emitStringValidators(b *strings.Builder, validators []DescriptionValidator,
 			case v.Max != nil:
 				items = append(items, fmt.Sprintf("%s\t\tstringvalidator.LengthAtMost(%d)", tabs, *v.Max))
 			}
-		case ValidatorCustom:
+		case typegraph.ValidatorCustom:
 			if v.Call != "" {
 				items = append(items, fmt.Sprintf("%s\t\tvalidators.%s", tabs, v.Call))
 			}
-		case ValidatorShared:
+		case typegraph.ValidatorShared:
 			if v.Call != "" {
 				items = append(items, fmt.Sprintf("%s\t\tnativeschema.%s", tabs, v.Call))
 			}
@@ -706,7 +696,7 @@ func emitStringValidators(b *strings.Builder, validators []DescriptionValidator,
 }
 
 // emitEnvelope writes synthetic name/parent/id attrs outside the bicep body.
-func emitEnvelope(b *strings.Builder, env Envelope, tabs string) {
+func emitEnvelope(b *strings.Builder, env typegraph.Envelope, tabs string) {
 	emitEnvelopeStringAttr(b, env.Name, tabs)
 	emitEnvelopeStringAttr(b, env.Parent, tabs)
 	emitEnvelopeIDAttr(b, tabs)
@@ -722,7 +712,7 @@ func emitEnvelopeIDAttr(b *strings.Builder, tabs string) {
 }
 
 // emitEnvelopeStringAttr writes a required, replacing envelope string attr.
-func emitEnvelopeStringAttr(b *strings.Builder, a EnvelopeAttr, tabs string) {
+func emitEnvelopeStringAttr(b *strings.Builder, a typegraph.EnvelopeAttr, tabs string) {
 	b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, a.Name))
 	b.WriteString(fmt.Sprintf("%s\tRequired: true,\n", tabs))
 	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},\n", tabs))
@@ -732,14 +722,14 @@ func emitEnvelopeStringAttr(b *strings.Builder, a EnvelopeAttr, tabs string) {
 }
 
 // emitDescriptionInt64Validators writes int64 range validators.
-func emitDescriptionInt64Validators(b *strings.Builder, prop *Property, tabs string) {
+func emitDescriptionInt64Validators(b *strings.Builder, prop *typegraph.Property, tabs string) {
 	if len(prop.Validators) == 0 {
 		return
 	}
 
 	var items []string
 	for _, v := range prop.Validators {
-		if v.Kind != ValidatorIntRange {
+		if v.Kind != typegraph.ValidatorIntRange {
 			continue
 		}
 		if v.Min != nil && v.Max != nil {

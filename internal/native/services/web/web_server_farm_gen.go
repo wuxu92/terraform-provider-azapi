@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
@@ -301,7 +302,7 @@ func AzapiWebServerFarmSchema() schema.Schema {
 						Description: "ServerFarm supports ElasticScale. Apps in this plan will scale as if the ServerFarm was ElasticPremium sku",
 						Optional:    true,
 						Computed:    true,
-						Default:     nativeschema.StaticBool(false),
+						Default:     booldefault.StaticBool(false),
 					},
 					"free_offer_expiration_time": schema.StringAttribute{
 						Description: "The time when the server farm free offer expires.",
@@ -522,7 +523,7 @@ func AzapiWebServerFarmSchema() schema.Schema {
 						Description: "If <code>true</code>, apps assigned to this App Service plan can be scaled independently.\nIf <code>false</code>, apps assigned to this App Service plan will scale to all instances of the plan.",
 						Optional:    true,
 						Computed:    true,
-						Default:     nativeschema.StaticBool(false),
+						Default:     booldefault.StaticBool(false),
 					},
 					"plan_default_identity": schema.SingleNestedAttribute{
 						Description: "Identity to use by platform for various features and integrations using managed identity.",
@@ -778,7 +779,7 @@ func AzapiWebServerFarmSchema() schema.Schema {
 						Description: "If <code>true</code>, this App Service Plan will perform availability zone balancing.\nIf <code>false</code>, this App Service Plan will not perform availability zone balancing.",
 						Optional:    true,
 						Computed:    true,
-						Default:     nativeschema.StaticBool(false),
+						Default:     booldefault.StaticBool(false),
 					},
 				},
 			},

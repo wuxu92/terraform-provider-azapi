@@ -12,9 +12,9 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/native/armjson"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/mapper"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 	"github.com/Azure/terraform-provider-azapi/internal/services/parse"
 	"github.com/Azure/terraform-provider-azapi/internal/tf"
 	"github.com/Azure/terraform-provider-azapi/utils"
@@ -96,7 +96,7 @@ func (b *Base) composeSchema(ctx context.Context) schema.Schema {
 }
 
 // bodyGraph loads (and caches) the bicep body type graph for the mapper.
-func (b *Base) bodyGraph() (*generator.Type, error) {
+func (b *Base) bodyGraph() (*typegraph.Type, error) {
 	return loadBody(b.desc.ARMType, b.desc.APIVersion)
 }
 
@@ -334,6 +334,14 @@ func (b *Base) Read(ctx context.Context, req resource.ReadRequest, resp *resourc
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	if b.hooks != nil && b.hooks.BeforeRead != nil {
+		hc := &CrudCtx{Ctx: ctx, Client: b.provider, ID: id, State: stateObj, Diags: &resp.Diagnostics}
+		b.hooks.BeforeRead(hc)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
 
 	respBody, err := b.provider.ResourceClient.Get(ctx, id.AzureResourceId, id.ApiVersion, clients.DefaultRequestOptions())
 	if err != nil {

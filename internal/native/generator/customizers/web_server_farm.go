@@ -1,6 +1,6 @@
 package customizers
 
-import "github.com/Azure/terraform-provider-azapi/internal/native/generator"
+import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 
 // customizeWebServerFarm applies Microsoft.Web/serverfarms schema rules that the
 // bicep type graph cannot express:
@@ -13,20 +13,20 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/generator"
 //   - hostingEnvironmentProfile.id is an ARM resource ID. AzureRM validates the
 //     App Service Environment ID semantically; attach the shared resource-ID
 //     validator where the bicep graph only knows "string".
-func customizeWebServerFarm(def *generator.ResourceDefinition) {
-	def.Envelope.Name.Validators = []generator.DescriptionValidator{
-		generator.LengthValidator(1, 60),
-		generator.RegexValidator(
+func customizeWebServerFarm(def *typegraph.ResourceDefinition) {
+	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{typegraph.
+		LengthValidator(1, 60), typegraph.
+		RegexValidator(
 			`^[0-9A-Za-z-_]+$`,
 			"App Service plan name may only contain alphanumeric characters, dashes, and underscores, up to 60 characters",
 		),
 	}
 
-	sku := generator.FindProperty(def, "sku")
-	sku.Flags |= generator.FlagRequired
-	skuName := generator.FindProperty(def, "sku.name")
-	skuName.Flags |= generator.FlagRequired
+	sku := typegraph.FindProperty(def, "sku")
+	sku.Flags |= typegraph.FlagRequired
+	skuName := typegraph.FindProperty(def, "sku.name")
+	skuName.Flags |= typegraph.FlagRequired
 
-	aseID := generator.FindProperty(def, "properties.hostingEnvironmentProfile.id")
-	aseID.Validators = append(aseID.Validators, generator.SharedValidator("AzureResourceID()"))
+	aseID := typegraph.FindProperty(def, "properties.hostingEnvironmentProfile.id")
+	aseID.Validators = append(aseID.Validators, typegraph.SharedValidator("AzureResourceID()"))
 }

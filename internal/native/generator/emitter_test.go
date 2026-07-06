@@ -3,13 +3,15 @@ package generator
 import (
 	"strings"
 	"testing"
+
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
 
 func TestEmitStorageAccountSchema(t *testing.T) {
 	defs, ver := latestStorageDefs(t)
 	tag := "Microsoft.Storage/storageAccounts@" + ver
 
-	var sa *ResourceDefinition
+	var sa *typegraph.ResourceDefinition
 	for _, d := range defs {
 		if d.Name == tag {
 			sa = d
@@ -107,10 +109,10 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 
 func TestEmitSchemaOrdersCommonTopLevelAttributes(t *testing.T) {
 	defs, ver := latestStorageDefs(t)
-	PostProcess(defs)
+	typegraph.PostProcess(defs)
 	tag := "Microsoft.Storage/storageAccounts@" + ver
 
-	var sa *ResourceDefinition
+	var sa *typegraph.ResourceDefinition
 	for _, d := range defs {
 		if d.Name == tag {
 			sa = d
@@ -164,9 +166,9 @@ func TestEmitPlanModifiersHonorsNonNullStateForUnknown(t *testing.T) {
 		{"opted-in", true, "stringplanmodifier.UseNonNullStateForUnknown()", "UseStateForUnknown()"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			prop := &Property{
+			prop := &typegraph.Property{
 				Name:                   "name",
-				Type:                   &Type{Kind: KindString},
+				Type:                   &typegraph.Type{Kind: typegraph.KindString},
 				NonNullStateForUnknown: tc.nonNull,
 			}
 			var b strings.Builder

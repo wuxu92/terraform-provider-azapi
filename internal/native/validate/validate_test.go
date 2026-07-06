@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/all"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
@@ -36,13 +36,14 @@ func TestStorageAccountSchemaAgainstBicep(t *testing.T) {
 		t.Skipf("types.json not found: %v", err)
 	}
 
-	defs, err := generator.ParseTypesJSON(data)
+	defs, err := typegraph.ParseTypesJSON(data)
 	if err != nil {
 		t.Fatalf("ParseTypesJSON: %v", err)
 	}
-	generator.PostProcess(defs)
+	typegraph.
+		PostProcess(defs)
 
-	var body *generator.Type
+	var body *typegraph.Type
 	for _, d := range defs {
 		if d.Name == tag {
 			body = d.Body
@@ -59,29 +60,29 @@ func TestStorageAccountSchemaAgainstBicep(t *testing.T) {
 
 	errors := 0
 	for _, m := range mismatches {
-		if m.Kind != MismatchMissingInSchema {
+		if m.Kind != typegraph.MismatchMissingInSchema {
 			errors++
 		}
 	}
 
 	if errors > 0 {
-		t.Errorf("%d schema errors:\n%s", errors, FormatMismatches(mismatches))
+		t.Errorf("%d schema errors:\n%s", errors, typegraph.FormatMismatches(mismatches))
 	} else if len(mismatches) > 0 {
-		t.Logf("Warnings:\n%s", FormatMismatches(mismatches))
+		t.Logf("Warnings:\n%s", typegraph.FormatMismatches(mismatches))
 	} else {
 		t.Log("Compiled schema validated: 0 mismatches")
 	}
 }
 
 func TestValidateDetectsMismatchesCompiled(t *testing.T) {
-	body := &generator.Type{
-		Kind: generator.KindObject,
-		Properties: map[string]*generator.Property{
-			"name":     {Name: "name", Type: &generator.Type{Kind: generator.KindString}, Flags: generator.FlagSystemManaged},
-			"location": {Name: "location", Type: &generator.Type{Kind: generator.KindString}, Flags: generator.FlagRequired},
-			"sku": {Name: "sku", Type: &generator.Type{Kind: generator.KindObject, Properties: map[string]*generator.Property{
-				"name": {Name: "name", Type: &generator.Type{Kind: generator.KindString}, Flags: generator.FlagRequired},
-				"tier": {Name: "tier", Type: &generator.Type{Kind: generator.KindString}},
+	body := &typegraph.Type{
+		Kind: typegraph.KindObject,
+		Properties: map[string]*typegraph.Property{
+			"name":     {Name: "name", Type: &typegraph.Type{Kind: typegraph.KindString}, Flags: typegraph.FlagSystemManaged},
+			"location": {Name: "location", Type: &typegraph.Type{Kind: typegraph.KindString}, Flags: typegraph.FlagRequired},
+			"sku": {Name: "sku", Type: &typegraph.Type{Kind: typegraph.KindObject, Properties: map[string]*typegraph.Property{
+				"name": {Name: "name", Type: &typegraph.Type{Kind: typegraph.KindString}, Flags: typegraph.FlagRequired},
+				"tier": {Name: "tier", Type: &typegraph.Type{Kind: typegraph.KindString}},
 			}}},
 		},
 	}
@@ -103,9 +104,9 @@ func TestValidateDetectsMismatchesCompiled(t *testing.T) {
 	var extraCount, missingCount int
 	for _, m := range mismatches {
 		switch m.Kind {
-		case MismatchExtraInSchema:
+		case typegraph.MismatchExtraInSchema:
 			extraCount++
-		case MismatchMissingInSchema:
+		case typegraph.MismatchMissingInSchema:
 			missingCount++
 		}
 	}
@@ -116,7 +117,7 @@ func TestValidateDetectsMismatchesCompiled(t *testing.T) {
 	if missingCount != 1 {
 		t.Errorf("expected 1 missing, got %d", missingCount)
 	}
-	t.Logf("Synthetic test:\n%s", FormatMismatches(mismatches))
+	t.Logf("Synthetic test:\n%s", typegraph.FormatMismatches(mismatches))
 }
 
 func TestExtractResourceTag(t *testing.T) {

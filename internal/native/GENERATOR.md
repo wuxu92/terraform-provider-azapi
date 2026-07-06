@@ -133,7 +133,7 @@ When a valid default is extracted and type-checked against the property type:
   a field with a curated default is omittable, so it is never emitted `Required` — the
   framework forbids `Required + Default`. E.g. `kind` → `StorageV2` and network
   `default_action` → `Allow`, matching azurerm's optional-with-default fields.
-- Implementations: `nativeschema.StaticBool`, `nativeschema.StaticString`, `nativeschema.StaticInt64` in `internal/native/schema/defaults.go`
+- Implementations: the framework's own `booldefault.StaticBool`, `stringdefault.StaticString`, `int64default.StaticInt64` (emitted directly; enum defaults use `stringdefault.StaticString`)
 
 Validation rules for extracted defaults:
 - Bool defaults must be "true" or "false"
@@ -141,7 +141,7 @@ Validation rules for extracted defaults:
 - Int defaults must be numeric
 - "null" and "undefined" are rejected
 
-Example: `supportsHttpsTrafficOnly` description says "The default value is true since API version 2019-04-01" → emitted as `Optional: true, Computed: true, Default: nativeschema.StaticBool(true)`.
+Example: `supportsHttpsTrafficOnly` description says "The default value is true since API version 2019-04-01" → emitted as `Optional: true, Computed: true, Default: booldefault.StaticBool(true)`.
 
 ### Schema Flag Invariants (generation-time guard)
 
@@ -479,7 +479,7 @@ func AzapiStorageAccountSchema() schema.Schema {
                     },
                     "supports_https_traffic_only": schema.BoolAttribute{
                         Optional: true,
-                        Default:  nativeschema.StaticBool(true), // from description
+                        Default:  booldefault.StaticBool(true), // from description
                     },
                     "provisioning_state": schema.StringAttribute{
                         Computed: true, // ReadOnly — no validators

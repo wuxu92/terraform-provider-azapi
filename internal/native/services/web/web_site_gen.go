@@ -9,12 +9,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -120,13 +123,13 @@ func AzapiWebSiteSchema() schema.Schema {
 						Description: "<code>true</code> to enable client affinity; <code>false</code> to stop sending session affinity cookies, which route client requests in the same session to the same instance. Default is <code>true</c...",
 						Optional:    true,
 						Computed:    true,
-						Default:     nativeschema.StaticBool(false),
+						Default:     booldefault.StaticBool(false),
 					},
 					"client_affinity_partitioning_enabled": schema.BoolAttribute{
 						Description: "<code>true</code> to enable client affinity partitioning using CHIPS cookies, this will add the <code>partitioned</code> property to the affinity cookies; <code>false</code> to stop sending partitione...",
 						Optional:    true,
 						Computed:    true,
-						Default:     nativeschema.StaticBool(false),
+						Default:     booldefault.StaticBool(false),
 					},
 					"client_affinity_proxy_enabled": schema.BoolAttribute{
 						Description: "<code>true</code> to override client affinity cookie domain with X-Forwarded-Host request header. <code>false</code> to use default domain. Default is <code>false</code>.",
@@ -140,7 +143,7 @@ func AzapiWebSiteSchema() schema.Schema {
 						Description: "<code>true</code> to enable client certificate authentication (TLS mutual authentication); otherwise, <code>false</code>. Default is <code>false</code>.",
 						Optional:    true,
 						Computed:    true,
-						Default:     nativeschema.StaticBool(false),
+						Default:     booldefault.StaticBool(false),
 					},
 					"client_cert_exclusion_paths": schema.StringAttribute{
 						Description: "client certificate authentication comma-separated exclusion paths",
@@ -351,7 +354,7 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "Increasing max size of request body http servers parameter in MB to handle uploading of big files. Default is 4 MB.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticInt64(4),
+								Default:     int64default.StaticInt64(4),
 							},
 							"http_read_buffer_size": schema.Int64Attribute{
 								Description: "Dapr max size of http header read buffer in KB to handle when sending multi-KB headers. Default is 65KB.",
@@ -413,7 +416,7 @@ func AzapiWebSiteSchema() schema.Schema {
 								Description: "Custom time for DNS to be cached in seconds. Allowed range: 0-60. Default is 30 seconds. 0 means caching disabled.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticInt64(30),
+								Default:     int64default.StaticInt64(30),
 							},
 							"dns_retry_attempt_count": schema.Int64Attribute{
 								Description: "Total number of retries for dns lookup. Allowed range: 1-5. Default is 3.",
@@ -446,7 +449,7 @@ func AzapiWebSiteSchema() schema.Schema {
 						Description: "<code>true</code> if the app is enabled; otherwise, <code>false</code>. Setting this value to false disables the app (takes the app offline).",
 						Optional:    true,
 						Computed:    true,
-						Default:     nativeschema.StaticBool(true),
+						Default:     booldefault.StaticBool(true),
 					},
 					"enabled_host_names": schema.ListAttribute{
 						Description: "Enabled hostnames for the app.Hostnames need to be assigned (see HostNames) AND enabled. Otherwise,\nthe app is not served on those hostnames.",
@@ -790,7 +793,7 @@ func AzapiWebSiteSchema() schema.Schema {
 						Description: "HttpsOnly: configures a web site to accept only https requests. Issues redirect for\nhttp requests",
 						Optional:    true,
 						Computed:    true,
-						Default:     nativeschema.StaticBool(false),
+						Default:     booldefault.StaticBool(false),
 					},
 					"hyper_v": schema.BoolAttribute{
 						Description: "Hyper-V sandbox.",
@@ -945,7 +948,7 @@ func AzapiWebSiteSchema() schema.Schema {
 						Description: "Property to allow or block all public traffic. Allowed Values: 'Enabled', 'Disabled' or an empty string.",
 						Optional:    true,
 						Computed:    true,
-						Default:     nativeschema.StaticString("Enabled"),
+						Default:     stringdefault.StaticString("Enabled"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
 								"Enabled",

@@ -1,4 +1,4 @@
-package generator
+package typegraph
 
 import (
 	"fmt"
@@ -52,7 +52,7 @@ func demoteDefaultedRequired(typ *Type) {
 			if prop == nil {
 				continue
 			}
-			if prop.DefaultValue != "" && prop.Flags.IsRequired() && !effectiveComputed(prop) {
+			if prop.DefaultValue != "" && prop.Flags.IsRequired() && !EffectiveComputed(prop) {
 				prop.Flags &^= FlagRequired
 			}
 			demoteDefaultedRequired(prop.Type)

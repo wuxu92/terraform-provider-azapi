@@ -6,46 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
-
-// Mismatch describes a discrepancy between the emitted schema and bicep types.
-type Mismatch struct {
-	Path   string // Dot-separated attribute path
-	ARM    string // ARM property path (if known)
-	Kind   MismatchKind
-	Detail string
-}
-
-// MismatchKind identifies the type of schema-bicep mismatch.
-type MismatchKind int
-
-const (
-	// MismatchExtraInSchema means the emitted schema has an attribute
-	// not present in the bicep type graph.
-	MismatchExtraInSchema MismatchKind = iota
-
-	// MismatchMissingInSchema means the bicep type graph has a property
-	// not present in the emitted schema.
-	MismatchMissingInSchema
-
-	// MismatchTypeMismatch means both sides have the property but the
-	// types don't correspond.
-	MismatchTypeMismatch
-)
-
-func (k MismatchKind) String() string {
-	switch k {
-	case MismatchExtraInSchema:
-		return "extra_in_schema"
-	case MismatchMissingInSchema:
-		return "missing_in_schema"
-	case MismatchTypeMismatch:
-		return "type_mismatch"
-	default:
-		return "unknown"
-	}
-}
 
 // ValidateEmittedSchema verifies that the emitted Go source faithfully covers
 // the bicep type graph. It works directly with the type graph and the emitted
@@ -54,14 +16,17 @@ func (k MismatchKind) String() string {
 // This is designed to run inside the generator pipeline itself, immediately
 // after EmitSchema, so every generation run validates automatically.
 //
+// It is presence-only: because the source has not been compiled, it cannot
+// inspect an attribute's Terraform type. Type-mapping correctness is checked by
+// the compiled-schema adapter (validate.SchemaAgainstBicep, ADR-0008).
+//
 // Checks:
 //   - Every non-SystemManaged bicep property has a corresponding attribute in the emitted source
 //   - Every quoted attribute name in the emitted source exists in the bicep type graph
-//   - Type mapping is correct (String↔string, Bool↔bool, Object↔SingleNested, etc.)
-func ValidateEmittedSchema(emittedSource string, body *Type, ignoreTopLevel ...string) []Mismatch {
-	if body == nil || body.Kind != KindObject {
-		return []Mismatch{{
-			Kind:   MismatchTypeMismatch,
+func ValidateEmittedSchema(emittedSource string, body *typegraph.Type, ignoreTopLevel ...string) []typegraph.Mismatch {
+	if body == nil || body.Kind != typegraph.KindObject {
+		return []typegraph.Mismatch{{
+			Kind:   typegraph.MismatchTypeMismatch,
 			Detail: "bicep body is not an ObjectType",
 		}}
 	}
@@ -75,13 +40,13 @@ func ValidateEmittedSchema(emittedSource string, body *Type, ignoreTopLevel ...s
 
 	// Collect all expected attribute paths from the type graph
 	// (same traversal the emitter uses)
-	expectedPaths := make(map[string]*Property) // snake_case dotted path → bicep property
+	expectedPaths := make(map[string]*typegraph.Property) // snake_case dotted path → bicep property
 	CollectExpectedPaths(body, "", expectedPaths)
 
 	// Extract all attribute paths from the emitted Go source
 	emittedPaths := extractEmittedPaths(emittedSource)
 
-	var mismatches []Mismatch
+	var mismatches []typegraph.Mismatch
 
 	// Check: every emitted path should exist in expected
 	for _, path := range sortedStringSet(emittedPaths) {
@@ -89,9 +54,9 @@ func ValidateEmittedSchema(emittedSource string, body *Type, ignoreTopLevel ...s
 			continue
 		}
 		if _, ok := expectedPaths[path]; !ok {
-			mismatches = append(mismatches, Mismatch{
+			mismatches = append(mismatches, typegraph.Mismatch{
 				Path:   path,
-				Kind:   MismatchExtraInSchema,
+				Kind:   typegraph.MismatchExtraInSchema,
 				Detail: fmt.Sprintf("emitted attribute %q not found in bicep type graph", path),
 			})
 		}
@@ -101,10 +66,10 @@ func ValidateEmittedSchema(emittedSource string, body *Type, ignoreTopLevel ...s
 	for _, path := range sortedStringSet(expectedPaths) {
 		if !emittedPaths[path] {
 			prop := expectedPaths[path]
-			mismatches = append(mismatches, Mismatch{
+			mismatches = append(mismatches, typegraph.Mismatch{
 				Path:   path,
 				ARM:    prop.Name,
-				Kind:   MismatchMissingInSchema,
+				Kind:   typegraph.MismatchMissingInSchema,
 				Detail: fmt.Sprintf("bicep property %q (path: %s) not emitted in schema", prop.Name, path),
 			})
 		}
@@ -114,31 +79,23 @@ func ValidateEmittedSchema(emittedSource string, body *Type, ignoreTopLevel ...s
 }
 
 // CollectExpectedPaths walks the type graph and collects all attribute paths
-// that the emitter should produce, using the same logic as emitAttributes:
-// skip SystemManaged, convert names with CamelToSnake, recurse into objects/arrays.
-func CollectExpectedPaths(typ *Type, prefix string, out map[string]*Property) {
-	if typ == nil || typ.Kind != KindObject {
+// that the emitter should produce, using the shared verification leaf rule
+// (typegraph.SchemaAttrName): skip SystemManaged, convert names with
+// CamelToSnake, recurse into objects / arrays-of-objects / maps-of-objects.
+func CollectExpectedPaths(typ *typegraph.Type, prefix string, out map[string]*typegraph.Property) {
+	if typ == nil || typ.Kind != typegraph.KindObject {
 		return
 	}
 	for armName, prop := range typ.Properties {
-		if prop.Flags.IsSystemManaged() {
+		tfName, skip := typegraph.SchemaAttrName(armName, prop)
+		if skip {
 			continue
 		}
-		tfName := naming.CamelToSnake(armName)
-		path := joinPath(prefix, tfName)
+		path := typegraph.JoinPath(prefix, tfName)
 		out[path] = prop
 
-		// Recurse into nested objects
-		if prop.Type.Kind == KindObject {
-			CollectExpectedPaths(prop.Type, path, out)
-		}
-		// Recurse into arrays of objects
-		if prop.Type.Kind == KindArray && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject {
-			CollectExpectedPaths(prop.Type.ElementType, path, out)
-		}
-		// Recurse into maps of objects (MapNestedAttribute element schema)
-		if prop.Type.Kind == KindMap && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject {
-			CollectExpectedPaths(prop.Type.ElementType, path, out)
+		if child := typegraph.RecurseChild(prop.Type); child != nil {
+			CollectExpectedPaths(child, path, out)
 		}
 	}
 }
@@ -183,7 +140,7 @@ func extractEmittedPaths(source string) map[string]bool {
 			if len(stack) > 0 {
 				parentPath = stack[len(stack)-1].path
 			}
-			fullPath := joinPath(parentPath, attrName)
+			fullPath := typegraph.JoinPath(parentPath, attrName)
 			for _, suffix := range []string{
 				"",
 				"principal_id",
@@ -212,7 +169,7 @@ func extractEmittedPaths(source string) map[string]bool {
 		if len(stack) > 0 {
 			parentPath = stack[len(stack)-1].path
 		}
-		fullPath := joinPath(parentPath, attrName)
+		fullPath := typegraph.JoinPath(parentPath, attrName)
 		paths[fullPath] = true
 
 		if strings.Contains(trimmed, "schema.SingleNestedAttribute{") || strings.Contains(trimmed, "schema.ListNestedAttribute{") || strings.Contains(trimmed, "schema.MapNestedAttribute{") {
@@ -227,14 +184,7 @@ func joinPathAllowEmpty(prefix, name string) string {
 	if name == "" {
 		return prefix
 	}
-	return joinPath(prefix, name)
-}
-
-func joinPath(prefix, name string) string {
-	if prefix == "" {
-		return name
-	}
-	return prefix + "." + name
+	return typegraph.JoinPath(prefix, name)
 }
 
 func sortedStringSet[T any](m map[string]T) []string {
@@ -244,33 +194,4 @@ func sortedStringSet[T any](m map[string]T) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-// FormatMismatches returns a human-readable summary of mismatches.
-func FormatMismatches(mismatches []Mismatch) string {
-	if len(mismatches) == 0 {
-		return "No mismatches found."
-	}
-
-	var b strings.Builder
-	extra := 0
-	missing := 0
-	typeMismatch := 0
-	for _, m := range mismatches {
-		switch m.Kind {
-		case MismatchExtraInSchema:
-			extra++
-		case MismatchMissingInSchema:
-			missing++
-		case MismatchTypeMismatch:
-			typeMismatch++
-		}
-	}
-	b.WriteString(fmt.Sprintf("%d mismatches: %d extra in schema, %d missing in schema, %d type mismatches\n",
-		len(mismatches), extra, missing, typeMismatch))
-
-	for _, m := range mismatches {
-		b.WriteString(fmt.Sprintf("  [%s] %s: %s\n", m.Kind, m.Path, m.Detail))
-	}
-	return b.String()
 }

@@ -4,12 +4,13 @@ package storage
 import (
 	"regexp"
 
-	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
@@ -107,7 +108,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Description: "Indicates whether change feed event logging is enabled for the Blob service.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticBool(false),
+								Default:     booldefault.StaticBool(false),
 							},
 							"retention_in_days": schema.Int64Attribute{
 								Description: "Indicates the duration of changeFeed retention in days. Minimum value is 1 day and maximum value is 146000 days (400 years). A null value indicates an infinite retention of the change feed.",
@@ -134,13 +135,13 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Description: "This property when set to true allows deletion of the soft deleted blob versions and snapshots. This property cannot be used blob restore policy. This property only applies to blob service and does no...",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticBool(false),
+								Default:     booldefault.StaticBool(false),
 							},
 							"days": schema.Int64Attribute{
 								Description: "Indicates the number of days that the deleted item should be retained. The minimum specified value can be 1 and the maximum value can be 365.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticInt64(7),
+								Default:     int64default.StaticInt64(7),
 								Validators: []validator.Int64{
 									int64validator.Between(1, 365),
 								},
@@ -256,13 +257,13 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Description: "This property when set to true allows deletion of the soft deleted blob versions and snapshots. This property cannot be used blob restore policy. This property only applies to blob service and does no...",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticBool(false),
+								Default:     booldefault.StaticBool(false),
 							},
 							"days": schema.Int64Attribute{
 								Description: "Indicates the number of days that the deleted item should be retained. The minimum specified value can be 1 and the maximum value can be 365.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticInt64(7),
+								Default:     int64default.StaticInt64(7),
 								Validators: []validator.Int64{
 									int64validator.Between(1, 365),
 								},
@@ -281,7 +282,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 						Description: "Versioning is enabled if set to true.",
 						Optional:    true,
 						Computed:    true,
-						Default:     nativeschema.StaticBool(false),
+						Default:     booldefault.StaticBool(false),
 					},
 					"last_access_time_tracking_policy": schema.SingleNestedAttribute{
 						Description: "The blob service property to configure last access time based tracking policy.",
@@ -304,7 +305,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 								Description: "When set to true last access time based tracking is enabled.",
 								Optional:    true,
 								Computed:    true,
-								Default:     nativeschema.StaticBool(false),
+								Default:     booldefault.StaticBool(false),
 							},
 							"name": schema.StringAttribute{
 								Description: "Name of the policy. The valid value is AccessTimeTracking. This field is currently read only",

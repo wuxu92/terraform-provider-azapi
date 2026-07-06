@@ -2,15 +2,16 @@ package generator
 
 import (
 	"testing"
+
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
 
 func TestValidateStorageAccountSchema(t *testing.T) {
 	defs, ver := latestStorageDefs(t)
 	tag := "Microsoft.Storage/storageAccounts@" + ver
+	typegraph.PostProcess(defs)
 
-	PostProcess(defs)
-
-	var sa *ResourceDefinition
+	var sa *typegraph.ResourceDefinition
 	for _, d := range defs {
 		if d.Name == tag {
 			sa = d
@@ -30,14 +31,14 @@ func TestValidateStorageAccountSchema(t *testing.T) {
 	// Validate: emitted source covers all bicep properties and vice versa. The
 	// synthesized envelope attributes (name / parent reference / id) are excluded
 	// since they are not part of the bicep body graph.
-	mismatches := ValidateEmittedSchema(source, sa.Body, EnvelopeAttrNames(sa)...)
+	mismatches := ValidateEmittedSchema(source, sa.Body, typegraph.EnvelopeAttrNames(sa)...)
 
 	if len(mismatches) > 0 {
-		t.Logf("Mismatches:\n%s", FormatMismatches(mismatches))
+		t.Logf("Mismatches:\n%s", typegraph.FormatMismatches(mismatches))
 
 		errors := 0
 		for _, m := range mismatches {
-			if m.Kind != MismatchMissingInSchema {
+			if m.Kind != typegraph.MismatchMissingInSchema {
 				errors++
 			}
 		}
@@ -46,7 +47,7 @@ func TestValidateStorageAccountSchema(t *testing.T) {
 		}
 	} else {
 		// Count validated paths
-		paths := make(map[string]*Property)
+		paths := make(map[string]*typegraph.Property)
 		CollectExpectedPaths(sa.Body, "", paths)
 		t.Logf("Schema-bicep validation passed: %d properties validated, 0 mismatches", len(paths))
 	}
@@ -55,10 +56,9 @@ func TestValidateStorageAccountSchema(t *testing.T) {
 func TestValidateWebServerFarmSchema(t *testing.T) {
 	defs, ver := latestWebServerFarmDefs(t)
 	tag := "Microsoft.Web/serverfarms@" + ver
+	typegraph.PostProcess(defs)
 
-	PostProcess(defs)
-
-	var farm *ResourceDefinition
+	var farm *typegraph.ResourceDefinition
 	for _, d := range defs {
 		if d.Name == tag {
 			farm = d
@@ -74,10 +74,10 @@ func TestValidateWebServerFarmSchema(t *testing.T) {
 		t.Fatalf("EmitSchema: %v", err)
 	}
 
-	mismatches := ValidateEmittedSchema(source, farm.Body, EnvelopeAttrNames(farm)...)
+	mismatches := ValidateEmittedSchema(source, farm.Body, typegraph.EnvelopeAttrNames(farm)...)
 	for _, m := range mismatches {
-		if m.Kind != MismatchMissingInSchema {
-			t.Fatalf("unexpected schema mismatch for web server farm: %s", FormatMismatches(mismatches))
+		if m.Kind != typegraph.MismatchMissingInSchema {
+			t.Fatalf("unexpected schema mismatch for web server farm: %s", typegraph.FormatMismatches(mismatches))
 		}
 	}
 }
@@ -85,10 +85,9 @@ func TestValidateWebServerFarmSchema(t *testing.T) {
 func TestValidateWebSiteSchema(t *testing.T) {
 	defs, ver := latestWebSiteDefs(t)
 	tag := "Microsoft.Web/sites@" + ver
+	typegraph.PostProcess(defs)
 
-	PostProcess(defs)
-
-	var site *ResourceDefinition
+	var site *typegraph.ResourceDefinition
 	for _, d := range defs {
 		if d.Name == tag {
 			site = d
@@ -104,10 +103,10 @@ func TestValidateWebSiteSchema(t *testing.T) {
 		t.Fatalf("EmitSchema: %v", err)
 	}
 
-	mismatches := ValidateEmittedSchema(source, site.Body, EnvelopeAttrNames(site)...)
+	mismatches := ValidateEmittedSchema(source, site.Body, typegraph.EnvelopeAttrNames(site)...)
 	for _, m := range mismatches {
-		if m.Kind != MismatchMissingInSchema {
-			t.Fatalf("unexpected schema mismatch for web site: %s", FormatMismatches(mismatches))
+		if m.Kind != typegraph.MismatchMissingInSchema {
+			t.Fatalf("unexpected schema mismatch for web site: %s", typegraph.FormatMismatches(mismatches))
 		}
 	}
 }
@@ -167,14 +166,14 @@ func TestExtractEmittedPathsExpandsManagedIdentityHelper(t *testing.T) {
 
 func TestValidateDetectsMismatches(t *testing.T) {
 	// Build a bicep type with known properties
-	bicepBody := &Type{
-		Kind: KindObject,
-		Properties: map[string]*Property{
-			"name":     {Name: "name", Type: &Type{Kind: KindString}, Flags: FlagSystemManaged},
-			"location": {Name: "location", Type: &Type{Kind: KindString}, Flags: FlagRequired},
-			"sku": {Name: "sku", Type: &Type{Kind: KindObject, Properties: map[string]*Property{
-				"name": {Name: "name", Type: &Type{Kind: KindString}, Flags: FlagRequired},
-				"tier": {Name: "tier", Type: &Type{Kind: KindString}},
+	bicepBody := &typegraph.Type{
+		Kind: typegraph.KindObject,
+		Properties: map[string]*typegraph.Property{
+			"name":     {Name: "name", Type: &typegraph.Type{Kind: typegraph.KindString}, Flags: typegraph.FlagSystemManaged},
+			"location": {Name: "location", Type: &typegraph.Type{Kind: typegraph.KindString}, Flags: typegraph.FlagRequired},
+			"sku": {Name: "sku", Type: &typegraph.Type{Kind: typegraph.KindObject, Properties: map[string]*typegraph.Property{
+				"name": {Name: "name", Type: &typegraph.Type{Kind: typegraph.KindString}, Flags: typegraph.FlagRequired},
+				"tier": {Name: "tier", Type: &typegraph.Type{Kind: typegraph.KindString}},
 			}}},
 		},
 	}
@@ -201,12 +200,12 @@ func TestValidateDetectsMismatches(t *testing.T) {
 	var extraCount, missingCount int
 	for _, m := range mismatches {
 		switch m.Kind {
-		case MismatchExtraInSchema:
+		case typegraph.MismatchExtraInSchema:
 			extraCount++
 			if m.Path != "phantom" {
 				t.Errorf("unexpected extra: %s", m.Path)
 			}
-		case MismatchMissingInSchema:
+		case typegraph.MismatchMissingInSchema:
 			missingCount++
 			if m.Path != "sku.tier" {
 				t.Errorf("unexpected missing: %s", m.Path)
@@ -221,5 +220,5 @@ func TestValidateDetectsMismatches(t *testing.T) {
 		t.Errorf("expected 1 missing in schema, got %d", missingCount)
 	}
 
-	t.Logf("Mismatches:\n%s", FormatMismatches(mismatches))
+	t.Logf("Mismatches:\n%s", typegraph.FormatMismatches(mismatches))
 }

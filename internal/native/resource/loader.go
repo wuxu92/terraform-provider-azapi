@@ -6,12 +6,12 @@ import (
 	"sync"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure"
-	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
 
 // bodyCache memoizes parsed bicep body type graphs per "ARMType@APIVersion".
 var (
-	bodyCache   = map[string]*generator.Type{}
+	bodyCache   = map[string]*typegraph.Type{}
 	bodyCacheMu sync.Mutex
 )
 
@@ -19,7 +19,7 @@ var (
 // version, reading the embedded types.json via the authoritative relative path
 // from the schema index (azure.StaticFiles) and applying the same PostProcess
 // (cycle-safe, azwise overlay) the generator used. Results are cached.
-func loadBody(armType, apiVersion string) (*generator.Type, error) {
+func loadBody(armType, apiVersion string) (*typegraph.Type, error) {
 	key := armType + "@" + apiVersion
 
 	bodyCacheMu.Lock()
@@ -39,11 +39,10 @@ func loadBody(armType, apiVersion string) (*generator.Type, error) {
 		return nil, fmt.Errorf("reading embedded types.json %q: %w", location, err)
 	}
 
-	defs, err := generator.ParseTypesJSON(data)
+	defs, err := typegraph.BuildRuntimeGraph(data)
 	if err != nil {
-		return nil, fmt.Errorf("parsing types.json for %s: %w", key, err)
+		return nil, fmt.Errorf("building runtime graph for %s: %w", key, err)
 	}
-	generator.PostProcess(defs)
 
 	for _, d := range defs {
 		if strings.EqualFold(d.Name, key) {

@@ -1,4 +1,4 @@
-package generator
+package typegraph
 
 import (
 	"fmt"
@@ -83,7 +83,7 @@ func FindProperty(def *ResourceDefinition, armPath string) *Property {
 	if def == nil {
 		panic("native: FindProperty called with a nil ResourceDefinition")
 	}
-	p := navigate(def.Body, armPath)
+	p := Navigate(def.Body, armPath)
 	if p == nil {
 		panic(fmt.Sprintf("native: customizer for %s references unknown property path %q", def.Name, armPath))
 	}

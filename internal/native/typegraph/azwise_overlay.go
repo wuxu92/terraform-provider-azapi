@@ -1,4 +1,4 @@
-package generator
+package typegraph
 
 import (
 	"fmt"
@@ -41,7 +41,7 @@ func ApplyAzwise(def *ResourceDefinition) {
 
 	// Flag-level overlays available on the base interface.
 	for _, p := range k.GetComputedFields() {
-		if prop := navigate(def.Body, p); prop != nil {
+		if prop := Navigate(def.Body, p); prop != nil {
 			prop.ForceComputed = true
 		}
 	}
@@ -49,7 +49,7 @@ func ApplyAzwise(def *ResourceDefinition) {
 		if dv.Value == nil {
 			continue // Optional+Computed with no explicit default — leave to schema
 		}
-		if prop := navigate(def.Body, dv.PropertyPath); prop != nil {
+		if prop := Navigate(def.Body, dv.PropertyPath); prop != nil {
 			if s, ok := formatAzwiseDefault(dv.Value, prop.Type); ok {
 				prop.DefaultValue = s
 			}
@@ -62,12 +62,12 @@ func ApplyAzwise(def *ResourceDefinition) {
 		return
 	}
 	for _, p := range sk.GetForceNewPaths() {
-		if prop := navigate(def.Body, p); prop != nil {
+		if prop := Navigate(def.Body, p); prop != nil {
 			prop.ForceNew = true
 		}
 	}
 	for _, p := range sk.GetSensitiveFields() {
-		if prop := navigate(def.Body, p); prop != nil {
+		if prop := Navigate(def.Body, p); prop != nil {
 			prop.Sensitive = true
 		}
 	}
@@ -75,7 +75,7 @@ func ApplyAzwise(def *ResourceDefinition) {
 		if r.PropertyPath == "" || strings.Contains(r.PropertyPath, "[*]") {
 			continue // name rule or array-element rule — not a single attribute
 		}
-		prop := navigate(def.Body, r.PropertyPath)
+		prop := Navigate(def.Body, r.PropertyPath)
 		if prop == nil || prop.Type.Kind != KindString {
 			continue
 		}
@@ -85,7 +85,7 @@ func ApplyAzwise(def *ResourceDefinition) {
 		if strings.Contains(r.PropertyPath, "[*]") {
 			continue
 		}
-		prop := navigate(def.Body, r.PropertyPath)
+		prop := Navigate(def.Body, r.PropertyPath)
 		if prop == nil || prop.Type.Kind != KindInt {
 			continue
 		}
@@ -129,10 +129,10 @@ func ApplyAzwise(def *ResourceDefinition) {
 	lower("AtLeastOneOf", sk.GetAtLeastOneOf())
 }
 
-// navigate resolves an ARM dot path (e.g. "properties.networkAcls.defaultAction")
+// Navigate resolves an ARM dot path (e.g. "properties.networkAcls.defaultAction")
 // to the Property it names, walking ObjectType properties and descending through
 // single arrays of objects. Returns nil if any segment is missing.
-func navigate(body *Type, path string) *Property {
+func Navigate(body *Type, path string) *Property {
 	cur := body
 	segments := strings.Split(path, ".")
 	for i, seg := range segments {

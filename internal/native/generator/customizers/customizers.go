@@ -34,13 +34,13 @@
 // hand-written customizer has the final say before emission.
 package customizers
 
-import "github.com/Azure/terraform-provider-azapi/internal/native/generator"
+import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 
 // Customizer is a developer-authored, per-resource schema hook that runs at
 // generation time, after azwise overlay and envelope defaults, before emission.
 // It mutates the resolved type graph (Property flags/validators/defaults) and/or
 // the envelope spec in place.
-type Customizer func(*generator.ResourceDefinition)
+type Customizer func(*typegraph.ResourceDefinition)
 
 // registry maps an ARM resource type (no API version) to its customizer.
 var registry = map[string]Customizer{}
@@ -56,15 +56,22 @@ func Register(armType string, c Customizer) {
 	registry[armType] = c
 }
 
+// Unregister removes the customizer for an ARM resource type if present. It is a
+// no-op when none is registered. Intended for tests that register a throwaway
+// customizer and clean up after themselves.
+func Unregister(armType string) {
+	delete(registry, armType)
+}
+
 // Apply runs the registered customizer (if any) for each definition. Call after
 // generator.PostProcess so customizers see the azwise overlay and envelope
 // defaults and have the final say before emission.
-func Apply(defs []*generator.ResourceDefinition) {
+func Apply(defs []*typegraph.ResourceDefinition) {
 	for _, def := range defs {
 		if def == nil || def.Body == nil {
 			continue
 		}
-		if c := registry[generator.ARMTypeOf(def)]; c != nil {
+		if c := registry[typegraph.ARMTypeOf(def)]; c != nil {
 			c(def)
 		}
 	}

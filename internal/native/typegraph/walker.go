@@ -1,6 +1,6 @@
 // Package generator walks bicep types.json files and produces an in-memory
 // type graph suitable for Terraform schema emission.
-package generator
+package typegraph
 
 import (
 	"encoding/json"

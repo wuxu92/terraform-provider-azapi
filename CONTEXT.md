@@ -27,6 +27,18 @@ _Avoid_: knowledge base, overrides
 **Overlay**:
 The generation-time application of azwise knowledge onto the raw bicep-derived type graph (`ApplyAzwise`). An overlay _augments_ the mechanical schema; it never replaces the type graph.
 
+**Type graph**:
+The bicep-derived in-memory model of an ARM resource body — `Type`/`Property`/`Kind*` plus `ParseTypesJSON`/`PostProcess`/`ApplyAzwise` and the model helpers. Lives in its own module (`internal/native/typegraph`), separate from the code-emission engine (`internal/native/generator`), and is the only azapin package the runtime CRUD path imports (see ADR-0007). Both the runtime and the generator read it; only the generator emits from it.
+_Avoid_: schema model, AST, generator types
+
+**Generation pipeline**:
+The three named entry points that own the ordered generation stages (see ADR-0007): `typegraph.BuildRuntimeGraph` (parse + post-process, no customizers — the graph the runtime reads), `generator.BuildForGeneration` (adds `customizers.Apply` — the graph baked into `_gen.go`), and `generator.Generate` (adds invariants → emit → verify). Replaces the ordering that was formerly hand-spelled at five call sites.
+_Avoid_: codegen flow, build steps
+
+**Schema verification**:
+Checking that a generated schema faithfully covers the bicep type graph and vice versa. Two adapters over one shared `Mismatch` core (see ADR-0008): the emitted-**source** adapter (`ValidateEmittedSchema`, presence of attribute names, gates codegen pre-write) and the compiled-**schema** adapter (`SchemaAgainstBicep`, type-mapping check post-init). The middle step of `Graduation`.
+_Avoid_: schema validation, schema diff
+
 **Operational envelope**:
 The synthesized top-level attributes every static resource needs beyond its ARM body: `name`, the parent reference (`parent_id` / typed parent attr), and `id`. Added during post-processing, not present in the bicep body type.
 _Avoid_: wrapper, metadata fields
@@ -48,7 +60,7 @@ _Avoid_: unset, clear-by-delete
 ### Extension model
 
 **Hook**:
-A per-resource-name callback registered via `RegisterHooks` that runs inside the generic `Base` lifecycle: `BeforeCreate`/`AfterCreate`/`BeforeUpdate`/`AfterUpdate`/`BeforeRead`/`AfterRead`/`BeforeDelete`, plus `ValidateConfig` and `ModifyPlan`. The data-driven seam for per-resource logic the mechanical schema can't express (conditional ForceNew, cross-field validation, extra API calls).
+A per-resource-name callback registered via `RegisterHooks` that runs inside the generic `Base` lifecycle: `BeforeCreate`/`AfterCreate`/`BeforeUpdate`/`AfterUpdate`/`BeforeRead`/`AfterRead`/`BeforeDelete`, plus `ValidateConfig` and `ModifyPlan`. The data-driven seam for per-resource logic the mechanical schema can't express (conditional ForceNew, cross-field validation, extra API calls). Note: `BeforeRead` is declared but not yet invoked by `Base.Read` (only `AfterRead` runs) — a hook point to wire before relying on it.
 _Avoid_: callback, plugin, middleware
 
 **Singleton default**:

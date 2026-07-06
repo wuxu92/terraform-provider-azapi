@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
 
 // FlagViolation is a single terraform-plugin-framework attribute-flag invariant
@@ -35,7 +37,7 @@ func (v FlagViolation) String() string { return v.Path + ": " + v.Message }
 //     framework never cross-checks this, so an enum/range default outside its
 //     allowed set makes the provider reject the value it itself supplies when the
 //     field is omitted from config.
-func CheckFlagInvariants(def *ResourceDefinition) []FlagViolation {
+func CheckFlagInvariants(def *typegraph.ResourceDefinition) []FlagViolation {
 	if def == nil || def.Body == nil {
 		return nil
 	}
@@ -46,8 +48,8 @@ func CheckFlagInvariants(def *ResourceDefinition) []FlagViolation {
 
 // checkObjectInvariants recurses through an object's settable properties and
 // object-array element schemas, checking each.
-func checkObjectInvariants(obj *Type, prefix string, out *[]FlagViolation) {
-	if obj == nil || obj.Kind != KindObject {
+func checkObjectInvariants(obj *typegraph.Type, prefix string, out *[]FlagViolation) {
+	if obj == nil || obj.Kind != typegraph.KindObject {
 		return
 	}
 	for name, prop := range obj.Properties {
@@ -61,16 +63,16 @@ func checkObjectInvariants(obj *Type, prefix string, out *[]FlagViolation) {
 		checkPropInvariants(prop, path, out)
 
 		switch {
-		case prop.Type != nil && prop.Type.Kind == KindObject:
+		case prop.Type != nil && prop.Type.Kind == typegraph.KindObject:
 			checkObjectInvariants(prop.Type, path, out)
-		case prop.Type != nil && prop.Type.Kind == KindArray &&
-			prop.Type.ElementType != nil && prop.Type.ElementType.Kind == KindObject:
+		case prop.Type != nil && prop.Type.Kind == typegraph.KindArray &&
+			prop.Type.ElementType != nil && prop.Type.ElementType.Kind == typegraph.KindObject:
 			checkObjectInvariants(prop.Type.ElementType, path+"[]", out)
 		}
 	}
 }
 
-func checkPropInvariants(prop *Property, path string, out *[]FlagViolation) {
+func checkPropInvariants(prop *typegraph.Property, path string, out *[]FlagViolation) {
 	if prop.DefaultValue == "" {
 		return
 	}
@@ -80,7 +82,7 @@ func checkPropInvariants(prop *Property, path string, out *[]FlagViolation) {
 	if prop.Flags.IsRequired() {
 		add(fmt.Sprintf("has a Default (%q) but is Required; the framework forbids Required+Default and the default is dropped", prop.DefaultValue))
 	}
-	if effectiveComputed(prop) {
+	if typegraph.EffectiveComputed(prop) {
 		add(fmt.Sprintf("has a Default (%q) but is read-only/computed; the default is dropped", prop.DefaultValue))
 	}
 
@@ -94,18 +96,18 @@ func checkPropInvariants(prop *Property, path string, out *[]FlagViolation) {
 	}
 	for _, v := range prop.Validators {
 		switch v.Kind {
-		case ValidatorStringOneOf:
+		case typegraph.ValidatorStringOneOf:
 			if !contains(v.Allowed, prop.DefaultValue) {
 				add(fmt.Sprintf("Default %q is not one of the allowed values %v", prop.DefaultValue, v.Allowed))
 			}
-		case ValidatorIntRange:
+		case typegraph.ValidatorIntRange:
 			n, err := strconv.ParseInt(prop.DefaultValue, 10, 64)
 			if err != nil {
 				add(fmt.Sprintf("Default %q is not an integer but the field has an int-range validator", prop.DefaultValue))
 			} else if (v.Min != nil && n < *v.Min) || (v.Max != nil && n > *v.Max) {
 				add(fmt.Sprintf("Default %d is outside the validated range %s", n, rangeStr(v.Min, v.Max)))
 			}
-		case ValidatorStringLength:
+		case typegraph.ValidatorStringLength:
 			l := int64(len(prop.DefaultValue))
 			if (v.Min != nil && l < *v.Min) || (v.Max != nil && l > *v.Max) {
 				add(fmt.Sprintf("Default %q has length %d outside the validated length %s", prop.DefaultValue, l, rangeStr(v.Min, v.Max)))
