@@ -134,13 +134,16 @@ The static resource exposes typed **customization seams** (`internal/native/reso
 | Field-dependent defaults / normalization | none | arbitrary (location/ID casing, derived values) |
 | **Multi-API orchestration in one resource** | impossible — one PUT to one API | a hook can call extra APIs |
 | ARM quirk / eventual-consistency workarounds | user works around them in HCL | encapsulated in the resource |
-**Why multi-API orchestration matters.** AzureRM's `azurerm_storage_account` bundles
+**Why the multi-API seam matters.** AzureRM's `azurerm_storage_account` bundles
 `blob_properties` / `share_properties` / `queue_properties` — which are actually
 *separate* ARM APIs (`BlobServices` / `FileServices` / `QueueServices.SetServiceProperties`).
-That's why azwise deliberately excludes them from the storage account body. With an
-azapin `AfterCreate` / `AfterUpdate` hook, a single `azapi_storage_account` can make
-those extra calls and expose them as nested attributes — bundling several APIs into
-one convenient resource, exactly as AzureRM does. `azapi_resource` cannot.
+That's why azwise deliberately excludes them from the storage account body. azapin's
+default is **one resource per ARM type**, so today those ship as their own static
+resources (e.g. `azapi_storage_account_blob_service`). Where AzureRM-style bundling is
+genuinely worth it, an `AfterCreate` / `AfterUpdate` hook lets a single
+`azapi_storage_account` make those extra calls and expose them as nested attributes —
+a deliberate, hand-authored per-resource opt-in, not the default. `azapi_resource`
+cannot do either. (See ADR-0004.)
 
 **Cost framing (for leaders).** This is **opt-in and incremental**: the generated
 schema + azwise overlay handle the long tail with *zero* custom code; you write a
@@ -183,9 +186,10 @@ stable resources where you want the AzureRM-like experience; fall back to
   surfacing correctly in `terraform plan`. Storage account is the proven PoC.
 - **In progress:** confirming full plan idempotency (empty re-plan) end-to-end, and
   generating/shipping resources beyond storage.
-- **Known limits:** free-form map fields (e.g. `tags` contents, user-assigned
-  identities) and discriminated / polymorphic bodies aren't fully typed yet — those
-  fall back to dynamic handling or `azapi_resource`.
+- **Known limits:** discriminated / polymorphic bodies and free-form maps with complex
+  value types (e.g. user-assigned identities) aren't statically typed — they fall back
+  to dynamic handling or `azapi_resource`. (String-valued maps like `tags` *are* fully
+  typed.)
 
 ---
 
@@ -193,6 +197,8 @@ stable resources where you want the AzureRM-like experience; fall back to
 
 The AzureRM-knowledge features above (validation, ForceNew, defaults, sensitive
 handling) are provided by the **azwise** subsystem, which is **not in the official
-azapi provider** — it is our enhancement in this branch. It can be turned off with
-the `disable_resource_knowledge` provider feature, which makes the build behave like
-upstream for those paths.
+azapi provider** — it is our enhancement in this branch. For `azapi_resource` it can be
+turned off with the `disable_resource_knowledge` provider feature. It does **not** apply
+to azapin static resources: their knowledge is compiled into the typed schema at
+generation time and cannot be un-baked at runtime — the escape hatch there is to use
+`azapi_resource` instead. (See ADR-0005.)

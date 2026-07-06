@@ -1,0 +1,7 @@
+# A static resource maps to exactly one ARM type; sub-APIs are their own resources
+
+The generation model is **one ARM type → one static resource**. Sub-resources that ARM models as separate types get their own static resource: `Microsoft.Storage/storageAccounts/blobServices` ships as `azapi_storage_account_blob_service`, not as a `blob_properties` block folded into `azapi_storage_account`. Every downstream mechanism — resource naming, runtime `types.json` lookup keyed by a single `ARMType@APIVersion`, ForceNew attribution, import — assumes this 1:1 mapping.
+
+AzureRM-style **bundling** (folding several ARM APIs into one resource as nested attributes via `AfterCreate`/`AfterUpdate` hooks, e.g. `azurerm_storage_account.blob_properties`) remains *possible* through the hook seam, but is a deliberate, hand-authored, per-resource opt-in reserved for the few cases where parity is worth the custom code and the broken 1:1 invariant. It is **not** the default and **not** the headline differentiator.
+
+We chose this because 1:1 is what makes mechanical generation of ~2,631 types tractable and keeps the runtime single-type-lookup simple. The real differentiator of azapin over `azapi_resource` is the combination of typed schema + azwise operational knowledge + per-resource hooks — not bundling specifically. (Note: `azapin-vs-azapi.md` currently overstates bundling as the shipped differentiator and should be corrected to describe it as an available seam.)

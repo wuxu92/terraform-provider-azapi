@@ -1,0 +1,7 @@
+# Ship a verification-gated allowlist, not all 2,631 types; long tail stays on azapi_resource
+
+Azapin ships a **curated allowlist** of static resources, each graduated through a verification gate — not a bulk sweep of every stable ARM type. The generator's target list is an explicit opt-in (`generator/cmd` `targets`), and a resource graduates to shipped only when it clears: framework flag-invariants (`CheckFlagInvariants`, already enforced) + an acceptance test applied against live Azure + an authored azwise overlay. Everything not yet graduated stays covered by the dynamic `azapi_resource` (day-zero, any type/version).
+
+We chose this over DESIGN.md Phase 2's "generate all 2,631 stable types" because every shipped static resource is a **permanent schema contract**: a mechanically-generated mistake (wrong Optional/Computed, incomplete enum, wrong ForceNew) is fixable only via a breaking change plus a state upgrader. Bulk-shipping thousands of never-live-verified schemas would manufacture thousands of such liabilities. Coverage is not the goal; per-resource correctness is, and `azapi_resource` already provides universal coverage.
+
+Consequence: the live-API schema verification harness (`SCHEMA_VERIFICATION.md`) is the **graduation gate**, not an afterthought — it produces the evidence that lets a resource move from allowlist candidate to shipped. DESIGN.md Phase 2 must be rewritten from "generate all" to "graduate through the gate; long tail on azapi_resource."

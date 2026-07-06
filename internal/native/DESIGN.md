@@ -163,21 +163,30 @@ See GENERATOR.md for the full 17-rule specification. Key behaviors:
 Generated and validated:
 1. `azapi_storage_account` (Microsoft.Storage/storageAccounts@2025-01-01) — 1,284 lines, compiles cleanly
 
-### Phase 2: Full Generation
+### Phase 2: Verification-Gated Rollout
 
-Generate all 2,631 stable resource types. Ship alongside `azapi_resource`.
+Ship a curated allowlist of static resources alongside `azapi_resource`, each
+graduated through a verification gate — **not** a bulk sweep of all stable types.
+A resource graduates only after it clears framework flag-invariants
+(`CheckFlagInvariants`) + a live-Azure acceptance test + an authored azwise
+overlay; the live-API schema verification harness (`SCHEMA_VERIFICATION.md`)
+produces the acceptance evidence. Everything not yet graduated stays covered by
+the dynamic `azapi_resource` (day-zero, any type/version). Coverage is not the
+goal — per-resource correctness is, because every shipped static resource is a
+permanent schema contract fixable only by a breaking change + state upgrader.
+See ADR-0006.
 
 ## Key Design Decisions
 
-1. **Latest stable API version only**: One resource per ARM type, pinned to latest stable. Preview → use `azapi_resource`.
+1. **Latest stable API version only** (ADR-0001): One resource per ARM type (ADR-0004), pinned to latest stable; no user-settable `api_version`. Preview → use `azapi_resource`.
 2. **No AzureRM naming alignment**: Mechanical conversion from ARM names. Predictable, not curated.
 3. **Coexistence**: `azapi_resource` is unchanged. Users choose per resource.
 4. **Same binary**: Generated resources compile into the same provider binary. Binary is already 358 MB (334 MB embedded bicep types); generated code adds marginal size.
 5. **Azwise feeds overlays**: Existing azwise knowledge files (ForceNew, validation, computed fields) inform the override layer.
-6. **No static property map**: ARM names resolved at runtime from embedded type graph, not duplicated per resource.
-7. **Safe default for Optional properties**: `Optional + Computed` unless we have evidence the server never populates the field, or we know the actual default value.
+6. **No static property map** (ADR-0002): ARM names resolved at runtime from the embedded type graph, not duplicated per resource. Invariant: every registered descriptor's pinned version must exist in the embedded index (guarded by `services/all` registry↔index test).
+7. **Safe default for Optional properties** (ADR-0003): `Optional + Computed` unless we have evidence the server never populates the field, or we know the actual default value. This forfeits unset-by-omission; azwise downgrades known user-owned fields to plain `Optional`.
 8. **Description mining**: The generator extracts defaults, validation patterns, and format hints from ARM property descriptions — information that the formal spec doesn't capture.
-9. **Discriminated unions**: Flatten for simple cases (2-3 variants); fall back to `types.Dynamic` for complex ones.
+9. **Discriminated unions**: Emitted mechanically as `types.Dynamic` (always). Partial typing — e.g. typing the discriminator enum while keeping the variant body dynamic — is an opt-in via per-resource customizers, never generated mechanically.
 10. **Conditional imports**: Generated files only import packages they actually use, detected by pre-scanning the type graph.
 
 ## Current State
