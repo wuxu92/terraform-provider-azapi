@@ -250,6 +250,156 @@ func TestRoundTripObjectMap(t *testing.T) {
 	}
 }
 
+// userAssignedMap navigates a flattened state object down to its
+// identity.user_assigned_identities map, asserting each hop's framework type.
+func userAssignedMap(t *testing.T, stateObj types.Object) types.Map {
+	t.Helper()
+	identity, ok := stateObj.Attributes()["identity"].(types.Object)
+	if !ok {
+		t.Fatalf("identity = %T, want types.Object", stateObj.Attributes()["identity"])
+	}
+	uai, ok := identity.Attributes()["user_assigned_identities"].(types.Map)
+	if !ok {
+		t.Fatalf("user_assigned_identities = %T, want types.Map", identity.Attributes()["user_assigned_identities"])
+	}
+	return uai
+}
+
+// mapKeys returns a map's element keys for readable failure messages.
+func mapKeys(m types.Map) []string {
+	keys := make([]string, 0, len(m.Elements()))
+	for k := range m.Elements() {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// TestFlattenIntoPreservesMapKeyCasing locks Fix 1: on read-refresh, flattenMapInto
+// must keep the prior state's map-key casing for user_assigned_identities when the
+// ARM response echoes a case-insensitively-equal key. Some RPs (Web) lowercase the
+// resourceGroups segment of the UAI resource ID; Terraform map keys are
+// case-sensitive, so without the fix the map churns as a perpetual drop+add.
+func TestFlattenIntoPreservesMapKeyCasing(t *testing.T) {
+	ctx := context.Background()
+	body := loadStorageBody(t)
+	objType := services.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+
+	const canonicalID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai1"
+	// Same identity, resource-group segment lowercased — the shape Web RP returns.
+	const lowerID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai1"
+
+	planObj, diags := mapper.Flatten(ctx, map[string]interface{}{
+		"kind": "StorageV2",
+		"identity": map[string]interface{}{
+			"type": "UserAssigned",
+			"userAssignedIdentities": map[string]interface{}{
+				canonicalID: map[string]interface{}{
+					"clientId":    "11111111-1111-1111-1111-111111111111",
+					"principalId": "22222222-2222-2222-2222-222222222222",
+				},
+			},
+		},
+	}, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten plan diags: %v", diags)
+	}
+
+	stateObj, diags := mapper.FlattenInto(ctx, map[string]interface{}{
+		"kind": "StorageV2",
+		"identity": map[string]interface{}{
+			"type": "UserAssigned",
+			"userAssignedIdentities": map[string]interface{}{
+				lowerID: map[string]interface{}{
+					"clientId":    "11111111-1111-1111-1111-111111111111",
+					"principalId": "22222222-2222-2222-2222-222222222222",
+				},
+			},
+		},
+	}, planObj, body)
+	if diags.HasError() {
+		t.Fatalf("FlattenInto diags: %v", diags)
+	}
+
+	uai := userAssignedMap(t, stateObj)
+	elems := uai.Elements()
+	if len(elems) != 1 {
+		t.Fatalf("user_assigned_identities has %d keys, want 1: %v", len(elems), mapKeys(uai))
+	}
+	if _, ok := elems[canonicalID]; !ok {
+		t.Fatalf("map key casing not preserved: got %v, want canonical %q", mapKeys(uai), canonicalID)
+	}
+	if _, ok := elems[lowerID]; ok {
+		t.Fatalf("lowercased key %q leaked into state; base casing must win", lowerID)
+	}
+
+	// The server-populated values are still carried through under the preserved key.
+	entry, ok := elems[canonicalID].(types.Object)
+	if !ok {
+		t.Fatalf("element = %T, want types.Object", elems[canonicalID])
+	}
+	if cid := entry.Attributes()["client_id"].(types.String).ValueString(); cid != "11111111-1111-1111-1111-111111111111" {
+		t.Errorf("client_id under preserved key = %q, want carried-through value", cid)
+	}
+}
+
+// TestFlattenIntoNewMapKeyKeepsResponseCasing locks the complementary half of Fix 1:
+// a key present in the ARM response but ABSENT from the prior state has no base casing
+// to preserve, so it must land verbatim under the response's own casing.
+func TestFlattenIntoNewMapKeyKeepsResponseCasing(t *testing.T) {
+	ctx := context.Background()
+	body := loadStorageBody(t)
+	objType := services.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+
+	const baseID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai1"
+	// A second identity the base never carried; ARM returns it lowercased.
+	const newLowerID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai2"
+
+	planObj, diags := mapper.Flatten(ctx, map[string]interface{}{
+		"kind": "StorageV2",
+		"identity": map[string]interface{}{
+			"type": "UserAssigned",
+			"userAssignedIdentities": map[string]interface{}{
+				baseID: map[string]interface{}{
+					"clientId":    "11111111-1111-1111-1111-111111111111",
+					"principalId": "22222222-2222-2222-2222-222222222222",
+				},
+			},
+		},
+	}, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten plan diags: %v", diags)
+	}
+
+	stateObj, diags := mapper.FlattenInto(ctx, map[string]interface{}{
+		"kind": "StorageV2",
+		"identity": map[string]interface{}{
+			"type": "UserAssigned",
+			"userAssignedIdentities": map[string]interface{}{
+				baseID: map[string]interface{}{
+					"clientId":    "11111111-1111-1111-1111-111111111111",
+					"principalId": "22222222-2222-2222-2222-222222222222",
+				},
+				newLowerID: map[string]interface{}{
+					"clientId":    "33333333-3333-3333-3333-333333333333",
+					"principalId": "44444444-4444-4444-4444-444444444444",
+				},
+			},
+		},
+	}, planObj, body)
+	if diags.HasError() {
+		t.Fatalf("FlattenInto diags: %v", diags)
+	}
+
+	uai := userAssignedMap(t, stateObj)
+	elems := uai.Elements()
+	if _, ok := elems[newLowerID]; !ok {
+		t.Fatalf("new response key not kept verbatim: got %v, want %q", mapKeys(uai), newLowerID)
+	}
+	if _, ok := elems[baseID]; !ok {
+		t.Fatalf("base key dropped: got %v, want %q retained", mapKeys(uai), baseID)
+	}
+}
+
 // loadBody parses an arbitrary ARM resource's bicep body type graph for its
 // latest stable API version, resolved through the azure schema loader.
 func loadBody(t *testing.T, armType string) *typegraph.Type {

@@ -334,6 +334,32 @@ func (r WebSiteCfg_Complete_update) Config() string {
   }`)
 }
 
+// WebSiteCfg_Identity assigns a user-assigned identity to the site, exercising the
+// root-level identity block (type=UserAssigned) whose user_assigned_identities map is
+// keyed by a native azapi_user_assigned_identity's ARM resource ID. Identity is that
+// identity's IDRef (e.g. "azapi_user_assigned_identity.test.id").
+type WebSiteCfg_Identity struct {
+	WebSiteCfg
+	Identity string
+}
+
+func (r WebSiteCfg_Identity) Config() string {
+	// Substitute the identity ref here; %%s stays literal so the shared config() helper
+	// fills server_farm_id in its own Sprintf pass.
+	body := fmt.Sprintf(`
+  identity = {
+    type = "UserAssigned"
+    user_assigned_identities = {
+      (%s) = {}
+    }
+  }
+
+  properties = {
+    server_farm_id = %%s
+  }`, r.Identity)
+	return r.WebSiteCfg.config(body)
+}
+
 func (r WebSiteCfg) config(bodyFmt string) string {
 	return r.RenderConfig(services.ConfigEnvelope{
 		Name:       "acctest-web-{{.RandomString}}",

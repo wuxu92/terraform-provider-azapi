@@ -7,6 +7,7 @@ package mapper
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
@@ -397,7 +398,52 @@ func flattenValueInto(ctx context.Context, armVal interface{}, base attr.Value, 
 			}
 		}
 	}
+	if mt, ok := at.(basetypes.MapType); ok {
+		if m, ok := armVal.(map[string]interface{}); ok {
+			if baseMap, ok := base.(types.Map); ok && !baseMap.IsNull() && !baseMap.IsUnknown() {
+				return flattenMapInto(ctx, m, baseMap, mt, bicep, preserveKnown)
+			}
+		}
+	}
 	return flattenValue(ctx, armVal, at, bicep)
+}
+
+// flattenMapInto rebuilds an open map (e.g. identity.user_assigned_identities,
+// tags) from the ARM response while preserving each prior key's exact casing when
+// the response echoes a case-insensitively-equal key. ARM resource-ID map keys are
+// case-insensitive, but Terraform map keys are case-sensitive, so a server that
+// lowercases a segment (e.g. Web returns .../resourcegroups/... for a key configured
+// as .../resourceGroups/...) would otherwise churn the map as a drop+add every plan.
+// Each value is threaded through flattenValueInto against its prior element so nested
+// object fields the response omits are still preserved. New keys absent from the base
+// keep the response casing.
+func flattenMapInto(ctx context.Context, arm map[string]interface{}, base types.Map, mt basetypes.MapType, bicep *typegraph.Type, preserveKnown bool) (attr.Value, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	elemType := mt.ElementType()
+	var elemBicep *typegraph.Type
+	if bicep != nil && bicep.Kind == typegraph.KindMap {
+		elemBicep = bicep.ElementType
+	}
+	baseElems := base.Elements()
+	lowerToBaseKey := make(map[string]string, len(baseElems))
+	for bk := range baseElems {
+		lowerToBaseKey[strings.ToLower(bk)] = bk
+	}
+	elems := make(map[string]attr.Value, len(arm))
+	for k, item := range arm {
+		outKey := k
+		var baseVal attr.Value
+		if bk, ok := lowerToBaseKey[strings.ToLower(k)]; ok {
+			outKey = bk
+			baseVal = baseElems[bk]
+		}
+		ev, d := flattenValueInto(ctx, item, baseVal, elemType, elemBicep, preserveKnown)
+		diags.Append(d...)
+		elems[outKey] = ev
+	}
+	mv, d := types.MapValue(elemType, elems)
+	diags.Append(d...)
+	return mv, diags
 }
 
 func shouldPreserveKnownApplyValue(v attr.Value) bool {

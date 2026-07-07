@@ -4,6 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 
 	acc "github.com/Azure/terraform-provider-azapi/internal/native/acceptance"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/managedidentity"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/web"
 )
@@ -38,6 +39,10 @@ var _ = Describe("Azure Web", Ordered, func() {
 
 			cfg := web.NewWebSiteCfg(rgCfg, farmCfg)
 			site := siteScope.ResourceFor(cfg)
+			// Native user-assigned identity dependency, created in this scope and
+			// referenced by ARM ID in the site's root identity block.
+			uaiCfg := managedidentity.NewUserAssignedIdentityCfg(rgCfg)
+			uai := siteScope.ResourceFor(uaiCfg)
 
 			BeforeAll(func() {
 				site.Apply(web.WebSiteCfg_Basic(cfg), acc.Exists()).ImportVerify()
@@ -52,6 +57,20 @@ var _ = Describe("Azure Web", Ordered, func() {
 				// each Apply re-plans for drift, so the update round-trips through the
 				// config/web read without per-value assertions.
 				site.Apply(web.WebSiteCfg_Complete_update(cfg)).ImportVerify()
+			})
+
+			It("assigns a user-assigned identity in place", func() {
+				// One apply creates the identity and updates the site together; Terraform
+				// orders the identity first from the site's user_assigned_identities ref.
+				// Transitions the identity from SystemAssigned (Complete) to UserAssigned
+				// in place; the drift plan proves it round-trips and the Key check pins it.
+				siteScope.ApplyAll(
+					uai.Stage(managedidentity.UserAssignedIdentityCfg_Basic(uaiCfg), acc.Exists()),
+					site.Stage(web.WebSiteCfg_Identity{
+						WebSiteCfg: cfg,
+						Identity:   uaiCfg.IDRef(),
+					}, acc.Key("identity.type").HasValue("UserAssigned")),
+				)
 			})
 		})
 	})

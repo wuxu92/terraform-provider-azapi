@@ -13,10 +13,13 @@ import (
 const defaultManagedServiceIdentityDescription = "The identity of the resource."
 
 // ManagedServiceIdentity returns the common ARM managed identity block used by
-// native resources. principal_id, tenant_id, and user-assigned identity details
-// are server-populated after create. UseNonNullStateForUnknown lets a null prior
-// plan as unknown, avoiding Terraform's "was null, but now ..." apply error when
-// Azure fills those read-only values during the same operation.
+// native resources. The top-level principal_id / tenant_id are the SYSTEM-assigned
+// identity's coordinates and are server-populated only when the identity type includes
+// SystemAssigned; UseStateForSystemPrincipal holds them stable and pins null for a
+// UserAssigned-only identity (which Azure never populates). The per-user-assigned
+// identity client_id / principal_id are always server-populated, so they use
+// UseNonNullStateForUnknown to avoid Terraform's "was null, but now ..." apply error
+// when Azure fills those read-only values during the same operation.
 func ManagedServiceIdentity(required bool, desc string) schema.SingleNestedAttribute {
 	description := desc
 	if description == "" {
@@ -56,14 +59,14 @@ func ManagedServiceIdentity(required bool, desc string) schema.SingleNestedAttri
 				Description: "Principal ID of the managed identity.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseNonNullStateForUnknown(),
+					UseStateForSystemPrincipal(),
 				},
 			},
 			"tenant_id": schema.StringAttribute{
 				Description: "Tenant ID of the managed identity.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseNonNullStateForUnknown(),
+					UseStateForSystemPrincipal(),
 				},
 			},
 			"type": typeAttribute,

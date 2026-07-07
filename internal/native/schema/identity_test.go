@@ -8,7 +8,7 @@ import (
 	fwschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
-func TestManagedServiceIdentityComputedIdsUseNonNullState(t *testing.T) {
+func TestManagedServiceIdentitySystemPrincipalModifier(t *testing.T) {
 	identity := ManagedServiceIdentity(false, "identity")
 
 	for _, name := range []string{"principal_id", "tenant_id"} {
@@ -16,8 +16,8 @@ func TestManagedServiceIdentityComputedIdsUseNonNullState(t *testing.T) {
 		if !attr.Computed || attr.Optional || attr.Required {
 			t.Fatalf("%s flags = optional:%t computed:%t required:%t, want computed-only", name, attr.Optional, attr.Computed, attr.Required)
 		}
-		if len(attr.PlanModifiers) != 1 || !strings.Contains(fmt.Sprintf("%T", attr.PlanModifiers[0]), "useNonNullStateForUnknown") {
-			t.Fatalf("%s plan modifier = %#v, want UseNonNullStateForUnknown", name, attr.PlanModifiers)
+		if len(attr.PlanModifiers) != 1 || !strings.Contains(fmt.Sprintf("%T", attr.PlanModifiers[0]), "systemPrincipalPlanModifier") {
+			t.Fatalf("%s plan modifier = %#v, want systemPrincipalPlanModifier", name, attr.PlanModifiers)
 		}
 	}
 }

@@ -84,6 +84,23 @@ func (r StorageAccountCfg_SKU) Config() string {
 	return r.config(r.SKU, "\n  properties = {}")
 }
 
+// StorageAccountCfg_Identity assigns a user-assigned identity to the account,
+// exercising the root-level identity block (type=UserAssigned) whose
+// user_assigned_identities map is keyed by a native azapi_user_assigned_identity's
+// ARM resource ID. SKU matches the account's current SKU so the scenario adds the
+// identity in place without a spurious ForceNew replace; Identity is the identity's
+// IDRef (e.g. "azapi_user_assigned_identity.test.id").
+type StorageAccountCfg_Identity struct {
+	StorageAccountCfg
+	SKU      string
+	Identity string
+}
+
+func (r StorageAccountCfg_Identity) Config() string {
+	body := fmt.Sprintf("\n  identity = {\n    type = \"UserAssigned\"\n    user_assigned_identities = {\n      (%s) = {}\n    }\n  }\n  properties = {}", r.Identity)
+	return r.config(r.SKU, body)
+}
+
 func (r StorageAccountCfg) config(sku, extra string) string {
 	return r.RenderConfig(services.ConfigEnvelope{
 		Name:       "acctestsa{{.RandomString}}",

@@ -4,6 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 
 	acc "github.com/Azure/terraform-provider-azapi/internal/native/acceptance"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/managedidentity"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/storage"
 )
@@ -32,6 +33,11 @@ var _ = Describe("Azure Storage", Ordered, func() {
 		acct := ws.Scope()
 		cfg := storage.NewStorageAccountCfg(rgCfg)
 		sa := acct.ResourceFor(cfg)
+		// Native user-assigned identity dependency, created in this scope and referenced
+		// by ARM ID in the account's root identity block (azapi_user_assigned_identity
+		// now exists as a native resource).
+		uaiCfg := managedidentity.NewUserAssignedIdentityCfg(rgCfg)
+		uai := acct.ResourceFor(uaiCfg)
 
 		BeforeAll(func() {
 			sa.Apply(storage.StorageAccountCfg_Basic(cfg), acc.Exists()).ImportVerify()
@@ -62,6 +68,22 @@ var _ = Describe("Azure Storage", Ordered, func() {
 			// rule: Standard_LRS -> Standard_ZRS forces a replace. Exists confirms the
 			// replacement account is present in Azure.
 			sa.Apply(storage.StorageAccountCfg_SKU{StorageAccountCfg: cfg, SKU: "Standard_ZRS"}, acc.Exists())
+		})
+
+		It("assigns a user-assigned identity in place", func() {
+			// One apply creates the identity and updates the account together; Terraform
+			// orders the identity first from the account's user_assigned_identities ref.
+			// SKU stays Standard_ZRS (the account's current SKU after the migration step)
+			// so the identity is added in place, not via a ForceNew replace. The drift
+			// plan proves the identity block round-trips; the Key check pins the type.
+			acct.ApplyAll(
+				uai.Stage(managedidentity.UserAssignedIdentityCfg_Basic(uaiCfg), acc.Exists()),
+				sa.Stage(storage.StorageAccountCfg_Identity{
+					StorageAccountCfg: cfg,
+					SKU:               "Standard_ZRS",
+					Identity:          uaiCfg.IDRef(),
+				}, acc.Key("identity.type").HasValue("UserAssigned")),
+			)
 		})
 	})
 })
