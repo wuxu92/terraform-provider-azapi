@@ -138,7 +138,7 @@ func (s *Scope) Teardown() {
 	for _, address := range s.owned {
 		_ = os.Remove(filepath.Join(s.ws.dir, resourceFileName(address)))
 	}
-	s.ws.dumpTFConfigIfEnabled("before scoped teardown apply")
+	// s.ws.dumpTFConfigIfEnabled("before scoped teardown apply")
 	if dumpTFConfigOnlyEnabled() {
 		s.owned = nil
 		s.ownedBy = nil

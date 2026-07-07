@@ -342,17 +342,22 @@ func TestFlattenIntoPreservesMapKeyCasing(t *testing.T) {
 	}
 }
 
-// TestFlattenIntoNewMapKeyKeepsResponseCasing locks the complementary half of Fix 1:
-// a key present in the ARM response but ABSENT from the prior state has no base casing
-// to preserve, so it must land verbatim under the response's own casing.
-func TestFlattenIntoNewMapKeyKeepsResponseCasing(t *testing.T) {
+// TestFlattenIntoNewMapKeyCanonicalizesResourceID locks the complementary half of
+// Fix 1: a key present in the ARM response but ABSENT from the prior state has no
+// base casing to preserve, so a resource-ID key must land under its CANONICAL Azure
+// casing (resourcegroups -> resourceGroups) rather than the response's raw casing.
+// This keeps a freshly-returned UAI id stable against the case-canonical id config
+// carries, instead of churning as a case-only drop+add.
+func TestFlattenIntoNewMapKeyCanonicalizesResourceID(t *testing.T) {
 	ctx := context.Background()
 	body := loadStorageBody(t)
 	objType := services.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
 
 	const baseID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai1"
-	// A second identity the base never carried; ARM returns it lowercased.
+	// A second identity the base never carried; ARM returns it with a lowercased
+	// resourcegroups segment. It must be canonicalized to resourceGroups on the way in.
 	const newLowerID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai2"
+	const newCanonicalID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai2"
 
 	planObj, diags := mapper.Flatten(ctx, map[string]interface{}{
 		"kind": "StorageV2",
@@ -392,11 +397,115 @@ func TestFlattenIntoNewMapKeyKeepsResponseCasing(t *testing.T) {
 
 	uai := userAssignedMap(t, stateObj)
 	elems := uai.Elements()
-	if _, ok := elems[newLowerID]; !ok {
-		t.Fatalf("new response key not kept verbatim: got %v, want %q", mapKeys(uai), newLowerID)
+	if len(elems) != 2 {
+		t.Fatalf("user_assigned_identities has %d keys, want 2: %v", len(elems), mapKeys(uai))
+	}
+	if _, ok := elems[newCanonicalID]; !ok {
+		t.Fatalf("new key not canonicalized: got %v, want canonical %q", mapKeys(uai), newCanonicalID)
+	}
+	if _, ok := elems[newLowerID]; ok {
+		t.Fatalf("lowercased key %q leaked into state; new resource-ID keys must canonicalize", newLowerID)
 	}
 	if _, ok := elems[baseID]; !ok {
 		t.Fatalf("base key dropped: got %v, want %q retained", mapKeys(uai), baseID)
+	}
+
+	// Server-populated values ride through under the canonical key.
+	entry, ok := elems[newCanonicalID].(types.Object)
+	if !ok {
+		t.Fatalf("element = %T, want types.Object", elems[newCanonicalID])
+	}
+	if cid := entry.Attributes()["client_id"].(types.String).ValueString(); cid != "33333333-3333-3333-3333-333333333333" {
+		t.Errorf("client_id under canonical key = %q, want carried-through value", cid)
+	}
+	if pid := entry.Attributes()["principal_id"].(types.String).ValueString(); pid != "44444444-4444-4444-4444-444444444444" {
+		t.Errorf("principal_id under canonical key = %q, want carried-through value", pid)
+	}
+}
+
+// TestFlattenCanonicalizesImportedResourceIDKey locks the no-base import path
+// (base.go ImportState calls mapper.Flatten with NO prior state). A UAI resource-ID
+// key that ARM echoes with a lowercased resourcegroups segment must land in state
+// under its canonical resourceGroups casing, so imported state matches the id config
+// carries. Without the fix the raw lowercased key lands verbatim and drifts.
+func TestFlattenCanonicalizesImportedResourceIDKey(t *testing.T) {
+	ctx := context.Background()
+	body := loadStorageBody(t)
+	objType := services.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+
+	const importedLowerID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai1"
+	const importedCanonicalID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai1"
+
+	stateObj, diags := mapper.Flatten(ctx, map[string]interface{}{
+		"kind": "StorageV2",
+		"identity": map[string]interface{}{
+			"type": "UserAssigned",
+			"userAssignedIdentities": map[string]interface{}{
+				importedLowerID: map[string]interface{}{
+					"clientId":    "11111111-1111-1111-1111-111111111111",
+					"principalId": "22222222-2222-2222-2222-222222222222",
+				},
+			},
+		},
+	}, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten diags: %v", diags)
+	}
+
+	uai := userAssignedMap(t, stateObj)
+	elems := uai.Elements()
+	if len(elems) != 1 {
+		t.Fatalf("user_assigned_identities has %d keys, want 1: %v", len(elems), mapKeys(uai))
+	}
+	if _, ok := elems[importedCanonicalID]; !ok {
+		t.Fatalf("imported key not canonicalized: got %v, want canonical %q", mapKeys(uai), importedCanonicalID)
+	}
+	if _, ok := elems[importedLowerID]; ok {
+		t.Fatalf("lowercased key %q leaked into imported state; import path must canonicalize", importedLowerID)
+	}
+
+	// Server values carried through under the canonical imported key.
+	entry, ok := elems[importedCanonicalID].(types.Object)
+	if !ok {
+		t.Fatalf("element = %T, want types.Object", elems[importedCanonicalID])
+	}
+	if cid := entry.Attributes()["client_id"].(types.String).ValueString(); cid != "11111111-1111-1111-1111-111111111111" {
+		t.Errorf("client_id under canonical imported key = %q, want carried-through value", cid)
+	}
+}
+
+// TestFlattenKeepsNonResourceIDMapKeyVerbatim guards the other side of
+// canonicalMapKey through the same no-base Flatten MapType branch: an open-map key
+// that is NOT an ARM resource ID (arm.ParseResourceID fails) must survive byte-for-
+// byte. Storage `tags` is a string-valued open map; a mixed-case tag name like
+// "CostCenter" must not be case-folded or otherwise rewritten.
+func TestFlattenKeepsNonResourceIDMapKeyVerbatim(t *testing.T) {
+	ctx := context.Background()
+	body := loadStorageBody(t)
+	objType := services.Registry["azapi_storage_account"].Schema().Type().(basetypes.ObjectType)
+
+	const tagKey = "CostCenter"
+	stateObj, diags := mapper.Flatten(ctx, map[string]interface{}{
+		"kind": "StorageV2",
+		"tags": map[string]interface{}{tagKey: "1234"},
+	}, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten diags: %v", diags)
+	}
+
+	tags, ok := stateObj.Attributes()["tags"].(types.Map)
+	if !ok {
+		t.Fatalf("tags = %T, want types.Map", stateObj.Attributes()["tags"])
+	}
+	elems := tags.Elements()
+	if len(elems) != 1 {
+		t.Fatalf("tags has %d keys, want 1: %v", len(elems), mapKeys(tags))
+	}
+	if _, ok := elems[tagKey]; !ok {
+		t.Fatalf("non-resource-ID key not kept verbatim: got %v, want %q", mapKeys(tags), tagKey)
+	}
+	if v := elems[tagKey].(types.String).ValueString(); v != "1234" {
+		t.Errorf("tag value under verbatim key = %q, want %q", v, "1234")
 	}
 }
 

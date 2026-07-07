@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
 	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
@@ -221,7 +222,7 @@ func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *
 			for k, item := range m {
 				ev, d := flattenValue(ctx, item, elemType, elemBicep)
 				diags.Append(d...)
-				elems[k] = ev
+				elems[canonicalMapKey(k)] = ev
 			}
 			mv, d := types.MapValue(elemType, elems)
 			diags.Append(d...)
@@ -436,6 +437,11 @@ func flattenMapInto(ctx context.Context, arm map[string]interface{}, base types.
 		if bk, ok := lowerToBaseKey[strings.ToLower(k)]; ok {
 			outKey = bk
 			baseVal = baseElems[bk]
+		} else {
+			// No prior key to preserve the practitioner's exact casing against;
+			// fall back to the canonical ARM-ID casing so an imported/refreshed
+			// key matches the case-canonical ID written in config.
+			outKey = canonicalMapKey(k)
 		}
 		ev, d := flattenValueInto(ctx, item, baseVal, elemType, elemBicep, preserveKnown)
 		diags.Append(d...)
@@ -444,6 +450,21 @@ func flattenMapInto(ctx context.Context, arm map[string]interface{}, base types.
 	mv, d := types.MapValue(elemType, elems)
 	diags.Append(d...)
 	return mv, diags
+}
+
+// canonicalMapKey normalizes an open-map key that is an ARM resource ID to its
+// canonical Azure casing (e.g. a lowercased ".../resourcegroups/..." segment ->
+// ".../resourceGroups/..."). Some resource providers echo an assigned resource ID
+// with altered segment casing; ARM IDs are case-insensitive but Terraform map keys
+// are not, so without this an imported or freshly-flattened state key would drift
+// from the case-canonical ID the practitioner writes in config (Terraform resource
+// ID references are always canonical). Keys that are not resource IDs — e.g. tag
+// names — fail to parse and are returned verbatim.
+func canonicalMapKey(k string) string {
+	if id, err := arm.ParseResourceID(k); err == nil {
+		return id.String()
+	}
+	return k
 }
 
 func shouldPreserveKnownApplyValue(v attr.Value) bool {

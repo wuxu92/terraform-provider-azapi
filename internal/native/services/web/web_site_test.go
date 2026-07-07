@@ -71,6 +71,7 @@ var _ = Describe("Azure Web", Ordered, func() {
 						Identity:   uaiCfg.IDRef(),
 					}, acc.Key("identity.type").HasValue("UserAssigned")),
 				)
+				site.ImportVerify()
 			})
 		})
 	})
