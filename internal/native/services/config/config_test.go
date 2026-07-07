@@ -1,9 +1,9 @@
-package services_test
+package config_test
 
 import (
 	"testing"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/config"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/storage"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/web"
@@ -30,15 +30,15 @@ const (
 func TestRenderConfigEnvelopeAxes(t *testing.T) {
 	tests := []struct {
 		name string
-		base services.ResourceConfigBase
-		env  services.ConfigEnvelope
+		base config.ResourceConfigBase
+		env  config.ConfigEnvelope
 		want string
 	}{
 		{
 			// location ON + kind SET + body appended, resource_group_id parent (width 17).
 			name: "location_kind_body_rg_parent",
-			base: services.NewResourceConfigBase("azapi_x"),
-			env: services.ConfigEnvelope{
+			base: config.NewResourceConfigBase("azapi_x"),
+			env: config.ConfigEnvelope{
 				Name:       "n",
 				ParentAttr: "resource_group_id",
 				ParentRef:  "azapi_resource_group.test.id",
@@ -52,8 +52,8 @@ func TestRenderConfigEnvelopeAxes(t *testing.T) {
 			// location ON + kind EMPTY + no body, subscription_id parent with a pre-quoted
 			// literal ParentRef emitted raw (width 15). This is the resource-group shape.
 			name: "location_nokind_nobody_subscription_prequoted",
-			base: services.NewResourceConfigBase("azapi_resource_group"),
-			env: services.ConfigEnvelope{
+			base: config.NewResourceConfigBase("azapi_resource_group"),
+			env: config.ConfigEnvelope{
 				Name:       "accazapi-rg-{{.RandomInteger}}",
 				ParentAttr: "subscription_id",
 				ParentRef:  "\"/subscriptions/{{.SubscriptionID}}\"",
@@ -67,8 +67,8 @@ func TestRenderConfigEnvelopeAxes(t *testing.T) {
 			// location OFF + kind EMPTY + body appended, storage_account_id parent (width 18).
 			// The blob-service singleton shape: proves the location line is omitted entirely.
 			name: "nolocation_nokind_body_storage_parent",
-			base: services.NewResourceConfigBase("azapi_storage_account_blob_service"),
-			env: services.ConfigEnvelope{
+			base: config.NewResourceConfigBase("azapi_storage_account_blob_service"),
+			env: config.ConfigEnvelope{
 				Name:       "default",
 				ParentAttr: "storage_account_id",
 				ParentRef:  "azapi_storage_account.test.id",
@@ -82,8 +82,8 @@ func TestRenderConfigEnvelopeAxes(t *testing.T) {
 			// kind SET but location OFF: guards that the two optional lines are independent —
 			// kind still renders while location is suppressed (width 18).
 			name: "kind_without_location",
-			base: services.NewResourceConfigBase("azapi_x"),
-			env: services.ConfigEnvelope{
+			base: config.NewResourceConfigBase("azapi_x"),
+			env: config.ConfigEnvelope{
 				Name:       "n",
 				ParentAttr: "storage_account_id",
 				ParentRef:  "some.ref.id",
@@ -96,8 +96,8 @@ func TestRenderConfigEnvelopeAxes(t *testing.T) {
 		{
 			// Body axis, empty half: identical to the next row except Body is "".
 			name: "empty_body",
-			base: services.NewResourceConfigBase("azapi_x"),
-			env: services.ConfigEnvelope{
+			base: config.NewResourceConfigBase("azapi_x"),
+			env: config.ConfigEnvelope{
 				Name:       "n",
 				ParentAttr: "subscription_id",
 				ParentRef:  "\"/subscriptions/x\"",
@@ -111,8 +111,8 @@ func TestRenderConfigEnvelopeAxes(t *testing.T) {
 			// Body axis, non-empty half: differs from the row above ONLY in Body, so the want
 			// differs by exactly the verbatim-appended fragment.
 			name: "nonempty_body",
-			base: services.NewResourceConfigBase("azapi_x"),
-			env: services.ConfigEnvelope{
+			base: config.NewResourceConfigBase("azapi_x"),
+			env: config.ConfigEnvelope{
 				Name:       "n",
 				ParentAttr: "subscription_id",
 				ParentRef:  "\"/subscriptions/x\"",
@@ -126,8 +126,8 @@ func TestRenderConfigEnvelopeAxes(t *testing.T) {
 			// Non-default label: proves the `resource %q %q` header uses the builder's label,
 			// not the "test" default.
 			name: "non_default_label",
-			base: services.NewResourceConfigBase("azapi_x", "primary"),
-			env: services.ConfigEnvelope{
+			base: config.NewResourceConfigBase("azapi_x", "primary"),
+			env: config.ConfigEnvelope{
 				Name:       "n",
 				ParentAttr: "subscription_id",
 				ParentRef:  "\"/subscriptions/x\"",

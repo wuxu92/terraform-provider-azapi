@@ -3,7 +3,7 @@ package storage
 import (
 	"fmt"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/config"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 )
 
@@ -14,7 +14,7 @@ import (
 // reference (e.g. "azapi_resource_group.rg.id"). The returned HCL is a template
 // rendered by the acceptance framework ({{.RandomString}}, {{.Location}}).
 type StorageAccountCfg struct {
-	services.ResourceConfigBase
+	config.ResourceConfigBase
 	resourceGroup resources.ResourceGroupCfg
 }
 
@@ -25,7 +25,7 @@ type StorageAccountCfg struct {
 // than one. The resource type is read from the StorageAccount descriptor.
 func NewStorageAccountCfg(resourceGroup resources.ResourceGroupCfg, label ...string) StorageAccountCfg {
 	return StorageAccountCfg{
-		ResourceConfigBase: services.NewResourceConfigBase(StorageAccount.Name, label...),
+		ResourceConfigBase: config.NewResourceConfigBase(StorageAccount.Name, label...),
 		resourceGroup:      resourceGroup,
 	}
 }
@@ -102,14 +102,12 @@ func (r StorageAccountCfg_Identity) Config() string {
 }
 
 func (r StorageAccountCfg) config(sku, extra string) string {
-	return r.RenderConfig(services.ConfigEnvelope{
-		Name:       "acctestsa{{.RandomString}}",
+	return r.RenderConfig(config.ConfigEnvelope{Name: "acctestsa{{.RandomString}}",
 		ParentAttr: "resource_group_id",
 		ParentRef:  r.resourceGroup.IDRef(),
 		Location:   true,
 		Kind:       "StorageV2",
-		Body:       fmt.Sprintf("\n  sku = {\n    name = %q\n  }%s", sku, extra),
-	})
+		Body:       fmt.Sprintf("\n  sku = {\n    name = %q\n  }%s", sku, extra)})
 }
 
 // completeProps is the StorageAccountCfg properties fragment for Complete: a broad

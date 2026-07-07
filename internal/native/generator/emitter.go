@@ -64,6 +64,9 @@ func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
 	if needs.stringValidator {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator\"\n")
 	}
+	if needs.listValidator {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator\"\n")
+	}
 	if needs.planmodifier {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier\"\n")
 	}
@@ -94,7 +97,11 @@ func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
 	if needs.defString {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault\"\n")
 	}
-	if needs.stringValidator || needs.int64Validator || needs.custom || needs.shared {
+	if needs.defList {
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault\"\n")
+		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/attr\"\n")
+	}
+	if needs.stringValidator || needs.int64Validator || needs.custom || needs.shared || needs.listValidator {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/schema/validator\"\n")
 	}
 	if needs.types {
@@ -185,10 +192,12 @@ type importNeeds struct {
 	regexp          bool
 	int64Validator  bool
 	stringValidator bool
+	listValidator   bool // for listvalidator.ValueStringsAre on primitive-list element enums
 	types           bool // for types.StringType in ListAttribute
 	defBool         bool // for booldefault.StaticBool
 	defString       bool // for stringdefault.StaticString (string + enum defaults)
 	defInt64        bool // for int64default.StaticInt64
+	defList         bool // for listdefault.StaticValue empty-list defaults (+ attr for the element type literal)
 	planmodifier    bool // for planmodifier.X plan-modifier slices
 	pmString        bool // stringplanmodifier
 	pmBool          bool // boolplanmodifier
@@ -234,6 +243,10 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 				}
 			}
 		}
+		if prop.DefaultEmptyList && prop.Type.Kind == typegraph.KindArray {
+			needs.defList = true
+			needs.types = true
+		}
 		if usesLocationPlanModifier(prop, computed) {
 			needs.nativeSchema = true
 			needs.planmodifier = true
@@ -243,7 +256,7 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 			case typegraph.ValidatorArmResourceID, typegraph.ValidatorRegex:
 				needs.regexp = true
 				needs.stringValidator = true
-			case typegraph.ValidatorStringOneOf, typegraph.ValidatorStringLength:
+			case typegraph.ValidatorStringOneOf, typegraph.ValidatorStringLength, typegraph.ValidatorStringOneOfCaseInsensitive:
 				needs.stringValidator = true
 			case typegraph.ValidatorIntRange:
 				needs.int64Validator = true
@@ -252,6 +265,14 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 			case typegraph.ValidatorShared:
 				needs.shared = true
 			}
+		}
+		// A primitive array/set carrying validators emits them as list-element
+		// validators (listvalidator.ValueStringsAre wrapping the string validators).
+		if prop.Type.Kind == typegraph.KindArray && !prop.UseSet &&
+			(prop.Type.ElementType == nil || prop.Type.ElementType.Kind != typegraph.KindObject) &&
+			len(prop.Validators) > 0 {
+			needs.listValidator = true
+			needs.stringValidator = true
 		}
 		if prop.Type.IsEnum() && !computed {
 			needs.stringValidator = true
@@ -264,7 +285,7 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 		}
 		// State reuse and ForceNew both need type-specific plan modifier imports.
 		// SetAttribute has no bundled planmodifier package in this framework version.
-		useState := !prop.UseSet && !prop.Flags.IsRequired() && prop.DefaultValue == ""
+		useState := !prop.UseSet && !prop.Flags.IsRequired() && prop.DefaultValue == "" && !prop.DefaultEmptyList
 		forceNew := !prop.UseSet && prop.ForceNew && !computed
 		if useState || forceNew {
 			if pkg, _ := planModifierFor(prop); pkg != "" {
@@ -435,6 +456,9 @@ func emitAttribute(b *strings.Builder, tfName string, prop *typegraph.Property, 
 			b.WriteString(fmt.Sprintf("%s%q: schema.ListNestedAttribute{\n", tabs, tfName))
 			writeAttributeFlags(b, prop, computed, tabs)
 			emitPlanModifiers(b, prop, computed, tabs)
+			if prop.DefaultEmptyList {
+				b.WriteString(fmt.Sprintf("%s\tDefault: listdefault.StaticValue(types.ListValueMust(%s, nil)),\n", tabs, attrTypeLiteral(typ.ElementType)))
+			}
 			b.WriteString(fmt.Sprintf("%s\tNestedObject: schema.NestedAttributeObject{\n", tabs))
 			b.WriteString(fmt.Sprintf("%s\t\tAttributes: map[string]schema.Attribute{\n", tabs))
 			emitAttributes(b, typ.ElementType, indent+3, true)
@@ -450,6 +474,12 @@ func emitAttribute(b *strings.Builder, tfName string, prop *typegraph.Property, 
 			writeAttributeFlags(b, prop, computed, tabs)
 			if !prop.UseSet {
 				emitPlanModifiers(b, prop, computed, tabs)
+			}
+			// listvalidator only applies to ListAttribute; a settable primitive list
+			// with element validators (e.g. case-insensitive permission enums) gets
+			// them via listvalidator.ValueStringsAre.
+			if !prop.UseSet && !computed {
+				emitListElementStringValidators(b, prop, tabs)
 			}
 			b.WriteString(fmt.Sprintf("%s\tElementType: %s,\n", tabs, listElementType(typ.ElementType)))
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
@@ -500,7 +530,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *typegraph.Property, 
 func emitPlanModifiers(b *strings.Builder, prop *typegraph.Property, computed bool, tabs string) {
 	// State reuse keeps Optional+Computed/read-only values stable; customizers can
 	// make null prior state unknown for Azure-populated values.
-	useState := !prop.Flags.IsRequired() && prop.DefaultValue == ""
+	useState := !prop.Flags.IsRequired() && prop.DefaultValue == "" && !prop.DefaultEmptyList
 	forceNew := prop.ForceNew && !computed
 	location := usesLocationPlanModifier(prop, computed)
 	if !useState && !forceNew && !location {
@@ -613,6 +643,58 @@ func listElementType(elem *typegraph.Type) string {
 	return "types.StringType"
 }
 
+// attrTypeLiteral renders the Go attr.Type literal for a typegraph type, used to
+// type an empty-list schema Default so its element type matches the emitted
+// NestedObject/ElementType exactly. It mirrors emitAttribute's per-kind schema-type
+// choices for attributes nested inside a collection (dynamic degrades to string).
+func attrTypeLiteral(typ *typegraph.Type) string {
+	if typ == nil {
+		return "types.StringType"
+	}
+	switch {
+	case typ.Kind == typegraph.KindString, typ.IsEnum(), typ.Kind == typegraph.KindUnion:
+		return "types.StringType"
+	case typ.Kind == typegraph.KindBool:
+		return "types.BoolType"
+	case typ.Kind == typegraph.KindInt:
+		return "types.Int64Type"
+	case typ.Kind == typegraph.KindObject:
+		names := make([]string, 0, len(typ.Properties))
+		for armName, prop := range typ.Properties {
+			if prop.Flags.IsSystemManaged() {
+				continue
+			}
+			names = append(names, armName)
+		}
+		sort.Strings(names)
+		var b strings.Builder
+		b.WriteString("types.ObjectType{AttrTypes: map[string]attr.Type{")
+		for i, armName := range names {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(fmt.Sprintf("%q: %s", naming.CamelToSnake(armName), propAttrTypeLiteral(typ.Properties[armName])))
+		}
+		b.WriteString("}}")
+		return b.String()
+	case typ.Kind == typegraph.KindArray:
+		return fmt.Sprintf("types.ListType{ElemType: %s}", attrTypeLiteral(typ.ElementType))
+	case typ.Kind == typegraph.KindMap:
+		return fmt.Sprintf("types.MapType{ElemType: %s}", attrTypeLiteral(typ.ElementType))
+	}
+	return "types.StringType"
+}
+
+// propAttrTypeLiteral renders the attr.Type for a property, honouring UseSet (a
+// primitive array emitted as a SetAttribute has a SetType, not a ListType).
+func propAttrTypeLiteral(prop *typegraph.Property) string {
+	if prop.UseSet && prop.Type != nil && prop.Type.Kind == typegraph.KindArray &&
+		(prop.Type.ElementType == nil || prop.Type.ElementType.Kind != typegraph.KindObject) {
+		return fmt.Sprintf("types.SetType{ElemType: %s}", attrTypeLiteral(prop.Type.ElementType))
+	}
+	return attrTypeLiteral(prop.Type)
+}
+
 // emitDefault writes the generated default for supported scalar types.
 func emitDefault(b *strings.Builder, prop *typegraph.Property, tabs string) {
 	switch prop.Type.Kind {
@@ -637,12 +719,12 @@ func emitDescriptionStringValidators(b *strings.Builder, prop *typegraph.Propert
 	emitStringValidators(b, prop.Validators, tabs)
 }
 
-// emitStringValidators writes a String validator block.
-func emitStringValidators(b *strings.Builder, validators []typegraph.DescriptionValidator, tabs string) {
-	if len(validators) == 0 {
-		return
-	}
-
+// stringValidatorItems builds the individual validator.String expressions for a
+// property's validators. It is shared by emitStringValidators (which wraps them in
+// a []validator.String block) and emitListElementStringValidators (which wraps them
+// in listvalidator.ValueStringsAre for a primitive string list). Indentation is
+// approximate; the emitted file is gofmt-normalized before it is written.
+func stringValidatorItems(validators []typegraph.DescriptionValidator, tabs string) []string {
 	var items []string
 	for _, v := range validators {
 		switch v.Kind {
@@ -658,13 +740,11 @@ func emitStringValidators(b *strings.Builder, validators []typegraph.Description
 			}
 		case typegraph.ValidatorStringOneOf:
 			if len(v.Allowed) > 0 {
-				var sb strings.Builder
-				sb.WriteString(fmt.Sprintf("%s\t\tstringvalidator.OneOf(\n", tabs))
-				for _, av := range v.Allowed {
-					sb.WriteString(fmt.Sprintf("%s\t\t\t%q,\n", tabs, av))
-				}
-				sb.WriteString(fmt.Sprintf("%s\t\t)", tabs))
-				items = append(items, sb.String())
+				items = append(items, oneOfItem("OneOf", v.Allowed, tabs))
+			}
+		case typegraph.ValidatorStringOneOfCaseInsensitive:
+			if len(v.Allowed) > 0 {
+				items = append(items, oneOfItem("OneOfCaseInsensitive", v.Allowed, tabs))
 			}
 		case typegraph.ValidatorStringLength:
 			switch {
@@ -685,14 +765,48 @@ func emitStringValidators(b *strings.Builder, validators []typegraph.Description
 			}
 		}
 	}
+	return items
+}
 
-	if len(items) > 0 {
-		b.WriteString(fmt.Sprintf("%s\tValidators: []validator.String{\n", tabs))
-		for _, item := range items {
-			b.WriteString(item + ",\n")
-		}
-		b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+// oneOfItem renders a stringvalidator.OneOf / OneOfCaseInsensitive expression.
+func oneOfItem(ctor string, allowed []string, tabs string) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s\t\tstringvalidator.%s(\n", tabs, ctor))
+	for _, av := range allowed {
+		sb.WriteString(fmt.Sprintf("%s\t\t\t%q,\n", tabs, av))
 	}
+	sb.WriteString(fmt.Sprintf("%s\t\t)", tabs))
+	return sb.String()
+}
+
+// emitStringValidators writes a String validator block.
+func emitStringValidators(b *strings.Builder, validators []typegraph.DescriptionValidator, tabs string) {
+	items := stringValidatorItems(validators, tabs)
+	if len(items) == 0 {
+		return
+	}
+	b.WriteString(fmt.Sprintf("%s\tValidators: []validator.String{\n", tabs))
+	for _, item := range items {
+		b.WriteString(item + ",\n")
+	}
+	b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+}
+
+// emitListElementStringValidators writes a List validator block that applies the
+// property's string validators to every element of a primitive string list via
+// listvalidator.ValueStringsAre (e.g. case-insensitive key-vault permission enums).
+func emitListElementStringValidators(b *strings.Builder, prop *typegraph.Property, tabs string) {
+	items := stringValidatorItems(prop.Validators, tabs)
+	if len(items) == 0 {
+		return
+	}
+	b.WriteString(fmt.Sprintf("%s\tValidators: []validator.List{\n", tabs))
+	b.WriteString(fmt.Sprintf("%s\t\tlistvalidator.ValueStringsAre(\n", tabs))
+	for _, item := range items {
+		b.WriteString(item + ",\n")
+	}
+	b.WriteString(fmt.Sprintf("%s\t\t),\n", tabs))
+	b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 }
 
 // emitEnvelope writes synthetic name/parent/id attrs outside the bicep body.

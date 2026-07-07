@@ -31,9 +31,14 @@ type ResourceConfig interface {
 	RefOf(path string) string // Terraform reference to an arbitrary attribute, e.g. "azapi_resource_group.rg.location" for RefOf("location").
 }
 
+// DataSourceConfig is implemented by a data-source config builder (e.g. the shared
+// azapi_client_config): it names the Terraform type and label and renders the data
+// block. Scope.DataSource writes Config() to disk once; dependents reference the data
+// source by address via RefOf/IDRef rather than redeclaring the block.
 type DataSourceConfig interface {
 	DataSourceType() string   // Terraform type, e.g. "azapi_client_config"
 	Label() string            // Terraform state label
+	Config() string           // the rendered data block, e.g. `data "azapi_client_config" "current" {}`
 	IDRef() string            // Terraform reference to the data source's id attribute, e.g. "data.azapi_client_config.current.id".
 	RefOf(path string) string // Terraform reference to an arbitrary attribute.
 }

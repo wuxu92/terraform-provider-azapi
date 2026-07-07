@@ -3,7 +3,7 @@ package storage
 import (
 	"fmt"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/config"
 )
 
 // BlobServiceCfg carries the Terraform address metadata and storage-account
@@ -13,7 +13,7 @@ import (
 // StorageAccountCfg is held so every scenario renders the same storage_account_id
 // reference (e.g. "azapi_storage_account.sa.id").
 type BlobServiceCfg struct {
-	services.ResourceConfigBase
+	config.ResourceConfigBase
 	storageAccount StorageAccountCfg
 }
 
@@ -24,7 +24,7 @@ type BlobServiceCfg struct {
 // StorageAccountBlobService descriptor.
 func NewBlobServiceCfg(storageAccount StorageAccountCfg, label ...string) BlobServiceCfg {
 	return BlobServiceCfg{
-		ResourceConfigBase: services.NewResourceConfigBase(StorageAccountBlobService.Name, label...),
+		ResourceConfigBase: config.NewResourceConfigBase(StorageAccountBlobService.Name, label...),
 		storageAccount:     storageAccount,
 	}
 }
@@ -89,12 +89,10 @@ func (r BlobServiceCfg_Named) Config() string {
 }
 
 func (r BlobServiceCfg) config(name, body string) string {
-	return r.RenderConfig(services.ConfigEnvelope{
-		Name:       name,
+	return r.RenderConfig(config.ConfigEnvelope{Name: name,
 		ParentAttr: "storage_account_id",
 		ParentRef:  r.storageAccount.IDRef(),
-		Body:       body,
-	})
+		Body:       body})
 }
 
 // changeFeed is a BlobServiceCfg properties fragment toggling change feed. Defined as

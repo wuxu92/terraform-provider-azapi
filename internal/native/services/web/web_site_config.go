@@ -3,7 +3,7 @@ package web
 import (
 	"fmt"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/config"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 )
 
@@ -11,7 +11,7 @@ import (
 // azapi_web_site acceptance-test scenarios. Construct it with NewWebSiteCfg,
 // then wrap it in a scenario type when applying.
 type WebSiteCfg struct {
-	services.ResourceConfigBase
+	config.ResourceConfigBase
 	resourceGroup resources.ResourceGroupCfg
 	serverFarm    WebServerFarmCfg
 }
@@ -20,7 +20,7 @@ type WebSiteCfg struct {
 // and the native App Service plan config. The label is optional.
 func NewWebSiteCfg(resourceGroup resources.ResourceGroupCfg, serverFarm WebServerFarmCfg, label ...string) WebSiteCfg {
 	return WebSiteCfg{
-		ResourceConfigBase: services.NewResourceConfigBase(WebSite.Name, label...),
+		ResourceConfigBase: config.NewResourceConfigBase(WebSite.Name, label...),
 		resourceGroup:      resourceGroup,
 		serverFarm:         serverFarm,
 	}
@@ -361,12 +361,10 @@ func (r WebSiteCfg_Identity) Config() string {
 }
 
 func (r WebSiteCfg) config(bodyFmt string) string {
-	return r.RenderConfig(services.ConfigEnvelope{
-		Name:       "acctest-web-{{.RandomString}}",
+	return r.RenderConfig(config.ConfigEnvelope{Name: "acctest-web-{{.RandomString}}",
 		ParentAttr: "resource_group_id",
 		ParentRef:  r.resourceGroup.IDRef(),
 		Location:   true,
 		Kind:       "app",
-		Body:       fmt.Sprintf(bodyFmt, r.serverFarm.IDRef()),
-	})
+		Body:       fmt.Sprintf(bodyFmt, r.serverFarm.IDRef())})
 }

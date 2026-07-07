@@ -1,7 +1,7 @@
 package managedidentity
 
 import (
-	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/config"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 )
 
@@ -13,7 +13,7 @@ import (
 // returned HCL is a template rendered by the acceptance framework ({{.RandomString}},
 // {{.Location}}).
 type UserAssignedIdentityCfg struct {
-	services.ResourceConfigBase
+	config.ResourceConfigBase
 	resourceGroup resources.ResourceGroupCfg
 }
 
@@ -25,7 +25,7 @@ type UserAssignedIdentityCfg struct {
 // descriptor.
 func NewUserAssignedIdentityCfg(resourceGroup resources.ResourceGroupCfg, label ...string) UserAssignedIdentityCfg {
 	return UserAssignedIdentityCfg{
-		ResourceConfigBase: services.NewResourceConfigBase(UserAssignedIdentity.Name, label...),
+		ResourceConfigBase: config.NewResourceConfigBase(UserAssignedIdentity.Name, label...),
 		resourceGroup:      resourceGroup,
 	}
 }
@@ -60,11 +60,9 @@ func (r UserAssignedIdentityCfg_Complete_update) Config() string {
 }
 
 func (r UserAssignedIdentityCfg) config(body string) string {
-	return r.RenderConfig(services.ConfigEnvelope{
-		Name:       "acctestuai{{.RandomString}}",
+	return r.RenderConfig(config.ConfigEnvelope{Name: "acctestuai{{.RandomString}}",
 		ParentAttr: "resource_group_id",
 		ParentRef:  r.resourceGroup.IDRef(),
 		Location:   true,
-		Body:       body,
-	})
+		Body:       body})
 }

@@ -1,4 +1,11 @@
-package services
+// Package config holds the acceptance-test config scaffolding shared by every
+// generated service package's *Cfg builder: the resource/data-source base types,
+// the envelope renderer, and the shared azapi_client_config data source. It is a
+// dedicated package (not the parent services package, whose registry.go is the
+// runtime descriptor registry the generated _gen.go files register into) so the
+// test-only config helpers and the runtime registry stay cleanly separated. Service
+// subpackages import this for their config builders; nothing here imports them.
+package config
 
 import (
 	"fmt"
@@ -12,10 +19,10 @@ import (
 // scope's ResourceFor can vend the matching Resource handle. The type is set
 // once, from the resource's generated Descriptor.Name — callers never restate it.
 //
-// It lives here (not in nativeacc) because the config builders are in the
-// generated service packages, which nativeacc transitively imports: embedding a
-// nativeacc type would form an import cycle. The interface is structural, so
-// satisfying nativeacc.ResourceConfig needs no import of nativeacc.
+// It lives in this dedicated package (not in nativeacc) because the config
+// builders are in the generated service packages, which nativeacc transitively
+// imports: embedding a nativeacc type would form an import cycle. The interface is
+// structural, so satisfying nativeacc.ResourceConfig needs no import of nativeacc.
 type ResourceConfigBase struct {
 	tfType string
 	label  string
@@ -110,6 +117,8 @@ func (b ResourceConfigBase) RenderConfig(env ConfigEnvelope) string {
 	return sb.String()
 }
 
+// DataSourceConfigBase carries the Terraform type and state label for an
+// acceptance-test data-source config, mirroring ResourceConfigBase for data sources.
 type DataSourceConfigBase struct {
 	tfType string
 	label  string
@@ -127,14 +136,28 @@ func (b DataSourceConfigBase) Label() string {
 
 func (b DataSourceConfigBase) IDRef() string { return "data." + b.tfType + "." + b.label + ".id" }
 
-// RefOf is the Terraform reference to this resource's arbitrary attribute, e.g.
-// "azapi_resource_group.rg.location" for RefOf("location"). It derives from the same type.label as the acceptance Resource
+// RefOf is the Terraform reference to this data source's arbitrary attribute, e.g.
+// "data.azapi_client_config.current.tenant_id" for RefOf("tenant_id").
 func (b DataSourceConfigBase) RefOf(path string) string {
 	return "data." + b.tfType + "." + b.label + "." + path
 }
 
 func (r DataSourceConfigBase) IsDataSourceConfig() {}
 
-var (
-	ClientConfig = DataSourceConfigBase{tfType: "azapi_client_config", label: "current"}
-)
+// Config renders the data-source declaration block, e.g. `data "azapi_client_config"
+// "current" {}`.
+func (r DataSourceConfigBase) Config() string {
+	return fmt.Sprintf(`data %q %q {}`, r.tfType, r.label)
+}
+
+// ClientConfigData is the azapi_client_config data source config type.
+type ClientConfigData struct {
+	DataSourceConfigBase
+}
+
+// ClientConfig is the single shared azapi_client_config data source every scenario
+// references (via ClientConfig.Config() to declare it and ClientConfig.RefOf(...) for
+// its attributes) instead of hardcoding the block. One canonical declaration avoids
+// duplicate `data "azapi_client_config" "current"` blocks colliding when more than one
+// resource in a workspace needs the running identity's tenant/object/subscription ids.
+var ClientConfig = ClientConfigData{DataSourceConfigBase: DataSourceConfigBase{tfType: "azapi_client_config", label: "current"}}

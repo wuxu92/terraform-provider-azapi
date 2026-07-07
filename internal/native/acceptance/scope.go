@@ -22,10 +22,11 @@ import (
 // Nest scopes so that a resource's dependents live in DEEPER scopes than it: Ginkgo
 // runs inner AfterAll (teardown) before outer, so dependents are destroyed first.
 type Scope struct {
-	ws      *Workspace
-	owned   []string             // resource addresses (tfType.label) owned by this scope, in apply order
-	ownedBy map[string]*Resource // address -> owning resource, for collision detection
-	tracked []trackedResource    // applied resources, verified absent on Teardown
+	ws        *Workspace
+	owned     []string             // resource addresses (tfType.label) owned by this scope, in apply order
+	ownedBy   map[string]*Resource // address -> owning resource, for collision detection
+	tracked   []trackedResource    // applied resources, verified absent on Teardown
+	ownedData []string             // data-source .tf file names owned by this scope
 
 	// teardownRegistered records that this scope's Teardown was wired through the
 	// workspace's teardown registrar when the scope was vended. The workspace safety
@@ -59,6 +60,25 @@ func (s *Scope) Resource(tfType, label string) *Resource {
 // the handle with its config so neither the type nor the label is restated by the test.
 func (s *Scope) ResourceFor(c ResourceConfig) *Resource {
 	return s.Resource(c.ResourceType(), c.ResourceLabel())
+}
+
+// DataSource declares a data source in this scope's working directory: it writes the
+// data source's HCL block to its own data_<type>.<label>.tf file so any resource in
+// this or a deeper scope can reference it by address — e.g. the shared
+// azapi_client_config every Key Vault scenario reads for its tenant/object id. Unlike
+// a resource-under-test it is not applied on its own and not existence-checked
+// (Terraform reads it during the next apply), and it is removed when this scope tears
+// down. Declare a data source that dependents rely on in an ancestor scope that
+// outlives them — typically the root scope, alongside the shared base resources.
+func (s *Scope) DataSource(c DataSourceConfig) {
+	name := dataSourceFileName(c.DataSourceType() + "." + c.Label())
+	s.ws.writeFile(name, s.ws.render(c.Config()))
+	for _, existing := range s.ownedData {
+		if existing == name {
+			return
+		}
+	}
+	s.ownedData = append(s.ownedData, name)
 }
 
 // ApplyAll provisions several staged resources (Resource.Stage) in a SINGLE terraform
@@ -127,6 +147,11 @@ func (s *Scope) track(tr trackedResource) {
 // injective, filesystem-safe file name.
 func resourceFileName(address string) string { return "resource_" + address + ".tf" }
 
+// dataSourceFileName is the per-data-source .tf file, keyed by the full type.label
+// address and prefixed data_ so a data source and a resource sharing an address never
+// collide on disk (mirrors resourceFileName).
+func dataSourceFileName(address string) string { return "data_" + address + ".tf" }
+
 // Teardown destroys the resources this scope owns and asserts they are gone from
 // Azure, leaving ancestor resources running. It is auto-registered at the scope's
 // Ordered container by Scope.Scope (the safety net and any bespoke ordering may still
@@ -138,11 +163,15 @@ func (s *Scope) Teardown() {
 	for _, address := range s.owned {
 		_ = os.Remove(filepath.Join(s.ws.dir, resourceFileName(address)))
 	}
+	for _, name := range s.ownedData {
+		_ = os.Remove(filepath.Join(s.ws.dir, name))
+	}
 	// s.ws.dumpTFConfigIfEnabled("before scoped teardown apply")
 	if dumpTFConfigOnlyEnabled() {
 		s.owned = nil
 		s.ownedBy = nil
 		s.tracked = nil
+		s.ownedData = nil
 		return
 	}
 	// Re-apply the remaining config: Terraform destroys the resources whose files we
@@ -161,4 +190,5 @@ func (s *Scope) Teardown() {
 	s.owned = nil
 	s.ownedBy = nil
 	s.tracked = nil
+	s.ownedData = nil
 }

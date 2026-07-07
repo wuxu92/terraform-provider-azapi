@@ -7,11 +7,14 @@ import (
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
@@ -93,6 +96,28 @@ func AzapiKeyVaultSchema() schema.Schema {
 											PlanModifiers: []planmodifier.List{
 												listplanmodifier.UseStateForUnknown(),
 											},
+											Validators: []validator.List{
+												listvalidator.ValueStringsAre(
+													stringvalidator.OneOfCaseInsensitive(
+														"Backup",
+														"Create",
+														"Delete",
+														"DeleteIssuers",
+														"Get",
+														"GetIssuers",
+														"Import",
+														"List",
+														"ListIssuers",
+														"ManageContacts",
+														"ManageIssuers",
+														"Purge",
+														"Recover",
+														"Restore",
+														"SetIssuers",
+														"Update",
+													),
+												),
+											},
 											ElementType: types.StringType,
 										},
 										"keys": schema.ListAttribute{
@@ -101,6 +126,32 @@ func AzapiKeyVaultSchema() schema.Schema {
 											Computed:    true,
 											PlanModifiers: []planmodifier.List{
 												listplanmodifier.UseStateForUnknown(),
+											},
+											Validators: []validator.List{
+												listvalidator.ValueStringsAre(
+													stringvalidator.OneOfCaseInsensitive(
+														"Backup",
+														"Create",
+														"Decrypt",
+														"Delete",
+														"Encrypt",
+														"Get",
+														"Import",
+														"List",
+														"Purge",
+														"Recover",
+														"Restore",
+														"Sign",
+														"UnwrapKey",
+														"Update",
+														"Verify",
+														"WrapKey",
+														"Release",
+														"Rotate",
+														"GetRotationPolicy",
+														"SetRotationPolicy",
+													),
+												),
 											},
 											ElementType: types.StringType,
 										},
@@ -111,6 +162,20 @@ func AzapiKeyVaultSchema() schema.Schema {
 											PlanModifiers: []planmodifier.List{
 												listplanmodifier.UseStateForUnknown(),
 											},
+											Validators: []validator.List{
+												listvalidator.ValueStringsAre(
+													stringvalidator.OneOfCaseInsensitive(
+														"Backup",
+														"Delete",
+														"Get",
+														"List",
+														"Purge",
+														"Recover",
+														"Restore",
+														"Set",
+													),
+												),
+											},
 											ElementType: types.StringType,
 										},
 										"storage": schema.ListAttribute{
@@ -119,6 +184,26 @@ func AzapiKeyVaultSchema() schema.Schema {
 											Computed:    true,
 											PlanModifiers: []planmodifier.List{
 												listplanmodifier.UseStateForUnknown(),
+											},
+											Validators: []validator.List{
+												listvalidator.ValueStringsAre(
+													stringvalidator.OneOfCaseInsensitive(
+														"Backup",
+														"Delete",
+														"DeleteSAS",
+														"Get",
+														"GetSAS",
+														"List",
+														"ListSAS",
+														"Purge",
+														"Recover",
+														"RegenerateKey",
+														"Restore",
+														"Set",
+														"SetSAS",
+														"Update",
+													),
+												),
 											},
 											ElementType: types.StringType,
 										},
@@ -232,9 +317,7 @@ func AzapiKeyVaultSchema() schema.Schema {
 								Description: "The list of IP address rules.",
 								Optional:    true,
 								Computed:    true,
-								PlanModifiers: []planmodifier.List{
-									listplanmodifier.UseStateForUnknown(),
-								},
+								Default:     listdefault.StaticValue(types.ListValueMust(types.ObjectType{AttrTypes: map[string]attr.Type{"value": types.StringType}}, nil)),
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
 										"value": schema.StringAttribute{
@@ -248,9 +331,7 @@ func AzapiKeyVaultSchema() schema.Schema {
 								Description: "The list of virtual network rules.",
 								Optional:    true,
 								Computed:    true,
-								PlanModifiers: []planmodifier.List{
-									listplanmodifier.UseStateForUnknown(),
-								},
+								Default:     listdefault.StaticValue(types.ListValueMust(types.ObjectType{AttrTypes: map[string]attr.Type{"id": types.StringType, "ignore_missing_vnet_service_endpoint": types.BoolType}}, nil)),
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
 										"id": schema.StringAttribute{

@@ -10,6 +10,11 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //     non-consecutive hyphens) is attached to the envelope name attribute. The
 //     azwise name rule carries the same regex, but ApplyAzwise skips empty-path
 //     (name) StringRules, so it must be re-expressed here.
+//   - The access-policy permission lists (certificates/keys/secrets/storage) are
+//     bicep `string[]` with no enum, but AzureRM constrains each to a fixed,
+//     case-insensitive value set (see the azurerm_key_vault_access_policy docs).
+//     Each list gets a case-insensitive one-of validator over its elements; ARM
+//     accepts any casing, so OneOfCaseInsensitive matches the API behavior.
 //
 // Every other azwise rule (sku.name/sku.family/createMode/publicNetworkAccess
 // enums, tenantId UUID, softDeleteRetentionInDays range, defaults) targets a real
@@ -21,5 +26,44 @@ func customizeKeyVault(def *typegraph.ResourceDefinition) {
 			`^[a-zA-Z](-?[a-zA-Z0-9])*$`,
 			"key vault name must be 3-24 characters, start with a letter, end with a letter or digit, and contain only alphanumeric characters or non-consecutive hyphens",
 		),
+	}
+
+	// Access-policy permission enums (case-insensitive; ARM normalizes casing).
+	for path, allowed := range map[string][]string{
+		"properties.accessPolicies.permissions.certificates": {
+			"Backup", "Create", "Delete", "DeleteIssuers", "Get", "GetIssuers",
+			"Import", "List", "ListIssuers", "ManageContacts", "ManageIssuers",
+			"Purge", "Recover", "Restore", "SetIssuers", "Update",
+		},
+		"properties.accessPolicies.permissions.keys": {
+			"Backup", "Create", "Decrypt", "Delete", "Encrypt", "Get", "Import",
+			"List", "Purge", "Recover", "Restore", "Sign", "UnwrapKey", "Update",
+			"Verify", "WrapKey", "Release", "Rotate", "GetRotationPolicy",
+			"SetRotationPolicy",
+		},
+		"properties.accessPolicies.permissions.secrets": {
+			"Backup", "Delete", "Get", "List", "Purge", "Recover", "Restore", "Set",
+		},
+		"properties.accessPolicies.permissions.storage": {
+			"Backup", "Delete", "DeleteSAS", "Get", "GetSAS", "List", "ListSAS",
+			"Purge", "Recover", "RegenerateKey", "Restore", "Set", "SetSAS", "Update",
+		},
+	} {
+		p := typegraph.FindProperty(def, path)
+		p.Validators = append(p.Validators, typegraph.OneOfCaseInsensitiveValidator(
+			"must be a valid key vault permission (case-insensitive)", allowed...,
+		))
+	}
+
+	// ipRules / virtualNetworkRules are Optional+Computed lists that plan known-null
+	// when the user configures network_acls with only default_action/bypass, but the
+	// Key Vault RP always echoes them back as []. An empty-list default makes the
+	// omitted-config plan value ([]) match the API's [] on apply/read/import, while an
+	// explicitly-configured list (including an explicit []) is left untouched.
+	for _, path := range []string{
+		"properties.networkAcls.ipRules",
+		"properties.networkAcls.virtualNetworkRules",
+	} {
+		typegraph.FindProperty(def, path).DefaultEmptyList = true
 	}
 }

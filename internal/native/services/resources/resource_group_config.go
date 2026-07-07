@@ -1,7 +1,7 @@
 package resources
 
 import (
-	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/config"
 )
 
 // ResourceGroupCfg carries the Terraform address metadata for azapi_resource_group
@@ -10,14 +10,14 @@ import (
 // returned HCL is a template — {{.RandomInteger}}, {{.Location}} and
 // {{.SubscriptionID}} are filled by the acceptance framework's renderer.
 type ResourceGroupCfg struct {
-	services.ResourceConfigBase
+	config.ResourceConfigBase
 }
 
 // NewResourceGroupCfg builds a resource-group config. The label is optional — omit it
 // for the single-instance default ("test"), or pass an explicit label when a scope
 // holds more than one. The resource type is read from the ResourceGroup descriptor.
 func NewResourceGroupCfg(label ...string) ResourceGroupCfg {
-	return ResourceGroupCfg{services.NewResourceConfigBase(ResourceGroup.Name, label...)}
+	return ResourceGroupCfg{config.NewResourceConfigBase(ResourceGroup.Name, label...)}
 }
 
 // ResourceGroupCfg_Basic is a minimal resource group named acctest-rg-<n>.
@@ -40,10 +40,8 @@ func (r ResourceGroupCfg_Named) Config() string {
 }
 
 func (r ResourceGroupCfg) config(name string) string {
-	return r.RenderConfig(services.ConfigEnvelope{
-		Name:       name,
+	return r.RenderConfig(config.ConfigEnvelope{Name: name,
 		ParentAttr: "subscription_id",
 		ParentRef:  `"/subscriptions/{{.SubscriptionID}}"`,
-		Location:   true,
-	})
+		Location:   true})
 }

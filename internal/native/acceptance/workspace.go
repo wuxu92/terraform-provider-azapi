@@ -117,6 +117,13 @@ func (w *Workspace) ResourceFor(c ResourceConfig) *Resource {
 	return w.root.ResourceFor(c)
 }
 
+// DataSource declares a shared data source in the root scope's working directory (see
+// Scope.DataSource); it lives for the whole workspace, so every scope's resources can
+// reference it, and its file is removed with the working directory in Destroy.
+func (w *Workspace) DataSource(c DataSourceConfig) {
+	w.root.DataSource(c)
+}
+
 // ApplyAll provisions several staged resources in a SINGLE terraform apply (see
 // Scope.ApplyAll). The resources may live in any scope; each is recorded in its own.
 func (w *Workspace) ApplyAll(staged ...Staged) {

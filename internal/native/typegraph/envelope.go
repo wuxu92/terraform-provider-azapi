@@ -155,6 +155,12 @@ func OneOfValidator(message string, allowed ...string) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorStringOneOf, Allowed: allowed, Message: message}
 }
 
+// OneOfCaseInsensitiveValidator builds a case-insensitive string-enum validator.
+// It is emitted for list-element permission enums where ARM accepts any casing.
+func OneOfCaseInsensitiveValidator(message string, allowed ...string) DescriptionValidator {
+	return DescriptionValidator{Kind: ValidatorStringOneOfCaseInsensitive, Allowed: allowed, Message: message}
+}
+
 // IntRangeValidator builds an inclusive int64 range validator.
 func IntRangeValidator(min, max int64) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorIntRange, Min: &min, Max: &max}

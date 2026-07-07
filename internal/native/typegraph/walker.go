@@ -77,6 +77,14 @@ type Property struct {
 	// Use it only when ARM treats the collection as unordered (e.g. CORS header names)
 	// so API reordering does not create drift. Set by customizers.
 	UseSet bool
+	// DefaultEmptyList emits a schema Default of an empty typed list for an
+	// Optional+Computed array attribute (Default: listdefault.StaticValue of an
+	// empty list). Use it when ARM always echoes an omitted list back as [] rather
+	// than absent: the empty-list default makes the omitted-config plan value ([])
+	// match the API's [] on apply/read/import, while an explicitly-configured list
+	// (including an explicit []) is left untouched because the default only fires on
+	// a null config value. Set by customizers; ignored for non-array properties.
+	DefaultEmptyList bool
 }
 
 // DescriptionValidator is a validation rule extracted from a property description
@@ -95,13 +103,14 @@ type DescriptionValidator struct {
 type ValidatorKind int
 
 const (
-	ValidatorArmResourceID ValidatorKind = iota // ARM resource ID format
-	ValidatorRegex                              // Regex pattern
-	ValidatorIntRange                           // Numeric min/max
-	ValidatorStringOneOf                        // String enum (azwise AllowedValues)
-	ValidatorStringLength                       // String length min/max (azwise)
-	ValidatorCustom                             // Service-specific validator: services/<service>/validators (validators.X())
-	ValidatorShared                             // Generic shared validator: internal/native/schema (nativeschema.X())
+	ValidatorArmResourceID              ValidatorKind = iota // ARM resource ID format
+	ValidatorRegex                                           // Regex pattern
+	ValidatorIntRange                                        // Numeric min/max
+	ValidatorStringOneOf                                     // String enum (azwise AllowedValues)
+	ValidatorStringOneOfCaseInsensitive                      // Case-insensitive string enum (list-element permissions)
+	ValidatorStringLength                                    // String length min/max (azwise)
+	ValidatorCustom                                          // Service-specific validator: services/<service>/validators (validators.X())
+	ValidatorShared                                          // Generic shared validator: internal/native/schema (nativeschema.X())
 )
 
 // IsEnum returns true if this type is a union of string literals (enum).

@@ -3,7 +3,7 @@ package web
 import (
 	"fmt"
 
-	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services/config"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 )
 
@@ -11,7 +11,7 @@ import (
 // dependency for azapi_web_server_farm acceptance-test scenarios. Construct it
 // with NewWebServerFarmCfg, then wrap it in a scenario type when applying.
 type WebServerFarmCfg struct {
-	services.ResourceConfigBase
+	config.ResourceConfigBase
 	resourceGroup resources.ResourceGroupCfg
 }
 
@@ -19,7 +19,7 @@ type WebServerFarmCfg struct {
 // resource group. The label is optional; omit it for the default single plan.
 func NewWebServerFarmCfg(resourceGroup resources.ResourceGroupCfg, label ...string) WebServerFarmCfg {
 	return WebServerFarmCfg{
-		ResourceConfigBase: services.NewResourceConfigBase(WebServerFarm.Name, label...),
+		ResourceConfigBase: config.NewResourceConfigBase(WebServerFarm.Name, label...),
 		resourceGroup:      resourceGroup,
 	}
 }
@@ -53,12 +53,10 @@ func (r WebServerFarmCfg_Complete) Config() string {
 }
 
 func (r WebServerFarmCfg) config(skuName string, capacity int, extra string) string {
-	return r.RenderConfig(services.ConfigEnvelope{
-		Name:       "acctest-asp-{{.RandomString}}",
+	return r.RenderConfig(config.ConfigEnvelope{Name: "acctest-asp-{{.RandomString}}",
 		ParentAttr: "resource_group_id",
 		ParentRef:  r.resourceGroup.IDRef(),
 		Location:   true,
 		Kind:       "app",
-		Body:       fmt.Sprintf("\n  sku = {\n    name     = %q\n    capacity = %d\n  }%s", skuName, capacity, extra),
-	})
+		Body:       fmt.Sprintf("\n  sku = {\n    name     = %q\n    capacity = %d\n  }%s", skuName, capacity, extra)})
 }
