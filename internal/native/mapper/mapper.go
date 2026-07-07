@@ -432,7 +432,7 @@ func flattenMapInto(ctx context.Context, arm map[string]interface{}, base types.
 	}
 	elems := make(map[string]attr.Value, len(arm))
 	for k, item := range arm {
-		outKey := k
+		var outKey string
 		var baseVal attr.Value
 		if bk, ok := lowerToBaseKey[strings.ToLower(k)]; ok {
 			outKey = bk
@@ -461,8 +461,10 @@ func flattenMapInto(ctx context.Context, arm map[string]interface{}, base types.
 // ID references are always canonical). Keys that are not resource IDs — e.g. tag
 // names — fail to parse and are returned verbatim.
 func canonicalMapKey(k string) string {
-	if id, err := arm.ParseResourceID(k); err == nil {
-		return id.String()
+	if strings.HasPrefix(k, "/") {
+		if id, err := arm.ParseResourceID(k); err == nil {
+			return id.String()
+		}
 	}
 	return k
 }
