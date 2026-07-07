@@ -28,4 +28,9 @@ const (
 	// WebSite is Microsoft.Web/sites, the shared ARM resource type used by
 	// App Service web apps and function apps.
 	WebSite = "Microsoft.Web/sites"
+
+	// UserAssignedIdentity is Microsoft.ManagedIdentity/userAssignedIdentities, a
+	// resource-group-scoped standalone managed identity (envelope parent:
+	// resource_group_id).
+	UserAssignedIdentity = "Microsoft.ManagedIdentity/userAssignedIdentities"
 )

@@ -11,4 +11,5 @@ func RegisterAll() {
 	Register(NewWebSite())
 	Register(NewWebServerFarm())
 	Register(NewResourceGroup())
+	Register(NewUserAssignedIdentity())
 }

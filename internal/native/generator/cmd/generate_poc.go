@@ -30,6 +30,7 @@ var targets = []string{
 	armtypes.ResourceGroup,
 	armtypes.WebServerFarm,
 	armtypes.WebSite,
+	armtypes.UserAssignedIdentity,
 }
 
 func main() {

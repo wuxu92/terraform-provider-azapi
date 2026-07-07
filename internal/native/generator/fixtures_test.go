@@ -47,6 +47,14 @@ func latestResourceGroupDefs(t *testing.T) ([]*typegraph.ResourceDefinition, str
 	return latestStableDefs(t, "Microsoft.Resources/resourceGroups")
 }
 
+// latestUserAssignedIdentityDefs returns the user assigned identity defs for the
+// latest stable API version, mirroring latestResourceGroupDefs for the
+// managedidentity service.
+func latestUserAssignedIdentityDefs(t *testing.T) ([]*typegraph.ResourceDefinition, string) {
+	t.Helper()
+	return latestStableDefs(t, "Microsoft.ManagedIdentity/userAssignedIdentities")
+}
+
 // latestWebServerFarmDefs returns the Web server farm defs for the latest stable API version.
 func latestWebServerFarmDefs(t *testing.T) ([]*typegraph.ResourceDefinition, string) {
 	t.Helper()

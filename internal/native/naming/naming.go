@@ -9,9 +9,26 @@ import (
 	"unicode"
 )
 
+// resourceNameOverrides pins the Terraform resource name for ARM types whose
+// mechanical service+segment derivation is redundant or would collide. Keyed by
+// the bare ARM type (no @version). This is the naming override table the design
+// calls for (DEVELOPER_SPEC / GENERATOR.md): ResourceName consults it first, so a
+// single entry propagates to the descriptor name, the generated file name, and the
+// emitted Go identifiers. Keep it tiny and deliberate — the default is the
+// mechanical, predictable conversion.
+var resourceNameOverrides = map[string]string{
+	// The service token "managedidentity" already carries "identity", so the
+	// mechanical join stutters ("managedidentity_user_assigned_identity"). AzureRM
+	// and users know this resource simply as the user-assigned identity.
+	"Microsoft.ManagedIdentity/userAssignedIdentities": "azapi_user_assigned_identity",
+}
+
 // ResourceName converts an ARM resource type (e.g., "Microsoft.Storage/storageAccounts")
 // to a Terraform resource name (e.g., "azapi_storage_account").
 func ResourceName(armType string) string {
+	if override, ok := resourceNameOverrides[armType]; ok {
+		return override
+	}
 	parts := strings.Split(armType, "/")
 	if len(parts) < 2 {
 		return "azapi_" + CamelToSnake(armType)

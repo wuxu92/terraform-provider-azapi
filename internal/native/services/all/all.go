@@ -9,6 +9,7 @@
 package all
 
 import (
+	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/managedidentity"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/storage"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/web"

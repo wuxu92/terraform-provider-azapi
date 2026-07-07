@@ -81,7 +81,7 @@ func TestResourceName(t *testing.T) {
 		{"Microsoft.Cache/redis", "azapi_cache_redis"},
 		{"Microsoft.EventHub/namespaces", "azapi_eventhub_namespace"},
 		{"Microsoft.DBforPostgreSQL/flexibleServers", "azapi_dbforpostgresql_flexible_server"},
-		{"Microsoft.ManagedIdentity/userAssignedIdentities", "azapi_managedidentity_user_assigned_identity"},
+		{"Microsoft.ManagedIdentity/userAssignedIdentities", "azapi_user_assigned_identity"},
 		// Third-party providers
 		{"Dynatrace.Observability/monitors", "azapi_dynatrace_monitor"},
 		{"NewRelic.Observability/monitors", "azapi_newrelic_monitor"},

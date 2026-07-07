@@ -300,3 +300,43 @@ func TestEmitWebSiteSensitiveOnlyOnAzwiseLeaf(t *testing.T) {
 		t.Fatal("connection_string leaf should be emitted as Sensitive")
 	}
 }
+
+// TestApplyAzwiseUserAssignedIdentity verifies the azwise overlay flags location
+// as ForceNew and that the read-only identity coordinates (clientId, principalId,
+// tenantId) resolve as Computed-only so StripComputedFields drops them from the
+// PUT body.
+func TestApplyAzwiseUserAssignedIdentity(t *testing.T) {
+	defs, ver := latestUserAssignedIdentityDefs(t)
+	typegraph.PostProcess(defs)
+
+	tag := "Microsoft.ManagedIdentity/userAssignedIdentities@" + ver
+	var uai *typegraph.ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			uai = d
+			break
+		}
+	}
+	if uai == nil {
+		t.Fatal("user assigned identity definition not found")
+	}
+
+	// location is ForceNew via azwise (commonschema.Location).
+	if p := typegraph.Navigate(uai.Body, "location"); p == nil {
+		t.Fatal("location not found")
+	} else if !p.ForceNew {
+		t.Error("expected location to be ForceNew via azwise")
+	}
+
+	// The read-only identity coordinates are Computed-only (baked by the azwise
+	// ComputedFields overlay), so StripComputedFields drops them from the PUT body.
+	for _, path := range []string{"properties.clientId", "properties.principalId", "properties.tenantId"} {
+		p := typegraph.Navigate(uai.Body, path)
+		if p == nil {
+			t.Fatalf("%s not found", path)
+		}
+		if !typegraph.EffectiveComputed(p) {
+			t.Errorf("expected %s to be Computed-only via azwise", path)
+		}
+	}
+}
