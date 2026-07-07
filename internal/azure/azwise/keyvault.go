@@ -204,7 +204,12 @@ func NewKeyVault() *KeyVault {
 				{PropertyPath: "properties.networkAcls.bypass", Value: "AzureServices"},    // expand default when block absent
 				{PropertyPath: "properties.softDeleteRetentionInDays", Value: float64(90)}, // Azure default 90 days
 				{PropertyPath: "properties.enableSoftDelete", Value: true},                 // Azure enforced true since 2025
-				{PropertyPath: "properties.enablePurgeProtection", Value: false},           // Azure defaults false; AzureRM strongly recommends true
+				// Azure rejects an explicit properties.enablePurgeProtection=false in the
+				// PUT body ("cannot be set to false. Enabling the purge protection ... is
+				// an irreversible action"): the flag accepts only true or omission.
+				// AzureRM omits it unless enabling, so no explicit default — nil Value
+				// leaves the attribute Optional+Computed and the body omits it when unset.
+				{PropertyPath: "properties.enablePurgeProtection"},
 			},
 		},
 	}

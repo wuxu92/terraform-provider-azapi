@@ -21,6 +21,9 @@ var resourceNameOverrides = map[string]string{
 	// mechanical join stutters ("managedidentity_user_assigned_identity"). AzureRM
 	// and users know this resource simply as the user-assigned identity.
 	"Microsoft.ManagedIdentity/userAssignedIdentities": "azapi_user_assigned_identity",
+	// The service token "keyvault" plus the singularized segment "vault" stutters
+	// ("keyvault_vault"). AzureRM and users know this resource as the key vault.
+	"Microsoft.KeyVault/vaults": "azapi_key_vault",
 }
 
 // ResourceName converts an ARM resource type (e.g., "Microsoft.Storage/storageAccounts")

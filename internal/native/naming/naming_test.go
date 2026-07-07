@@ -65,7 +65,7 @@ func TestResourceName(t *testing.T) {
 		{"Microsoft.Storage/storageAccounts", "azapi_storage_account"},
 		{"Microsoft.Storage/storageAccounts/blobServices", "azapi_storage_account_blob_service"},
 		{"Microsoft.Resources/resourceGroups", "azapi_resource_group"},
-		{"Microsoft.KeyVault/vaults", "azapi_keyvault_vault"},
+		{"Microsoft.KeyVault/vaults", "azapi_key_vault"},
 		{"Microsoft.KeyVault/vaults/keys", "azapi_keyvault_vault_key"},
 		{"Microsoft.KeyVault/vaults/secrets", "azapi_keyvault_vault_secret"},
 		{"Microsoft.Network/virtualNetworks", "azapi_virtual_network"},

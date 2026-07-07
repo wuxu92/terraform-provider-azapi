@@ -31,6 +31,7 @@ var targets = []string{
 	armtypes.WebServerFarm,
 	armtypes.WebSite,
 	armtypes.UserAssignedIdentity,
+	armtypes.KeyVault,
 }
 
 func main() {

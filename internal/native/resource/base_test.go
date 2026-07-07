@@ -282,6 +282,13 @@ func TestWebSiteConfigurationHookRegistered(t *testing.T) {
 	}
 }
 
+func TestKeyVaultAccessPoliciesHookRegistered(t *testing.T) {
+	keyVault := nativeresource.New("azapi_key_vault")
+	if hookField(t, keyVault, "BeforeCreate").IsNil() || hookField(t, keyVault, "BeforeUpdate").IsNil() {
+		t.Fatal("key vault ensureAccessPolicies hook must be registered for both create and update")
+	}
+}
+
 func TestUserAssignedIdentitySchemaComposition(t *testing.T) {
 	ctx := context.Background()
 	r := nativeresource.New("azapi_user_assigned_identity")
@@ -318,6 +325,48 @@ func TestUserAssignedIdentitySchemaComposition(t *testing.T) {
 	}
 	// Body attributes present (from the generated schema).
 	for _, name := range []string{"location", "properties"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing body attribute %q", name)
+		}
+	}
+}
+
+func TestKeyVaultSchemaComposition(t *testing.T) {
+	ctx := context.Background()
+	r := nativeresource.New("azapi_key_vault")
+
+	// Metadata: provider prefix + resource suffix.
+	mdResp := &resource.MetadataResponse{}
+	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
+	if mdResp.TypeName != "azapi_key_vault" {
+		t.Errorf("TypeName = %q, want azapi_key_vault", mdResp.TypeName)
+	}
+
+	// Schema: composed (envelope + body), and framework-valid.
+	schemaResp := &resource.SchemaResponse{}
+	r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+	if diags := s.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("schema validation failed: %v", diags)
+	}
+
+	// key vault is resource-group-scoped: its parent reference is
+	// named resource_group_id, not subscription_id or parent_id.
+	for _, name := range []string{"name", "resource_group_id", "id"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing envelope attribute %q", name)
+		}
+	}
+	for _, absent := range []string{"subscription_id", "parent_id"} {
+		if _, ok := s.Attributes[absent]; ok {
+			t.Errorf("key vault should expose resource_group_id, not %q", absent)
+		}
+	}
+	if _, ok := s.Blocks["timeouts"]; !ok {
+		t.Error("missing timeouts block")
+	}
+	// Body attributes present (from the generated schema).
+	for _, name := range []string{"location", "properties", "tags"} {
 		if _, ok := s.Attributes[name]; !ok {
 			t.Errorf("missing body attribute %q", name)
 		}

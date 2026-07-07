@@ -33,4 +33,8 @@ const (
 	// resource-group-scoped standalone managed identity (envelope parent:
 	// resource_group_id).
 	UserAssignedIdentity = "Microsoft.ManagedIdentity/userAssignedIdentities"
+
+	// KeyVault is Microsoft.KeyVault/vaults, a resource-group-scoped standalone
+	// key vault (envelope parent: resource_group_id).
+	KeyVault = "Microsoft.KeyVault/vaults"
 )

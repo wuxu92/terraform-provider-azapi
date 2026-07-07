@@ -13,4 +13,5 @@ func init() {
 	Register(armtypes.ResourceGroup, customizeResourceGroup)
 	Register(armtypes.WebServerFarm, customizeWebServerFarm)
 	Register(armtypes.WebSite, customizeWebSite)
+	Register(armtypes.KeyVault, customizeKeyVault)
 }
