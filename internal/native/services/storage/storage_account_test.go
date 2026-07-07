@@ -30,7 +30,6 @@ var _ = Describe("Azure Storage", Ordered, func() {
 		// the resource group base stays. The account injects the resource group's
 		// Terraform address (rg.IDRef) as its parent reference.
 		acct := ws.Scope()
-		AfterAll(acct.Teardown)
 		cfg := storage.NewStorageAccountCfg(rgCfg)
 		sa := acct.ResourceFor(cfg)
 

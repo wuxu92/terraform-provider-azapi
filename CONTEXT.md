@@ -60,11 +60,11 @@ _Avoid_: unset, clear-by-delete
 ### Extension model
 
 **Hook**:
-A per-resource-name callback registered via `RegisterHooks` that runs inside the generic `Base` lifecycle: `BeforeCreate`/`AfterCreate`/`BeforeUpdate`/`AfterUpdate`/`BeforeRead`/`AfterRead`/`BeforeDelete`, plus `ValidateConfig` and `ModifyPlan`. The data-driven seam for per-resource logic the mechanical schema can't express (conditional ForceNew, cross-field validation, extra API calls). Note: `BeforeRead` is declared but not yet invoked by `Base.Read` (only `AfterRead` runs) — a hook point to wire before relying on it.
+A per-resource-name callback registered via `RegisterHooks` that runs inside the generic `Base` lifecycle: `BeforeCreate`/`AfterCreate`/`BeforeUpdate`/`AfterUpdate`/`BeforeRead`/`AfterRead`/`BeforeDelete`, plus `ValidateConfig` and `ModifyPlan`. The data-driven seam for per-resource logic the mechanical schema can't express (conditional ForceNew, cross-field validation, extra API calls). `BeforeRead` fires before the read GET (`State` live, `Response` null) and `AfterRead` after it — both wired in `Base.Read`. The authoritative per-hook-point contract (which `CrudCtx` fields are live vs null, whether a `Body` mutation reaches ARM, lifecycle position, `Singleton` suppression) is the doc comment on `Hooks`/`CrudCtx` in `internal/native/resource/hooks.go`, guarded against drift from `Base` by `base_hook_contract_test.go`.
 _Avoid_: callback, plugin, middleware
 
 **Singleton default**:
-A static resource that ARM neither creates nor deletes on its own — it exists as a fixed-named default child of its parent (e.g. `storageAccounts/blobServices/default`). Create is really an in-place PUT; Delete resets it to a baseline body instead of issuing an ARM DELETE. Marked by a non-nil `Hooks.Singleton`.
+A static resource that ARM neither creates nor deletes on its own — it exists as a fixed-named default child of its parent (e.g. `storageAccounts/blobServices/default`). Create is really an in-place PUT; Delete resets it to a baseline body instead of issuing an ARM DELETE (and does not run `BeforeDelete`). Marked by a non-nil `Hooks.Singleton`.
 _Avoid_: default resource, implicit resource
 
 **Bundling**:

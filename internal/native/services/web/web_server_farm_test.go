@@ -22,7 +22,6 @@ var _ = Describe("Azure Web Server Farm", Ordered, func() {
 
 	Describe("an App Service plan", Ordered, func() {
 		scope := ws.Scope()
-		AfterAll(scope.Teardown)
 
 		cfg := web.NewWebServerFarmCfg(rgCfg)
 		farm := scope.ResourceFor(cfg)

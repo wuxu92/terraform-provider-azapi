@@ -42,6 +42,15 @@ import (
 type Workspace struct {
 	root *Scope
 
+	// vended is every child scope handed out via ws.Scope() / Scope.Scope(). The Destroy
+	// safety net asserts each had its Teardown registered, so a scope that was vended but
+	// slipped past auto-registration is caught instead of leaking its resources.
+	vended []*Scope
+	// registerTeardown is the single indirection every scope-creation path routes its
+	// teardown wiring through — defaulting to ginkgoTeardownRegistrar. A unit test swaps
+	// in a recorder to observe registration without running Ginkgo or Terraform.
+	registerTeardown teardownRegistrar
+
 	dir      string
 	tf       *tfexec.Terraform
 	reattach tfexec.ReattachInfo
@@ -63,9 +72,37 @@ type trackedResource struct {
 // in-process azapi provider. Declare resources per scope — ws.Resource for the root
 // scope, ws.Scope() for nested containers — and apply them in BeforeAll/It hooks.
 func NewWorkspace() *Workspace {
-	ws := &Workspace{}
+	ws := &Workspace{registerTeardown: ginkgoTeardownRegistrar}
 	ws.root = &Scope{ws: ws}
 	return ws
+}
+
+// teardownRegistrar wires a vended child scope's Teardown into the enclosing Ordered
+// container's cleanup. It is the one indirection every scope-creation path routes
+// through, so a unit test can substitute a recorder and observe what got registered
+// (and in what nesting order) without running Ginkgo or Terraform. A registrar marks
+// the scope registered as part of wiring it; the Destroy safety net reads that mark.
+type teardownRegistrar func(child *Scope)
+
+// ginkgoTeardownRegistrar is the production registrar: it hands child.Teardown to
+// Ginkgo's AfterAll, which registers at the Ordered container being constructed — the
+// Describe/Context body where the scope was created — and runs inner-before-outer, so
+// a dependent nested in a deeper scope is destroyed before the ancestor it depends on.
+// Called outside an Ordered container, AfterAll fails the suite loudly (Ginkgo's
+// SetupNodeNotInOrderedContainer) rather than letting the scope's resources leak.
+func ginkgoTeardownRegistrar(child *Scope) {
+	ginkgo.AfterAll(child.Teardown)
+	child.teardownRegistered = true
+}
+
+// registerScopeTeardown records a vended child scope and routes its teardown wiring
+// through the workspace registrar. Vend-tracking (append) and registration (the
+// registrar's mark) are separate events on purpose: a path that vends a scope but
+// fails to register its teardown leaves it in vended yet unmarked, which the Destroy
+// safety net then flags rather than leaking the scope's resources.
+func (w *Workspace) registerScopeTeardown(child *Scope) {
+	w.vended = append(w.vended, child)
+	w.registerTeardown(child)
 }
 
 // Resource declares a resource-under-test in the workspace's root scope; it is torn
@@ -86,10 +123,25 @@ func (w *Workspace) ApplyAll(staged ...Staged) {
 	applyAll(w, staged)
 }
 
-// Scope returns a child of the root scope. Wire its Teardown to a nested container's
-// AfterAll so the container's own resources are destroyed while the base survives.
+// Scope returns a child of the root scope and auto-registers its Teardown at the
+// enclosing Ordered container (see Scope.Scope), so the container's own resources are
+// destroyed while the root-scope base survives — no paired AfterAll(child.Teardown).
 func (w *Workspace) Scope() *Scope {
 	return w.root.Scope()
+}
+
+// assertScopesRegistered is the teardown-registration safety net: every child scope the
+// workspace vended must have had its Teardown registered through the registrar. A
+// vended-but-unregistered scope is one whose resources would be applied and never
+// destroyed, so this fails loudly at whole-workspace Destroy rather than leaking them.
+func (w *Workspace) assertScopesRegistered() {
+	for _, s := range w.vended {
+		if !s.teardownRegistered {
+			panic("nativeacc: a child scope was vended without its Teardown registered; its " +
+				"resources would leak — create child scopes only via ws.Scope()/Scope.Scope() " +
+				"inside an Ordered container")
+		}
+	}
 }
 
 // providerConfig configures the in-process azapi provider; credentials are read
@@ -171,6 +223,11 @@ func (w *Workspace) Destroy() {
 			_ = os.RemoveAll(w.dir)
 		}
 	}()
+
+	// Every child scope the workspace handed out must have had its Teardown registered;
+	// enforce that before anything else so a bypassed registration is caught, not leaked.
+	// This is a construction-time invariant, independent of whether the run started.
+	w.assertScopesRegistered()
 
 	if !w.started || w.tf == nil {
 		return

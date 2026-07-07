@@ -25,7 +25,6 @@ var _ = Describe("Azure Web", Ordered, func() {
 	// the site first, then the server farm it uses.
 	Describe("an App Service plan", Ordered, func() {
 		planScope := ws.Scope()
-		AfterAll(planScope.Teardown)
 
 		farmCfg := web.NewWebServerFarmCfg(rgCfg, "plan")
 		farm := planScope.ResourceFor(farmCfg)
@@ -36,7 +35,6 @@ var _ = Describe("Azure Web", Ordered, func() {
 
 		Describe("an App Service site", Ordered, func() {
 			siteScope := planScope.Scope()
-			AfterAll(siteScope.Teardown)
 
 			cfg := web.NewWebSiteCfg(rgCfg, farmCfg)
 			site := siteScope.ResourceFor(cfg)

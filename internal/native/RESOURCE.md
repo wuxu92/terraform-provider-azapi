@@ -183,14 +183,15 @@ All four operations funnel through two private methods on `Base`. The mapper
 ```
 1. id := parse.NewResourceID(plan.name, plan.<parent>_id, ARMType@APIVersion)
 2. timeout := azwise.TimeoutDefault(ARMType, APIVersion, "create"|"update", default)
-3. hook.BeforeCreate / BeforeUpdate (optional)           ← customization
+3. if isNew && !Singleton: client.Get(id) → "already exists" error   ← pre-create existence check
 4. armBody := mapper.Expand(plan.bodyObject, typeGraph)   ← unified composition
-5. resp := client.CreateOrUpdate(ctx, id.AzureResourceId, id.ApiVersion, armBody, opts)
-6. getResp := client.Get(...)                             ← read-back
-7. newState := mapper.Flatten(getResp, schema, typeGraph) ← unified composition
-8. newState.id = id.ID(); newState.name/<parent>_id carried from plan
-9. hook.AfterCreate / AfterUpdate (optional)              ← customization
-10. resp.State.Set(newState)
+5. azwise.StripComputedFields(armBody)                    ← drop server-computed read-only fields
+6. hook.BeforeCreate / BeforeUpdate (optional)           ← Body live; mutations reach ARM
+7. client.CreateOrUpdate(ctx, id.AzureResourceId, id.ApiVersion, armBody, opts)  ← PUT
+8. getResp := client.Get(...)                            ← read-back
+9. hook.AfterCreate / AfterUpdate (optional)             ← Response live; runs before flatten
+10. newState := mapper.FlattenApplyInto(getResp, plan, typeGraph); newState.id = id.ID(); ResolveUnknowns(newState)
+11. resp.State.Set(newState)
 ```
 
 `Create` and `Update` are thin wrappers selecting `isNew`. Pre-existence check on
@@ -201,10 +202,10 @@ create (`Get` → "already exists") mirrors `azapi_resource`.
 ```
 1. id := parse.ResourceIDWithResourceType(state.id, ARMType@APIVersion)
 2. timeout := azwise.TimeoutDefault(..., "read", 5m)
-3. hook.BeforeRead (optional)
+3. hook.BeforeRead (optional)   ← State live; append a diag to short-circuit before the GET
 4. getResp := client.Get(...)   // 404 → RemoveResource
-5. newState := mapper.Flatten(getResp, schema, typeGraph)
-6. hook.AfterRead (optional)    ← e.g. normalize location casing, drop write-only echoes
+5. hook.AfterRead (optional)    ← Response live; massage before flatten (e.g. location casing)
+6. newState := mapper.FlattenInto(getResp, priorState, typeGraph)
 7. resp.State.Set(newState)
 ```
 
@@ -213,8 +214,8 @@ create (`Get` → "already exists") mirrors `azapi_resource`.
 ```
 1. id := parse.ResourceIDWithResourceType(state.id, ARMType@APIVersion)
 2. timeout := azwise.TimeoutDefault(..., "delete", 30m)
-3. if hooks.Singleton: client.CreateOrUpdate(..., Singleton.DefaultBody) → return  // fixed-name default with no ARM delete: reset to baseline
-4. hook.BeforeDelete (optional)
+3. if hooks.Singleton: client.CreateOrUpdate(..., Singleton.DefaultBody) → return  // fixed-name default, no ARM delete: reset to baseline; BeforeDelete is NOT run
+4. hook.BeforeDelete (optional)  ← State live; not reached on the Singleton reset path
 5. client.Delete(...)           // 404 tolerated
 ```
 
@@ -282,14 +283,14 @@ A hand-written `<resource>_hooks.go` file in the generated service package regis
 
 ```go
 type CrudCtx struct {
-    Ctx       context.Context
-    Client    *clients.Client
-    ID        parse.ResourceId
-    Plan      *types.Object   // typed plan (create/update)
-    State     *types.Object   // typed prior state
-    Body      map[string]any  // the ARM body being composed (mutate before PUT)
-    Response  map[string]any  // the GET response (read/after-create)
-    Diags     *diag.Diagnostics
+    Ctx      context.Context
+    Client   *clients.Client
+    ID       parse.ResourceId
+    Plan     types.Object           // typed plan (create/update); null on read/delete
+    State    types.Object           // typed prior state (read/delete); null on create/update
+    Body     map[string]interface{} // ARM body being composed — mutate in Before* create/update
+    Response map[string]interface{} // ARM GET response — read in After*
+    Diags    *diag.Diagnostics
 }
 
 type Hooks struct {
@@ -297,17 +298,18 @@ type Hooks struct {
     BeforeUpdate, AfterUpdate func(*CrudCtx)
     BeforeRead,   AfterRead   func(*CrudCtx)
     BeforeDelete              func(*CrudCtx)
+    Singleton                 *SingletonDefault // fixed-named default child (reset-on-destroy)
     ValidateConfig            func(context.Context, resource.ValidateConfigRequest, *resource.ValidateConfigResponse)
     ModifyPlan                func(context.Context, resource.ModifyPlanRequest, *resource.ModifyPlanResponse)
-    ImportState               func(context.Context, resource.ImportStateRequest, *resource.ImportStateResponse)
-    Expand                    func(*CrudCtx) (map[string]any, bool) // full override of Expand; ok=false → default
-    Flatten                   func(*CrudCtx) (*types.Object, bool)  // full override of Flatten
 }
 ```
 
-This satisfies goals #2 and #3: a resource can tweak the body (`BeforeCreate`),
-post-process state (`AfterRead`), or fully replace expand/flatten — without
-touching the base.
+The **authoritative per-hook-point contract** — which of `Plan`/`State`/`Body`/
+`Response` are live vs null at each hook, whether a `Body` mutation still reaches
+ARM, the lifecycle position, and the `Singleton` suppression rules — lives in the
+`Hooks`/`CrudCtx` doc comments in `internal/native/resource/hooks.go`, guarded
+against drift from `Base` by `base_hook_contract_test.go`. Consult the seam; the
+flows above are a summary of it.
 
 ### 2. Method override (code-driven, escape hatch)
 

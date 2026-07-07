@@ -116,7 +116,7 @@ field — means "use the base behavior".
 | `BeforeDelete` | delete, before the DELETE call | preflight/guard using `ctx.State` |
 | `ValidateConfig` | config validation (plan-time; values may be unknown) | cross-field rules one validator can't express |
 | `ModifyPlan` | plan, **after** the base's default work | conditional `RequiresReplace`, plan-time derivation |
-| `Singleton` (data) | create/delete of a fixed-named default child ARM never creates or deletes | skip the create existence check + reset to `DefaultBody` via PUT on destroy (e.g. `blobServices/default`) |
+| `Singleton` (data) | create/delete of a fixed-named default child ARM never creates or deletes | skip the create existence check + reset to `DefaultBody` via PUT on destroy (e.g. `blobServices/default`); the reset path does **not** run `BeforeDelete` |
 
 `Before/AfterCreate` vs `Before/AfterUpdate` dispatch by whether the op is a create
 (same body-composition path). `ValidateConfig`/`ModifyPlan` use framework signatures and
@@ -132,14 +132,17 @@ run *after* the base (base applies schema `RequiresReplace` first, then your `Mo
 | `Ctx` | operation `context.Context` | already timeout-scoped |
 | `Client` | `*clients.Client` | make extra ARM calls if needed |
 | `ID` | `parse.ResourceId` | the resource's Azure ID |
-| `Plan` | typed plan object | set on create/update, null otherwise |
-| `State` | typed prior-state object | set on read/update/delete, null otherwise |
-| `Body` | `map[string]interface{}` — ARM body being composed | **mutate in `Before*`** |
-| `Response` | `map[string]interface{}` — ARM GET response | **read in `After*`** |
+| `Plan` | typed plan object | live on create/update; **null** on read/delete |
+| `State` | typed prior-state object | live on read/delete; **null** on create/update (the create/update path composes `Body` from `Plan`) |
+| `Body` | `map[string]interface{}` — ARM body being composed | live on create/update; a mutation reaches ARM **only from a `Before*`** hook (the PUT reads it right after) |
+| `Response` | `map[string]interface{}` — ARM GET response | live in `After*` (post-GET/read); **null** in every `Before*`; it is what gets flattened into state |
 | `Diags` | `*diag.Diagnostics` | append an error + `return` to abort |
 
-`Before*` mutate `Body`; `After*` read `Response`. The base checks `HasError()` after
-each hook — append a diagnostic and `return` to stop the operation.
+`Before*` mutate `Body`; `After*` massage `Response` (state is flattened from it). The base
+checks `HasError()` after each hook — append a diagnostic and `return` to stop the operation.
+The exact per-hook-point field-liveness matrix is the doc comment on `Hooks`/`CrudCtx` in
+`internal/native/resource/hooks.go` (the authority, pinned to `Base` by
+`base_hook_contract_test.go`); this table summarizes it.
 
 ### Example — conditional ForceNew (shipped)
 

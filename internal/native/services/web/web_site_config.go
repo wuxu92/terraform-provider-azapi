@@ -335,12 +335,12 @@ func (r WebSiteCfg_Complete_update) Config() string {
 }
 
 func (r WebSiteCfg) config(bodyFmt string) string {
-	return fmt.Sprintf(`
-resource %q %q {
-  name              = "acctest-web-{{.RandomString}}"
-  resource_group_id = %s
-  location          = "{{.Location}}"
-  kind              = "app"%s
-}
-`, r.ResourceType(), r.ResourceLabel(), r.resourceGroup.IDRef(), fmt.Sprintf(bodyFmt, r.serverFarm.IDRef()))
+	return r.RenderConfig(services.ConfigEnvelope{
+		Name:       "acctest-web-{{.RandomString}}",
+		ParentAttr: "resource_group_id",
+		ParentRef:  r.resourceGroup.IDRef(),
+		Location:   true,
+		Kind:       "app",
+		Body:       fmt.Sprintf(bodyFmt, r.serverFarm.IDRef()),
+	})
 }

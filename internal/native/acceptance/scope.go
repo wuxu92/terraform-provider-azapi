@@ -26,10 +26,26 @@ type Scope struct {
 	owned   []string             // resource addresses (tfType.label) owned by this scope, in apply order
 	ownedBy map[string]*Resource // address -> owning resource, for collision detection
 	tracked []trackedResource    // applied resources, verified absent on Teardown
+
+	// teardownRegistered records that this scope's Teardown was wired through the
+	// workspace's teardown registrar when the scope was vended. The workspace safety
+	// net asserts it: a vended scope left unregistered is one whose resources would
+	// leak, so it is caught rather than silently skipped.
+	teardownRegistered bool
 }
 
-// Scope returns a child scope. Wire its Teardown to the nested container's AfterAll.
-func (s *Scope) Scope() *Scope { return &Scope{ws: s.ws} }
+// Scope returns a child scope and auto-registers its Teardown at the enclosing Ordered
+// Ginkgo container, so the author who asks for a child scope gets its destroy wired
+// without a paired AfterAll(child.Teardown) line. Because registration happens at this
+// (the deeper) container, Ginkgo's inner-AfterAll-before-outer execution destroys a
+// dependent nested in a deeper scope before the ancestor it depends on. Requesting a
+// child scope outside an Ordered container (where teardown cannot be registered) fails
+// loudly rather than leaking the scope's resources.
+func (s *Scope) Scope() *Scope {
+	child := &Scope{ws: s.ws}
+	s.ws.registerScopeTeardown(child)
+	return child
+}
 
 // Resource declares a resource-under-test owned by this scope. The ARM type and API
 // version come from the generated descriptor, so the test targets the version the
@@ -112,8 +128,9 @@ func (s *Scope) track(tr trackedResource) {
 func resourceFileName(address string) string { return "resource_" + address + ".tf" }
 
 // Teardown destroys the resources this scope owns and asserts they are gone from
-// Azure, leaving ancestor resources running. Intended for a nested container's
-// AfterAll. It is a no-op when the workspace never started (a skipped run).
+// Azure, leaving ancestor resources running. It is auto-registered at the scope's
+// Ordered container by Scope.Scope (the safety net and any bespoke ordering may still
+// call it). It is a no-op when the workspace never started (a skipped run).
 func (s *Scope) Teardown() {
 	if s.ws == nil || !s.ws.started || s.ws.tf == nil {
 		return

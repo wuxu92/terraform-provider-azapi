@@ -89,12 +89,12 @@ func (r BlobServiceCfg_Named) Config() string {
 }
 
 func (r BlobServiceCfg) config(name, body string) string {
-	return fmt.Sprintf(`
-resource %q %q {
-  name               = %q
-  storage_account_id = %s%s
-}
-`, r.ResourceType(), r.ResourceLabel(), name, r.storageAccount.IDRef(), body)
+	return r.RenderConfig(services.ConfigEnvelope{
+		Name:       name,
+		ParentAttr: "storage_account_id",
+		ParentRef:  r.storageAccount.IDRef(),
+		Body:       body,
+	})
 }
 
 // changeFeed is a BlobServiceCfg properties fragment toggling change feed. Defined as

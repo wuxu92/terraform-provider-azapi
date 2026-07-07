@@ -53,16 +53,12 @@ func (r WebServerFarmCfg_Complete) Config() string {
 }
 
 func (r WebServerFarmCfg) config(skuName string, capacity int, extra string) string {
-	return fmt.Sprintf(`
-resource %q %q {
-  name              = "acctest-asp-{{.RandomString}}"
-  resource_group_id = %s
-  location          = "{{.Location}}"
-  kind              = "app"
-  sku = {
-    name     = %q
-    capacity = %d
-  }%s
-}
-`, r.ResourceType(), r.ResourceLabel(), r.resourceGroup.IDRef(), skuName, capacity, extra)
+	return r.RenderConfig(services.ConfigEnvelope{
+		Name:       "acctest-asp-{{.RandomString}}",
+		ParentAttr: "resource_group_id",
+		ParentRef:  r.resourceGroup.IDRef(),
+		Location:   true,
+		Kind:       "app",
+		Body:       fmt.Sprintf("\n  sku = {\n    name     = %q\n    capacity = %d\n  }%s", skuName, capacity, extra),
+	})
 }

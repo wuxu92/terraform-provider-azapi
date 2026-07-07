@@ -32,7 +32,6 @@ var _ = Describe("Azure Storage Blob Service", Ordered, func() {
 		// Child scope: the storage account plus its blob service, torn down together
 		// after this container while the resource group survives.
 		acct := ws.Scope()
-		AfterAll(acct.Teardown)
 
 		saCfg := storage.NewStorageAccountCfg(rgCfg, "sa")
 		sa := acct.ResourceFor(saCfg)

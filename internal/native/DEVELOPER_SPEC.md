@@ -331,13 +331,18 @@ type Base struct { desc Descriptor; hooks *Hooks; provider *clients.Client }
 type Hooks struct {
     BeforeCreate, AfterCreate, BeforeUpdate, AfterUpdate,
     BeforeRead, AfterRead, BeforeDelete func(*CrudCtx)
+    Singleton      *SingletonDefault // fixed-named default child: skip create existence check, reset-via-PUT on destroy (no BeforeDelete)
     ValidateConfig func(ctx, req, resp)
     ModifyPlan     func(ctx, req, resp)
 }
+// Per-hook-point field liveness (which of Plan/State/Body/Response are populated,
+// whether a Body mutation reaches ARM, lifecycle position, Singleton suppression)
+// is documented on Hooks/CrudCtx in resource/hooks.go and guarded against drift by
+// resource/base_hook_contract_test.go. That seam doc is authoritative.
 type CrudCtx struct {
     Ctx context.Context; Client *clients.Client; ID parse.ResourceId
-    Plan, State types.Object
-    Body, Response map[string]any
+    Plan, State types.Object   // Plan live on create/update; State live on read/delete
+    Body, Response map[string]any // Body live on create/update (mutate in Before*); Response live in After*
     Diags *diag.Diagnostics
 }
 ```

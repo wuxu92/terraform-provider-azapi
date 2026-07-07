@@ -85,17 +85,14 @@ func (r StorageAccountCfg_SKU) Config() string {
 }
 
 func (r StorageAccountCfg) config(sku, extra string) string {
-	return fmt.Sprintf(`
-resource %q %q {
-  name              = "acctestsa{{.RandomString}}"
-  resource_group_id = %s
-  location          = "{{.Location}}"
-  kind              = "StorageV2"
-  sku = {
-    name = %q
-  }%s
-}
-`, r.ResourceType(), r.ResourceLabel(), r.resourceGroup.IDRef(), sku, extra)
+	return r.RenderConfig(services.ConfigEnvelope{
+		Name:       "acctestsa{{.RandomString}}",
+		ParentAttr: "resource_group_id",
+		ParentRef:  r.resourceGroup.IDRef(),
+		Location:   true,
+		Kind:       "StorageV2",
+		Body:       fmt.Sprintf("\n  sku = {\n    name = %q\n  }%s", sku, extra),
+	})
 }
 
 // completeProps is the StorageAccountCfg properties fragment for Complete: a broad

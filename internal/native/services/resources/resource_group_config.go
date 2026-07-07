@@ -1,8 +1,6 @@
 package resources
 
 import (
-	"fmt"
-
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 )
 
@@ -42,11 +40,10 @@ func (r ResourceGroupCfg_Named) Config() string {
 }
 
 func (r ResourceGroupCfg) config(name string) string {
-	return fmt.Sprintf(`
-resource %q %q {
-  name            = %q
-  subscription_id = "/subscriptions/{{.SubscriptionID}}"
-  location        = "{{.Location}}"
-}
-`, r.ResourceType(), r.ResourceLabel(), name)
+	return r.RenderConfig(services.ConfigEnvelope{
+		Name:       name,
+		ParentAttr: "subscription_id",
+		ParentRef:  `"/subscriptions/{{.SubscriptionID}}"`,
+		Location:   true,
+	})
 }
