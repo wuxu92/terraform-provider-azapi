@@ -868,8 +868,8 @@ func TestKeyVaultDefaultFields(t *testing.T) {
 	for _, v := range vals {
 		byPath[v.PropertyPath] = v.Value
 	}
-	if v, ok := byPath["properties.enableRbacAuthorization"]; !ok || v != false {
-		t.Errorf("expected enableRbacAuthorization default false, got %v", v)
+	if v, ok := byPath["properties.enableRbacAuthorization"]; !ok || v != true {
+		t.Errorf("expected enableRbacAuthorization default true, got %v", v)
 	}
 	if v, ok := byPath["properties.networkAcls.defaultAction"]; !ok || v != "Allow" {
 		t.Errorf("expected networkAcls.defaultAction default Allow, got %v", v)

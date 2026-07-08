@@ -242,7 +242,7 @@ func AzapiKeyVaultSchema() schema.Schema {
 						Description: "Property that controls how data actions are authorized. When true, the key vault will use Role Based Access Control (RBAC) for authorization of data actions, and the access policies specified in vault...",
 						Optional:    true,
 						Computed:    true,
-						Default:     booldefault.StaticBool(false),
+						Default:     booldefault.StaticBool(true),
 					},
 					"enable_soft_delete": schema.BoolAttribute{
 						Description: "Property to specify whether the 'soft delete' functionality is enabled for this key vault. If it's not set to any value(true or false) when creating new key vault, it will be set to true by default. O...",

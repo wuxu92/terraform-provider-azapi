@@ -199,7 +199,7 @@ func NewKeyVault() *KeyVault {
 			// These properties are optional; Azure/AzureRM fills in defaults if omitted.
 			DefaultValues: []DefaultValue{
 				{PropertyPath: "properties.accessPolicies"},                                // empty list when omitted
-				{PropertyPath: "properties.enableRbacAuthorization", Value: false},         // AzureRM: Optional+Computed, Azure defaults false
+				{PropertyPath: "properties.enableRbacAuthorization", Value: true},          // RBAC is Azure's default authorization model for new vaults (learn.microsoft.com/azure/key-vault/general/access-control-default); azapi defaults it on, unlike AzureRM which defaults false
 				{PropertyPath: "properties.networkAcls.defaultAction", Value: "Allow"},     // expand default when block absent
 				{PropertyPath: "properties.networkAcls.bypass", Value: "AzureServices"},    // expand default when block absent
 				{PropertyPath: "properties.softDeleteRetentionInDays", Value: float64(90)}, // Azure default 90 days
