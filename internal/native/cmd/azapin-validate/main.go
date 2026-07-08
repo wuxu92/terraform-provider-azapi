@@ -91,8 +91,11 @@ func main() {
 		}
 		body := pdef.Body
 
-		// Validate the body; exclude the synthesized envelope attributes.
-		mismatches := validate.SchemaAgainstBicep(s, body, "name", d.ParentAttr, "id")
+		// Validate the body; exclude the synthesized envelope attributes (name /
+		// parent reference / id) plus any behavior-only Meta attributes a customizer
+		// attached (e.g. purge_on_destroy) — none are part of the bicep body. This is
+		// the same exclusion set the generation pipeline uses (EnvelopeAttrNames).
+		mismatches := validate.SchemaAgainstBicep(s, body, typegraph.EnvelopeAttrNames(pdef)...)
 
 		// Flag-invariant restraints: Default ⟹ Optional+Computed (not Required /
 		// read-only) and Default ∈ its own validators.

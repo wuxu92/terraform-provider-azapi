@@ -10,6 +10,7 @@ import (
 	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/all"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 )
 
 func hookField(t *testing.T, r resource.Resource, name string) reflect.Value {
@@ -370,5 +371,71 @@ func TestKeyVaultSchemaComposition(t *testing.T) {
 		if _, ok := s.Attributes[name]; !ok {
 			t.Errorf("missing body attribute %q", name)
 		}
+	}
+}
+
+func TestRoleDefinitionSchemaComposition(t *testing.T) {
+	ctx := context.Background()
+	r := nativeresource.New("azapi_authorization_role_definition")
+
+	// Metadata: provider prefix + resource suffix.
+	mdResp := &resource.MetadataResponse{}
+	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
+	if mdResp.TypeName != "azapi_authorization_role_definition" {
+		t.Errorf("TypeName = %q, want azapi_authorization_role_definition", mdResp.TypeName)
+	}
+
+	// Schema: composed (envelope + body), and framework-valid.
+	schemaResp := &resource.SchemaResponse{}
+	r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+	if diags := s.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("schema validation failed: %v", diags)
+	}
+
+	// role definition is an extension/multi-scope resource: its parent reference is
+	// an arbitrary scope named parent_id, not resource_group_id or subscription_id.
+	for _, name := range []string{"name", "parent_id", "id"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing envelope attribute %q", name)
+		}
+	}
+	// Keyed by parent_id, and role definitions have no location.
+	for _, absent := range []string{"resource_group_id", "subscription_id", "location"} {
+		if _, ok := s.Attributes[absent]; ok {
+			t.Errorf("role definition should be keyed by parent_id with no location, not expose %q", absent)
+		}
+	}
+	if _, ok := s.Blocks["timeouts"]; !ok {
+		t.Error("missing timeouts block")
+	}
+	// The name envelope attribute is Required (RequiresReplace UUID).
+	if name, ok := s.Attributes["name"]; ok && !name.IsRequired() {
+		t.Error(`envelope "name" attribute must be Required`)
+	}
+
+	// Body: properties nested attribute present; a later cast panics if absent.
+	props, ok := s.Attributes["properties"].(schema.SingleNestedAttribute)
+	if !ok {
+		t.Fatalf("properties attribute is %T, want schema.SingleNestedAttribute", s.Attributes["properties"])
+	}
+	// Customizer promoted the bicep-optional role_name to Required.
+	if roleName, ok := props.Attributes["role_name"]; !ok {
+		t.Error("missing properties.role_name attribute")
+	} else if !roleName.IsRequired() {
+		t.Error("properties.role_name must be Required (customizer promotion)")
+	}
+	// azwise overlay wired the CustomRole default onto type.
+	if typeAttr, ok := props.Attributes["type"].(schema.StringAttribute); !ok {
+		t.Fatalf("properties.type is %T, want schema.StringAttribute", props.Attributes["type"])
+	} else if typeAttr.Default == nil {
+		t.Error("properties.type must have a Default (CustomRole)")
+	}
+}
+
+func TestRoleDefinitionAssignableScopesHookRegistered(t *testing.T) {
+	roleDefinition := nativeresource.New("azapi_authorization_role_definition")
+	if hookField(t, roleDefinition, "BeforeCreate").IsNil() || hookField(t, roleDefinition, "BeforeUpdate").IsNil() {
+		t.Fatal("role definition ensureAssignableScopes hook must be registered for both create and update")
 	}
 }

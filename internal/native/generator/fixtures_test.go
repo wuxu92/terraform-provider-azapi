@@ -66,3 +66,10 @@ func latestWebSiteDefs(t *testing.T) ([]*typegraph.ResourceDefinition, string) {
 	t.Helper()
 	return latestStableDefs(t, "Microsoft.Web/sites")
 }
+
+// latestRoleDefinitionDefs returns the role definition defs for the latest stable
+// API version, mirroring latestWebSiteDefs for the authorization service.
+func latestRoleDefinitionDefs(t *testing.T) ([]*typegraph.ResourceDefinition, string) {
+	t.Helper()
+	return latestStableDefs(t, "Microsoft.Authorization/roleDefinitions")
+}

@@ -19,16 +19,16 @@ import (
 //
 // Field liveness by hook point (Ctx, Client, ID, Diags are always live):
 //
-//	hook point   | Plan | State | Body | Response
-//	-------------+------+-------+------+---------
-//	BeforeCreate | live | null  | live | null
-//	AfterCreate  | live | null  | live | live
-//	BeforeUpdate | live | null  | live | null
-//	AfterUpdate  | live | null  | live | live
-//	BeforeRead   | null | live  | null | null
-//	AfterRead    | null | live  | null | live
-//	BeforeDelete | null | live  | null | null
-//	AfterDelete  | null | live  | null | null
+//	hook point   | Plan | State | Body | Response | WriteResponse
+//	-------------+------+-------+------+----------+--------------
+//	BeforeCreate | live | null  | live | null     | null
+//	AfterCreate  | live | null  | live | live     | live
+//	BeforeUpdate | live | null  | live | null     | null
+//	AfterUpdate  | live | null  | live | live     | live
+//	BeforeRead   | null | live  | null | null     | null
+//	AfterRead    | null | live  | null | live     | null
+//	BeforeDelete | null | live  | null | null     | null
+//	AfterDelete  | null | live  | null | null     | null
 //
 // A Body mutation reaches ARM only from a Before* create/update hook: the
 // CreateOrUpdate PUT reads Body immediately after BeforeCreate/BeforeUpdate
@@ -55,7 +55,15 @@ type CrudCtx struct {
 	// Before* hook. It is the object flattened into Terraform state, so an
 	// After* hook massages Response, not Body.
 	Response map[string]interface{}
-	Diags    *diag.Diagnostics
+	// WriteResponse is the ARM CreateOrUpdate (PUT) response as a map — the
+	// authoritative post-write representation. It is distinct from Response (the
+	// subsequent GET), which a server may answer from a not-yet-consistent read path
+	// that still reflects the pre-write record. Live in AfterCreate/AfterUpdate only;
+	// null everywhere else. An eventual-consistency settle hook anchors on it (e.g. a
+	// role definition's post-update properties.updatedOn) to tell a settled GET from a
+	// stale one.
+	WriteResponse map[string]interface{}
+	Diags         *diag.Diagnostics
 }
 
 // Hooks holds optional per-resource customization of runtime BEHAVIOR only. A nil

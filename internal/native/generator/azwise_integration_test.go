@@ -340,3 +340,41 @@ func TestApplyAzwiseUserAssignedIdentity(t *testing.T) {
 		}
 	}
 }
+
+// TestApplyAzwiseRoleDefinition verifies the Microsoft.Authorization/roleDefinitions
+// overlay applies the AzureRM CustomRole type default and the not-empty roleName /
+// description validators. Customizer-only effects (envelope name UUID validator,
+// roleName Required promotion) are out of scope: PostProcess does not run
+// customizers, matching TestApplyAzwiseWebServerFarm.
+func TestApplyAzwiseRoleDefinition(t *testing.T) {
+	defs, ver := latestRoleDefinitionDefs(t)
+	typegraph.PostProcess(defs)
+
+	tag := "Microsoft.Authorization/roleDefinitions@" + ver
+	var def *typegraph.ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			def = d
+			break
+		}
+	}
+	if def == nil {
+		t.Fatal("role definition definition not found")
+	}
+
+	if p := typegraph.Navigate(def.Body, "properties.type"); p == nil {
+		t.Fatal("properties.type not found")
+	} else if p.DefaultValue != "CustomRole" {
+		t.Errorf("properties.type default = %q, want CustomRole", p.DefaultValue)
+	}
+	if p := typegraph.Navigate(def.Body, "properties.roleName"); p == nil {
+		t.Fatal("properties.roleName not found")
+	} else if len(p.Validators) == 0 {
+		t.Error("expected properties.roleName not-empty validator from azwise")
+	}
+	if p := typegraph.Navigate(def.Body, "properties.description"); p == nil {
+		t.Fatal("properties.description not found")
+	} else if len(p.Validators) == 0 {
+		t.Error("expected properties.description not-empty validator from azwise")
+	}
+}

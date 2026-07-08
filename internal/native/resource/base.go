@@ -269,10 +269,12 @@ func (b *Base) put(ctx context.Context, planObj types.Object, isNew bool, to tim
 		return
 	}
 
-	if _, err := b.provider.ResourceClient.CreateOrUpdate(ctx, id.AzureResourceId, id.ApiVersion, armBody, clients.DefaultRequestOptions()); err != nil {
+	writeResp, err := b.provider.ResourceClient.CreateOrUpdate(ctx, id.AzureResourceId, id.ApiVersion, armBody, clients.DefaultRequestOptions())
+	if err != nil {
 		diags.AddError("Failed to create/update resource", fmt.Errorf("creating/updating %s: %w", id.ID(), err).Error())
 		return
 	}
+	hc.WriteResponse = armjson.AsMap(writeResp)
 
 	respBody, err := b.provider.ResourceClient.Get(ctx, id.AzureResourceId, id.ApiVersion, clients.DefaultRequestOptions())
 	if err != nil {

@@ -32,6 +32,7 @@ var targets = []string{
 	armtypes.WebSite,
 	armtypes.UserAssignedIdentity,
 	armtypes.KeyVault,
+	armtypes.RoleDefinition,
 }
 
 func main() {

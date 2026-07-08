@@ -29,6 +29,7 @@ website/node_modules
 website/vendor
 
 .vscode/
+.scratch/
 
 # Test exclusions
 !command/test-fixtures/**/*.tfstate
