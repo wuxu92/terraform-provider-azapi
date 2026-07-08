@@ -626,6 +626,10 @@ func AzapiKeyVaultSchema() schema.Schema {
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 				MarkdownDescription: "The ID of the Azure resource.",
 			},
+			"purge_on_destroy": schema.BoolAttribute{
+				Optional:            true,
+				MarkdownDescription: "When `true`, permanently purges the vault's soft-deleted shadow on destroy so its name can be reused immediately, instead of leaving it recoverable until Azure's retention window expires. Ignored when purge protection is enabled (Azure blocks the purge). Defaults to `false`.",
+			},
 		},
 	}
 }

@@ -177,10 +177,10 @@ func (r KeyVaultCfg_AccessPolicy) Config() string {
 
 // KeyVaultCfg_RBAC is the same minimal vault under the Azure RBAC authorization model:
 // enable_rbac_authorization is true and no access policies are configured (they conflict
-// with RBAC). It is the RBAC pole of the authorization-model switch scenario, and doubles
-// as the standalone "RBAC enabled" acceptance config. Switching a live vault's permission
-// model requires Microsoft.Authorization/roleAssignments/write (Owner / User Access
-// Administrator), so the switch scenarios run under credentials that carry it.
+// with RBAC). It is the RBAC pole of the in-place authorization-model switch scenario.
+// Switching a live vault's permission model requires Microsoft.Authorization/
+// roleAssignments/write (Owner / User Access Administrator), so the switch scenario runs
+// only under credentials that carry it. The default RBAC-on model is covered by Basic.
 type KeyVaultCfg_RBAC KeyVaultCfg
 
 func (r KeyVaultCfg_RBAC) Config() string {
@@ -189,6 +189,29 @@ func (r KeyVaultCfg_RBAC) Config() string {
   properties = {
     tenant_id                 = %[1]s
     enable_rbac_authorization = true
+    access_policies = []
+    sku = {
+      name   = "standard"
+      family = "A"
+    }
+  }`, kv.clientConfig.RefOf("tenant_id")))
+}
+
+// KeyVaultCfg_PurgeOnDestroy adds purge_on_destroy = true to an otherwise minimal vault,
+// so destroying it purges the soft-deleted shadow instead of leaving it recoverable. It
+// sets no enable_rbac_authorization (defaulting the RBAC model on), matching the Basic
+// vault, so it can be applied as an in-place overlay on that same vault to flip the flag
+// without a body change. enable_purge_protection is left off (its false default) — an
+// enabled purge lock makes Azure reject the manual purge. It exercises the AfterDelete
+// purge hook at teardown, proving the purge POST succeeds against a real soft-deleted vault.
+type KeyVaultCfg_PurgeOnDestroy KeyVaultCfg
+
+func (r KeyVaultCfg_PurgeOnDestroy) Config() string {
+	kv := KeyVaultCfg(r)
+	return kv.config(fmt.Sprintf(`
+  purge_on_destroy = true
+  properties = {
+    tenant_id = %[1]s
     sku = {
       name   = "standard"
       family = "A"

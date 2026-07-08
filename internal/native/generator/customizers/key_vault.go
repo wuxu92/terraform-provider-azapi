@@ -66,4 +66,16 @@ func customizeKeyVault(def *typegraph.ResourceDefinition) {
 	} {
 		typegraph.FindProperty(def, path).DefaultEmptyList = true
 	}
+
+	// purge_on_destroy is a synthetic behavior-only attribute (not part of the bicep
+	// body): when true, destroying the vault also purges its soft-deleted shadow so
+	// the name is immediately reusable. It defaults off (null) because a purge bypasses
+	// the soft-delete recovery window and is irreversible; a runtime AfterDelete hook
+	// (see key_vault_hooks.go) reads it from state and runs the deletedVaults purge.
+	def.Envelope.Meta = append(def.Envelope.Meta, typegraph.MetaAttr{
+		Name: "purge_on_destroy",
+		Description: "When `true`, permanently purges the vault's soft-deleted shadow on destroy so its " +
+			"name can be reused immediately, instead of leaving it recoverable until Azure's retention " +
+			"window expires. Ignored when purge protection is enabled (Azure blocks the purge). Defaults to `false`.",
+	})
 }
