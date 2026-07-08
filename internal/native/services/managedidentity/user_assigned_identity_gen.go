@@ -2,6 +2,8 @@
 package managedidentity
 
 import (
+	"time"
+
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
@@ -185,6 +187,12 @@ var UserAssignedIdentity = services.Descriptor{
 	Schema:         AzapiUserAssignedIdentitySchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",
+	Timeouts: services.Timeouts{
+		Create: 30 * time.Minute,
+		Read:   5 * time.Minute,
+		Update: 30 * time.Minute,
+		Delete: 30 * time.Minute,
+	},
 }
 
 func init() { services.Register(UserAssignedIdentity) }

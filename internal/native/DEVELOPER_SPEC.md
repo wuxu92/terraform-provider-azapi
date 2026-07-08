@@ -409,7 +409,7 @@ sequenceDiagram
     TF->>B: ModifyPlan (RequiresReplace from schema + hook SKU-zone via azwise.CheckForceNew)
     TF->>B: Create(plan)
     B->>B: parse.NewResourceID(name, <parent>_id (Descriptor.ParentAttr), type@version)
-    B->>AW: TimeoutDefault("create")
+    B->>B: b.timeout("create") (from Descriptor.Timeouts)
     B->>M: Expand(plan, bodyGraph) → ARM JSON
     B->>AW: StripComputedFields(body)
     B->>H: BeforeCreate(CrudCtx{Body})

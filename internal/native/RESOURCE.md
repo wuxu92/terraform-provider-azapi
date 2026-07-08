@@ -44,7 +44,7 @@ polling:
 | GET | `internal/clients` | `ResourceClient.Get(ctx, resourceID, apiVersion, opts)` |
 | DELETE + poll | `internal/clients` | `ResourceClient.Delete(ctx, resourceID, apiVersion, opts)` |
 | Resource ID | `internal/services/parse` | `NewResourceID(name, parentID, "type@version")`, `ResourceIDWithResourceType(id, type)` |
-| Op knowledge | `internal/azure/azwise` | `TimeoutDefault`, `CheckForceNew`, `Validate`, `StripComputedFields` |
+| Op knowledge | `internal/azure/azwise` | `CheckForceNew`, `Validate`, `StripComputedFields` (timeouts are baked into `services.Descriptor.Timeouts` at gen time) |
 | ARM type graph | `internal/azure` / `internal/native/generator` | `azure.GetResourceDefinition` / `generator.ParseTypesJSON` |
 | Registry | `internal/native/services` | `Registry map[string]SchemaFunc` |
 
@@ -182,7 +182,7 @@ All four operations funnel through two private methods on `Base`. The mapper
 
 ```
 1. id := parse.NewResourceID(plan.name, plan.<parent>_id, ARMType@APIVersion)
-2. timeout := azwise.TimeoutDefault(ARMType, APIVersion, "create"|"update", default)
+2. timeout := b.timeout("create"|"update", default)   ← baked into services.Descriptor at gen time
 3. if isNew && !Singleton: client.Get(id) → "already exists" error   ← pre-create existence check
 4. armBody := mapper.Expand(plan.bodyObject, typeGraph)   ← unified composition
 5. azwise.StripComputedFields(armBody)                    ← drop server-computed read-only fields
@@ -201,7 +201,7 @@ create (`Get` → "already exists") mirrors `azapi_resource`.
 
 ```
 1. id := parse.ResourceIDWithResourceType(state.id, ARMType@APIVersion)
-2. timeout := azwise.TimeoutDefault(..., "read", 5m)
+2. timeout := b.timeout("read", 5m)   ← from services.Descriptor.Timeouts
 3. hook.BeforeRead (optional)   ← State live; append a diag to short-circuit before the GET
 4. getResp := client.Get(...)   // 404 → RemoveResource
 5. hook.AfterRead (optional)    ← Response live; massage before flatten (e.g. location casing)
@@ -213,7 +213,7 @@ create (`Get` → "already exists") mirrors `azapi_resource`.
 
 ```
 1. id := parse.ResourceIDWithResourceType(state.id, ARMType@APIVersion)
-2. timeout := azwise.TimeoutDefault(..., "delete", 30m)
+2. timeout := b.timeout("delete", 30m)   ← from services.Descriptor.Timeouts
 3. if hooks.Singleton: client.CreateOrUpdate(..., Singleton.DefaultBody) → return  // fixed-name default, no ARM delete: reset to baseline; BeforeDelete is NOT run
 4. hook.BeforeDelete (optional)  ← State live; not reached on the Singleton reset path
 5. client.Delete(...)           // 404 tolerated

@@ -39,6 +39,16 @@ func ApplyAzwise(def *ResourceDefinition) {
 		return
 	}
 
+	// Timeout overrides → lowered onto the ResourceDefinition so the emitter bakes
+	// them into the generated services.Descriptor (the runtime source of truth). A
+	// zero fallback means an unset azwise timeout stays zero ("no override").
+	def.Timeouts = Timeouts{
+		Create: k.TimeoutDefault("create", 0),
+		Read:   k.TimeoutDefault("read", 0),
+		Update: k.TimeoutDefault("update", 0),
+		Delete: k.TimeoutDefault("delete", 0),
+	}
+
 	// Flag-level overlays available on the base interface.
 	for _, p := range k.GetComputedFields() {
 		if prop := Navigate(def.Body, p); prop != nil {

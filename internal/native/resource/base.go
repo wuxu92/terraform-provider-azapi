@@ -230,7 +230,7 @@ func (b *Base) put(ctx context.Context, planObj types.Object, isNew bool, to tim
 	if isNew {
 		op = "create"
 	}
-	def = azwise.TimeoutDefault(b.desc.ARMType, b.desc.APIVersion, op, def)
+	def = b.timeout(op, def)
 	var timeout time.Duration
 	var tdiags diag.Diagnostics
 	if isNew {
@@ -322,7 +322,7 @@ func (b *Base) Read(ctx context.Context, req resource.ReadRequest, resp *resourc
 		return
 	}
 
-	def := azwise.TimeoutDefault(b.desc.ARMType, b.desc.APIVersion, "read", 5*time.Minute)
+	def := b.timeout("read", 5*time.Minute)
 	var to timeouts.Value
 	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("timeouts"), &to)...)
 	if resp.Diagnostics.HasError() {
@@ -385,7 +385,7 @@ func (b *Base) Delete(ctx context.Context, req resource.DeleteRequest, resp *res
 		return
 	}
 
-	def := azwise.TimeoutDefault(b.desc.ARMType, b.desc.APIVersion, "delete", 30*time.Minute)
+	def := b.timeout("delete", 30*time.Minute)
 	var to timeouts.Value
 	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("timeouts"), &to)...)
 	if resp.Diagnostics.HasError() {
@@ -451,6 +451,30 @@ func (b *Base) runHook(h func(*CrudCtx), hc *CrudCtx) {
 	if h != nil {
 		h(hc)
 	}
+}
+
+// timeout returns the descriptor's baked-in timeout for op ("create"|"read"|
+// "update"|"delete"), or fallback when the descriptor carries no override for
+// that operation. The generated services.Descriptor is the source of truth
+// (baked at generation time from azwise), so the runtime no longer consults the
+// azwise registry for timeouts.
+func (b *Base) timeout(op string, fallback time.Duration) time.Duration {
+	t := b.desc.Timeouts
+	var d time.Duration
+	switch op {
+	case "create":
+		d = t.Create
+	case "read":
+		d = t.Read
+	case "update":
+		d = t.Update
+	case "delete":
+		d = t.Delete
+	}
+	if d > 0 {
+		return d
+	}
+	return fallback
 }
 
 func hookBefore(h *Hooks, isNew bool) func(*CrudCtx) {

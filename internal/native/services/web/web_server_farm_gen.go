@@ -2,6 +2,8 @@
 package web
 
 import (
+	"time"
+
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
@@ -810,6 +812,12 @@ var WebServerFarm = services.Descriptor{
 	Schema:         AzapiWebServerFarmSchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",
+	Timeouts: services.Timeouts{
+		Create: 60 * time.Minute,
+		Read:   5 * time.Minute,
+		Update: 60 * time.Minute,
+		Delete: 60 * time.Minute,
+	},
 }
 
 func init() { services.Register(WebServerFarm) }

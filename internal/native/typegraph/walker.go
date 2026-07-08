@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // PropertyFlag represents bicep type property flags.
@@ -157,6 +158,20 @@ type ResourceDefinition struct {
 	// RequiredWith / ExactlyOneOf / AtLeastOneOf). ApplyAzwise populates it; the
 	// emitter writes it into the generated services.Descriptor.
 	Relational []RelationalConstraintDef
+	// Timeouts holds the per-operation timeout defaults lowered from azwise.
+	// ApplyAzwise populates it; the emitter writes it into the generated
+	// services.Descriptor. A zero field means "no override".
+	Timeouts Timeouts
+}
+
+// Timeouts holds the per-operation timeout defaults lowered from azwise for
+// emission into a generated services.Descriptor. A zero field means the runtime
+// falls back to its built-in default for that operation.
+type Timeouts struct {
+	Create time.Duration
+	Read   time.Duration
+	Update time.Duration
+	Delete time.Duration
 }
 
 // RelationalConstraintDef is a lowered cross-property constraint ready for

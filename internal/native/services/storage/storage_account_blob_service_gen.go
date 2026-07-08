@@ -2,6 +2,8 @@
 package storage
 
 import (
+	"time"
+
 	"regexp"
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
@@ -463,6 +465,12 @@ var StorageAccountBlobService = services.Descriptor{
 	ParentAttr:     "storage_account_id",
 	Relational: []services.RelationalConstraint{
 		{Kind: services.RequiredWith, Paths: [][]string{{"properties", "restore_policy"}, {"properties", "delete_retention_policy"}}},
+	},
+	Timeouts: services.Timeouts{
+		Create: 30 * time.Minute,
+		Read:   5 * time.Minute,
+		Update: 30 * time.Minute,
+		Delete: 30 * time.Minute,
 	},
 }
 

@@ -1,6 +1,10 @@
 package services
 
-import "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+import (
+	"time"
+
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+)
 
 // Descriptor is the static, dependency-light description of one generated
 // resource: its Terraform name, the ARM type + API version it targets, and the
@@ -28,6 +32,19 @@ type Descriptor struct {
 	// RequiredWith / ExactlyOneOf / AtLeastOneOf) lowered from azwise at generation
 	// time. The runtime resource layer builds framework ConfigValidators from these.
 	Relational []RelationalConstraint
+	// Timeouts carries the per-operation timeout defaults baked in at generation
+	// time from azwise (source of truth). A zero field means "no override" and the
+	// runtime falls back to its built-in default for that operation.
+	Timeouts Timeouts
+}
+
+// Timeouts holds the per-operation timeout defaults for a generated resource.
+// A zero value for an operation means the runtime uses its built-in fallback.
+type Timeouts struct {
+	Create time.Duration
+	Read   time.Duration
+	Update time.Duration
+	Delete time.Duration
 }
 
 // RelationalKind identifies a resource-level cross-property constraint kind.

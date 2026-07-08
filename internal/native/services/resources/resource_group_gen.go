@@ -2,6 +2,8 @@
 package resources
 
 import (
+	"time"
+
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
@@ -105,6 +107,12 @@ var ResourceGroup = services.Descriptor{
 	Schema:         AzapiResourceGroupSchema,
 	WritableScopes: 4,
 	ParentAttr:     "subscription_id",
+	Timeouts: services.Timeouts{
+		Create: 90 * time.Minute,
+		Read:   5 * time.Minute,
+		Update: 90 * time.Minute,
+		Delete: 90 * time.Minute,
+	},
 }
 
 func init() { services.Register(ResourceGroup) }

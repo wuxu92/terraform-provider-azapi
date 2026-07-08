@@ -2,6 +2,8 @@
 package storage
 
 import (
+	"time"
+
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
@@ -2166,6 +2168,12 @@ var StorageAccount = services.Descriptor{
 	ParentAttr:     "resource_group_id",
 	Relational: []services.RelationalConstraint{
 		{Kind: services.RequiredWith, Paths: [][]string{{"properties", "encryption", "identity", "user_assigned_identity"}, {"identity", "user_assigned_identities"}}, Message: "customer-managed key encryption requires the account to carry the referenced user-assigned identity"},
+	},
+	Timeouts: services.Timeouts{
+		Create: 60 * time.Minute,
+		Read:   5 * time.Minute,
+		Update: 60 * time.Minute,
+		Delete: 60 * time.Minute,
 	},
 }
 
