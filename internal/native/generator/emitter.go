@@ -129,6 +129,9 @@ func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
 	emitEnvelopeStringAttr(&b, def.Envelope.Parent, "\t\t\t")
 	emitAttributes(&b, def.Body, 3, false)
 	emitEnvelopeIDAttr(&b, "\t\t\t")
+	for _, m := range def.Envelope.Meta {
+		emitMetaAttr(&b, m, "\t\t\t")
+	}
 
 	b.WriteString("\t\t},\n")
 	b.WriteString("\t}\n")
@@ -832,6 +835,17 @@ func emitEnvelopeStringAttr(b *strings.Builder, a typegraph.EnvelopeAttr, tabs s
 	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},\n", tabs))
 	emitStringValidators(b, a.Validators, tabs)
 	b.WriteString(fmt.Sprintf("%s\tMarkdownDescription: %q,\n", tabs, a.Description))
+	b.WriteString(fmt.Sprintf("%s},\n", tabs))
+}
+
+// emitMetaAttr writes a synthetic behavior-only Optional bool attribute (e.g.
+// purge_on_destroy). It is not part of the bicep body, carries no default and is
+// Optional-only so it stays null when unset and never drifts on read/import; a
+// runtime hook reads it from state to drive provider-side behavior.
+func emitMetaAttr(b *strings.Builder, m typegraph.MetaAttr, tabs string) {
+	b.WriteString(fmt.Sprintf("%s%q: schema.BoolAttribute{\n", tabs, m.Name))
+	b.WriteString(fmt.Sprintf("%s\tOptional: true,\n", tabs))
+	b.WriteString(fmt.Sprintf("%s\tMarkdownDescription: %q,\n", tabs, m.Description))
 	b.WriteString(fmt.Sprintf("%s},\n", tabs))
 }
 

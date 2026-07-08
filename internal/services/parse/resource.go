@@ -243,6 +243,18 @@ func (id ResourceId) ID() string {
 	return id.AzureResourceId
 }
 
+// SubscriptionId returns the subscription GUID the resource lives under, or "" when the
+// ID is not subscription-scoped (e.g. tenant/management-group scope) or cannot be
+// parsed. It reads AzureResourceId via the standard arm parser rather than string
+// slicing, so it stays correct across ID casing and scope shapes.
+func (id ResourceId) SubscriptionId() string {
+	armId, err := arm.ParseResourceID(id.AzureResourceId)
+	if err != nil {
+		return ""
+	}
+	return armId.SubscriptionID
+}
+
 func validateParentIdScope(resourceDef *types.ResourceType, parentId string) error {
 	if resourceDef != nil {
 		scopeTypes := make([]types.ScopeType, 0)

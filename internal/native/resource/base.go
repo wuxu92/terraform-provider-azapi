@@ -217,8 +217,8 @@ func (b *Base) put(ctx context.Context, planObj types.Object, isNew bool, to tim
 		return
 	}
 
-	name := attrString(planObj, "name")
-	parentID := attrString(planObj, b.desc.ParentAttr)
+	name := AttrString(planObj, "name")
+	parentID := AttrString(planObj, b.desc.ParentAttr)
 	id, err := parse.NewResourceID(name, parentID, b.typeAndVersion())
 	if err != nil {
 		diags.AddError("Invalid configuration", err.Error())
@@ -316,7 +316,7 @@ func (b *Base) Read(ctx context.Context, req resource.ReadRequest, resp *resourc
 		return
 	}
 
-	id, err := parse.ResourceIDWithResourceType(attrString(stateObj, "id"), b.typeAndVersion())
+	id, err := parse.ResourceIDWithResourceType(AttrString(stateObj, "id"), b.typeAndVersion())
 	if err != nil {
 		resp.Diagnostics.AddError("Error parsing ID", err.Error())
 		return
@@ -379,7 +379,7 @@ func (b *Base) Delete(ctx context.Context, req resource.DeleteRequest, resp *res
 		return
 	}
 
-	id, err := parse.ResourceIDWithResourceType(attrString(stateObj, "id"), b.typeAndVersion())
+	id, err := parse.ResourceIDWithResourceType(AttrString(stateObj, "id"), b.typeAndVersion())
 	if err != nil {
 		resp.Diagnostics.AddError("Error parsing ID", err.Error())
 		return
@@ -418,6 +418,12 @@ func (b *Base) Delete(ctx context.Context, req resource.DeleteRequest, resp *res
 
 	if _, err := b.provider.ResourceClient.Delete(ctx, id.AzureResourceId, id.ApiVersion, clients.DefaultRequestOptions()); err != nil && !utils.ResponseErrorWasNotFound(err) {
 		resp.Diagnostics.AddError("Failed to delete resource", fmt.Errorf("deleting %s: %w", id.ID(), err).Error())
+		return
+	}
+
+	if b.hooks != nil && b.hooks.AfterDelete != nil {
+		hc := &CrudCtx{Ctx: ctx, Client: b.provider, ID: id, State: stateObj, Diags: &resp.Diagnostics}
+		b.hooks.AfterDelete(hc)
 	}
 }
 
@@ -467,7 +473,10 @@ func hookAfter(h *Hooks, isNew bool) func(*CrudCtx) {
 	return h.AfterUpdate
 }
 
-func attrString(obj types.Object, name string) string {
+// AttrString reads a string attribute from a typed object, returning "" when it is
+// missing, the wrong type, null, or unknown. Hooks use it to read envelope/behavior
+// attributes from CrudCtx state without hand-rolling the type assertions.
+func AttrString(obj types.Object, name string) string {
 	v, ok := obj.Attributes()[name]
 	if !ok {
 		return ""
@@ -477,6 +486,27 @@ func attrString(obj types.Object, name string) string {
 		return ""
 	}
 	return s.ValueString()
+}
+
+// AttrBool reads a bool attribute from a typed object, treating a missing, wrong-typed,
+// null, or unknown value as false.
+func AttrBool(obj types.Object, name string) bool {
+	if obj.IsNull() || obj.IsUnknown() {
+		return false
+	}
+	b, ok := obj.Attributes()[name].(types.Bool)
+	if !ok || b.IsNull() || b.IsUnknown() {
+		return false
+	}
+	return b.ValueBool()
+}
+
+// AttrObject returns a nested object attribute, or a null object when it is missing or
+// not an object. AttrBool/AttrString treat a null object as having no attributes, so
+// they compose over the result without a nil check.
+func AttrObject(obj types.Object, name string) types.Object {
+	child, _ := obj.Attributes()[name].(types.Object)
+	return child
 }
 
 func withString(ctx context.Context, obj types.Object, name, val string) (types.Object, diag.Diagnostics) {

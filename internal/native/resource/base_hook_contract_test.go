@@ -254,8 +254,11 @@ func TestHookContractFieldLiveness(t *testing.T) {
 
 		var beforeRan bool
 		var before liveness
+		var afterRan bool
+		var after liveness
 		b.hooks = &Hooks{
 			BeforeDelete: func(hc *CrudCtx) { beforeRan = true; before = snapCrud(hc) },
+			AfterDelete:  func(hc *CrudCtx) { afterRan = true; after = snapCrud(hc) },
 		}
 
 		resp := &resource.DeleteResponse{}
@@ -267,15 +270,20 @@ func TestHookContractFieldLiveness(t *testing.T) {
 		if !beforeRan {
 			t.Fatal("BeforeDelete hook was never invoked")
 		}
+		if !afterRan {
+			t.Fatal("AfterDelete hook was never invoked")
+		}
 		assertLiveness(t, "BeforeDelete", before, liveness{planLive: false, stateLive: true, bodyLive: false, responseLive: false})
+		assertLiveness(t, "AfterDelete", after, liveness{planLive: false, stateLive: true, bodyLive: false, responseLive: false})
 	})
 }
 
 // TestSingletonDeleteSkipsBeforeDelete pins the Singleton suppression rule: a
 // Delete on a Singleton resource resets it via PUT (ARM has no DELETE for it) and
-// that reset path bypasses BeforeDelete entirely. The recording hook must NOT
-// fire; if a future change routes a Singleton destroy through BeforeDelete, this
-// test reddens.
+// that reset path bypasses both BeforeDelete and AfterDelete entirely. The reset
+// PUT is the only ARM call, so neither delete hook has a place to fire; if a
+// future change routes a Singleton destroy through either delete hook, this test
+// reddens.
 func TestSingletonDeleteSkipsBeforeDelete(t *testing.T) {
 	ctx := context.Background()
 	desc := resourceGroupDescriptor()
@@ -286,9 +294,11 @@ func TestSingletonDeleteSkipsBeforeDelete(t *testing.T) {
 	})}
 
 	beforeRan := false
+	afterRan := false
 	b.hooks = &Hooks{
 		Singleton:    &SingletonDefault{DefaultBody: map[string]interface{}{"properties": map[string]interface{}{}}},
 		BeforeDelete: func(hc *CrudCtx) { beforeRan = true },
+		AfterDelete:  func(hc *CrudCtx) { afterRan = true },
 	}
 
 	resp := &resource.DeleteResponse{}
@@ -299,5 +309,8 @@ func TestSingletonDeleteSkipsBeforeDelete(t *testing.T) {
 	}
 	if beforeRan {
 		t.Fatal("BeforeDelete ran on the Singleton reset path; the contract says it must be bypassed")
+	}
+	if afterRan {
+		t.Fatal("AfterDelete ran on the Singleton reset path; the contract says it must be bypassed")
 	}
 }

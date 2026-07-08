@@ -20,13 +20,26 @@ type EnvelopeAttr struct {
 	Validators  []DescriptionValidator
 }
 
+// MetaAttr describes one synthetic, behavior-only top-level attribute that is NOT
+// part of the bicep body graph and is never sent to or read from ARM: it controls
+// provider-side behavior (e.g. purge_on_destroy, which drives a destroy-time purge).
+// The mapper skips it on Expand (absent from the body graph) and leaves it null on
+// flatten, so an Optional-only bool round-trips without drift when unset; a hook
+// reads it from state. It is emitted as an Optional bool schema attribute.
+type MetaAttr struct {
+	Name        string
+	Description string
+}
+
 // Envelope is the operational-envelope spec wrapped around every generated body
 // schema. name maps to the ARM resource name and the parent reference to the
 // parent ID; neither is part of the bicep body graph, so the generator
-// synthesizes them. id is uniform (computed) and emitted directly.
+// synthesizes them. id is uniform (computed) and emitted directly. Meta holds
+// synthetic behavior-only attributes a customizer attaches (never from bicep).
 type Envelope struct {
 	Name   EnvelopeAttr
 	Parent EnvelopeAttr
+	Meta   []MetaAttr
 }
 
 // ARMTypeOf returns the ARM resource type of a definition without its API
@@ -64,11 +77,16 @@ func applyEnvelopeDefaults(def *ResourceDefinition) {
 }
 
 // EnvelopeAttrNames returns the top-level attribute names the generator
-// synthesizes for the operational envelope (name, the parent reference, id).
-// They are not part of the bicep body graph, so schema-vs-bicep validation must
-// exclude them (see ValidateEmittedSchema).
+// synthesizes outside the bicep body graph: the operational envelope (name, the
+// parent reference, id) plus any behavior-only Meta attributes a customizer
+// attached. They are not part of the bicep body graph, so schema-vs-bicep
+// validation must exclude them (see ValidateEmittedSchema).
 func EnvelopeAttrNames(def *ResourceDefinition) []string {
-	return []string{def.Envelope.Name.Name, def.Envelope.Parent.Name, "id"}
+	names := []string{def.Envelope.Name.Name, def.Envelope.Parent.Name, "id"}
+	for _, m := range def.Envelope.Meta {
+		names = append(names, m.Name)
+	}
+	return names
 }
 
 // FindProperty resolves an ARM dot path (e.g. "properties.minimumTlsVersion",

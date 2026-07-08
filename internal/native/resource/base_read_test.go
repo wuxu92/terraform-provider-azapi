@@ -92,7 +92,7 @@ func TestReadFiresBeforeReadHookBeforeGet(t *testing.T) {
 		BeforeRead: func(hc *CrudCtx) {
 			hookRan = true
 			// The hook must observe the state Read decoded and the parsed ID.
-			if got := attrString(hc.State, "id"); got != armID {
+			if got := AttrString(hc.State, "id"); got != armID {
 				t.Errorf("BeforeRead saw state id %q, want %q", got, armID)
 			}
 			if hc.ID.AzureResourceId != armID {

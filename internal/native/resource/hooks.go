@@ -28,6 +28,7 @@ import (
 //	BeforeRead   | null | live  | null | null
 //	AfterRead    | null | live  | null | live
 //	BeforeDelete | null | live  | null | null
+//	AfterDelete  | null | live  | null | null
 //
 // A Body mutation reaches ARM only from a Before* create/update hook: the
 // CreateOrUpdate PUT reads Body immediately after BeforeCreate/BeforeUpdate
@@ -96,6 +97,13 @@ type Hooks struct {
 	// Singleton reset path (see Singleton), so do not rely on it for a singleton
 	// default.
 	BeforeDelete func(*CrudCtx)
+	// AfterDelete fires on delete, after the ARM DELETE succeeds, and is the place
+	// for destroy-time orchestration that only makes sense once the resource is gone
+	// (e.g. purging a Key Vault's soft-deleted shadow). Live: State (the prior state
+	// of the just-deleted resource). Null: Plan, Body, Response. Like BeforeDelete it
+	// does NOT run on the Singleton reset path. A diagnostic appended here surfaces to
+	// the practitioner but the ARM DELETE has already committed.
+	AfterDelete func(*CrudCtx)
 
 	// Singleton, when non-nil, marks a resource that always exists as a fixed-named
 	// default child that ARM neither creates nor deletes on its own — e.g.
