@@ -41,7 +41,7 @@ func ensureAssignableScopes(c *nativeresource.CrudCtx) {
 
 // roleDefinitionSettlePoll is how often settleAfterUpdate re-reads the role definition
 // while confirming the post-update record has consolidated.
-const roleDefinitionSettlePoll = 5 * time.Second
+const roleDefinitionSettlePoll = 10 * time.Second
 
 // roleDefinitionSettleContinuous is how many CONSECUTIVE settled reads settleAfterUpdate
 // requires before it returns. The consolidation swap does not reach every read replica
