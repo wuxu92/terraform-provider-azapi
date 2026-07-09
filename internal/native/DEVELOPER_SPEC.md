@@ -2,7 +2,7 @@
 
 Status: Draft (PoC proven end-to-end against live Azure; productionization in progress)
 Owners: azapi provider team
-Related docs: `DESIGN.md`, `GENERATOR.md`, `RESOURCE.md` (under `internal/native/`),
+Related docs: `GENERATOR.md`, `RESOURCE.md` (under `internal/native/`),
 `azapin-vs-azapi.md`, `static-schema-generation-analysis.md`,
 `approach-comparison-report.md` (under `tools/azwise/`).
 
@@ -85,6 +85,35 @@ supplying the human-curated nuances a raw spec can't express.
 2. Generating per-resource Go model structs.
 3. Statically typing polymorphic/discriminated bodies (fall back to dynamic).
 4. AzureRM property-name parity (azapin uses mechanical snake_case from the spec).
+
+### 1.5 Key design decisions
+
+1. **Latest stable API version only** (ADR-0001): one resource per ARM type (ADR-0004), pinned to latest stable; no user-settable `api_version`. Preview → `azapi_resource`.
+2. **No AzureRM naming alignment**: mechanical conversion from ARM names (§3.4). Predictable, not curated.
+3. **Coexistence**: `azapi_resource` is unchanged. Users choose per resource.
+4. **Same binary**: generated resources compile into the same provider binary. The binary already embeds ~334 MB of bicep types; generated code adds marginal size.
+5. **Azwise feeds overlays**: existing azwise knowledge files (ForceNew, validation, computed fields) inform the override layer.
+6. **No static property map** (ADR-0002): ARM names resolved at runtime from the embedded type graph, not duplicated per resource. Invariant: every registered descriptor's pinned version must exist in the embedded index (guarded by the `services/all` registry↔index test).
+7. **Safe default for Optional properties** (ADR-0003): `Optional + Computed` unless we have evidence the server never populates the field, or we know the actual default. This forfeits unset-by-omission; azwise downgrades known user-owned fields to plain `Optional`.
+8. **Description mining**: the generator extracts defaults, validation patterns, and format hints from ARM property descriptions — information the formal spec doesn't capture.
+9. **Discriminated unions**: emitted mechanically as `types.Dynamic` (always). Partial typing (e.g. typing the discriminator enum while keeping the variant body dynamic) is an opt-in per-resource customizer, never generated mechanically.
+10. **Conditional imports**: generated files import only the packages they use, detected by pre-scanning the type graph.
+
+### 1.6 Scope & rollout
+
+**Phase 1 — proof of concept ✓.** `azapi_storage_account`
+(`Microsoft.Storage/storageAccounts@2025-01-01`) generated, validated, and applied
+against live Azure.
+
+**Phase 2 — verification-gated rollout.** Ship a curated allowlist of static resources
+alongside `azapi_resource`, each graduated through a verification gate — **not** a bulk
+sweep of all stable types. A resource graduates only after it clears framework
+flag-invariants (`CheckFlagInvariants`) + a live-Azure acceptance test + an authored
+azwise overlay; the live-API schema verification harness (`SCHEMA_VERIFICATION.md`)
+produces the acceptance evidence. Everything not yet graduated stays covered by the
+dynamic `azapi_resource` (day-zero, any type/version). Coverage is not the goal —
+per-resource correctness is, because every shipped static resource is a permanent schema
+contract fixable only by a breaking change + state upgrader. See ADR-0006.
 
 ---
 
@@ -239,6 +268,9 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 
 ### 3.3 Package responsibilities
 
+> Package responsibilities (what each package is *for*). For a task-oriented
+> "where do I edit to add a resource" file map, see DEVELOPER_GUIDE.md "Where things live".
+
 | Package | Responsibility |
 |---|---|
 | `internal/azure/azwise` | Knowledge registry + interface; `Validate`, `CheckForceNew`, `StripComputedFields`, `TimeoutDefault`, `SchemaKnowledge` accessors |
@@ -253,6 +285,51 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 | `internal/native/validate` | Compiled-schema ↔ bicep cross-validator |
 | `internal/native/acceptance` | Ginkgo BDD acceptance framework |
 | `internal/native/cmd/azapin-validate` | Standalone validation CLI |
+
+### 3.4 Naming convention
+
+#### Resource name — `azapi_<service>_<resource_path>`
+
+- `<service>` = ARM namespace without the `Microsoft.` prefix, lowercased (e.g.
+  `storage`, `keyvault`, `network`, `compute`). Third-party providers use the vendor
+  name (`Dynatrace.Observability` → `dynatrace`).
+- `<resource_path>` = ARM resource segments converted to snake_case, singularized,
+  joined with `_`.
+- If the first resource segment starts with the service name, the redundant prefix is
+  stripped (`storage/storageAccounts` → `storage_account`, not `storage_storage_account`).
+
+| ARM Resource Type | Terraform Resource |
+|---|---|
+| `Microsoft.Storage/storageAccounts` | `azapi_storage_account` |
+| `Microsoft.Storage/storageAccounts/blobServices` | `azapi_storage_account_blob_service` |
+| `Microsoft.Resources/resourceGroups` | `azapi_resource_group` |
+| `Microsoft.KeyVault/vaults` | `azapi_key_vault` (naming override; mechanical `azapi_keyvault_vault` stutters) |
+| `Microsoft.KeyVault/vaults/keys` | `azapi_keyvault_vault_key` |
+| `Microsoft.Web/serverfarms` | `azapi_web_server_farm` |
+| `Microsoft.Web/sites` | `azapi_web_site` |
+| `Microsoft.Network/virtualNetworks/subnets` | `azapi_network_virtual_network_subnet` |
+| `Microsoft.Compute/virtualMachines/extensions` | `azapi_compute_virtual_machine_extension` |
+| `Microsoft.Authorization/roleDefinitions` | `azapi_authorization_role_definition` |
+| `Microsoft.Sql/servers/databases` | `azapi_sql_server_database` |
+| `Dynatrace.Observability/monitors` | `azapi_dynatrace_monitor` |
+
+Edge cases: hyphens → underscores before snake_case (`api-version-sets` →
+`api_version_set`); dot-containing sub-resource segments (e.g. `Microsoft.Consumption`)
+are skipped; singularization handles regular plurals, `-ies`→`-y`, `-ses`→`-se`, and
+irregulars. Build-time collision detection: 9 collisions across 3,246 types (99.7%
+clean), resolved with the full namespace prefix. The collision scan runs in
+`go test ./internal/native/naming/`.
+
+#### Property name — camelCase → snake_case
+
+The framework SDK enforces `^[a-z_][a-z0-9_]*$` for attribute names, so the generator
+converts ARM property names to snake_case (`naming.CamelToSnake`): insert `_` before an
+uppercase letter following a lowercase/digit, and at the end of an uppercase acronym —
+`minimumTlsVersion` → `minimum_tls_version`, `isNfsV3Enabled` → `is_nfs_v3_enabled`,
+`iPRules` → `ip_rules`. The original ARM name is **not** stored in generated code; the
+runtime looks it up from the embedded bicep type graph (a direct lookup, not a
+`snake2camel` heuristic). AzureRM naming parity is a non-goal (§1.4) — the conversion is
+mechanical and predictable.
 
 ---
 
@@ -499,7 +576,7 @@ sequenceDiagram
 
 **Accessibility / DX** (no UI; "accessibility" = maintainer/practitioner ergonomics)
 - Each generated attribute carries the ARM description.
-- Docs (`DESIGN.md`/`GENERATOR.md`/`RESOURCE.md`) MUST stay current with the
+- Docs (this spec, `GENERATOR.md`, `RESOURCE.md`) MUST stay current with the
   generator rules and the resource lifecycle.
 
 ### 5.2 Edge cases & required handling
@@ -623,6 +700,25 @@ go build -o "$(go env GOPATH)/bin/terraform-provider-azapi" .
 ```
 
 ---
+
+## 7. Current status
+
+At-a-glance inventory of what exists today (the roadmap lives in §6.3):
+
+| Component | Status | Files |
+|---|---|---|
+| Naming package | ✓ Complete | `naming/naming.go`, `naming_test.go`, `collision_test.go` |
+| Type graph walker | ✓ Complete | `generator/walker.go`, `walker_test.go` |
+| Post-processing | ✓ Complete | `generator/postprocess.go` |
+| Schema emitter | ✓ Complete | `generator/emitter.go`, `emitter_test.go` |
+| Runtime defaults | ✓ Complete | `schema/defaults.go` |
+| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site`, `azapi_user_assigned_identity`, `azapi_key_vault`, `azapi_authorization_role_definition` | `services/{storage,resources,web,managedidentity,keyvault,authorization}/*_gen.go` |
+| Generator command | ✓ Working | `generator/cmd/generate_poc.go` |
+| CRUD methods | ✓ Complete | `resource/base.go`, `mapper/mapper.go` |
+| Provider registration | ✓ Complete | `internal/provider/provider.go` (`Resources()` + `DataSources()` iterate `services.Registry`) |
+| Schema customization | ✓ Complete | `generator/customizers/` |
+| Data sources | ✓ Complete (read-only, one per resource) | `resource/datasource.go`, `resource/schema_convert.go` |
+| Full generation tool | ◐ PoC (storage + resources services) | `generator/cmd/generate_poc.go` |
 
 ## Appendix A — Generator rule reference
 

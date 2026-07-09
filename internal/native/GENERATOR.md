@@ -1,6 +1,6 @@
 # Azapin Generator — Technical Specification
 
-This document describes the 17 technical rules and implementation details of the azapin schema generator. It complements DESIGN.md (architecture and project scope) with the specific behaviors that the generator must enforce.
+This document describes the 17 technical rules and implementation details of the azapin schema generator. It complements DEVELOPER_SPEC.md (architecture, naming, project scope, and design decisions) with the specific behaviors that the generator must enforce.
 
 ## Adding a New Resource (end-to-end)
 
@@ -51,8 +51,8 @@ loses the curated AzureRM validation, defaults, and ForceNew knowledge.
    acceptance `Describe` file (`acceptance/`), and an azwise rule test
    (`internal/azure/azwise/`).
 
-8. **Document.** Refresh the DESIGN.md "Current State" inventory if the resource
-   set or component status changed.
+8. **Document.** Refresh the DEVELOPER_SPEC.md "Current status" inventory (§7) if the
+   resource set or component status changed.
 
 ## Schema Flag Derivation
 

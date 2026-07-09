@@ -7,7 +7,7 @@ Task-oriented playbook for azapin static resources. Three workflows:
 3. [Upgrade the API version of an existing resource](#3-upgrade-the-api-version-of-an-existing-resource).
 
 Reference docs cover the *why*; this covers the *how*:
-- **DESIGN.md** — architecture, naming, scope.
+- **DEVELOPER_SPEC.md** — architecture, naming, scope, user requirements, design decisions.
 - **GENERATOR.md** — the 17 generator rules (flags, defaults, validators, envelope, customizers).
 - **RESOURCE.md** — the runtime `Base`, mapper, hooks.
 
@@ -40,6 +40,9 @@ Two failure modes to internalize:
   `types.json` and assert the rule baked in.
 
 ## Where things live
+
+> Task-oriented file map. For package **responsibilities** (what each package is
+> for, rather than where to edit), see DEVELOPER_SPEC.md §3.3.
 
 | What | Path |
 |---|---|
@@ -416,8 +419,8 @@ resource-under-test agree on names/placement:
 
 ### Step 8 — Document
 
-Refresh the DESIGN.md "Current State" inventory if the resource set or a component's
-status changed.
+Refresh the DEVELOPER_SPEC.md "Current status" inventory (§7) if the resource set or a
+component's status changed.
 
 ### New-resource checklist
 

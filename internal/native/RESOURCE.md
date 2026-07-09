@@ -3,7 +3,7 @@
 This document designs the Terraform `resource.Resource` implementation for azapin's
 generated static schemas. It precedes any implementation. It builds on:
 
-- **DESIGN.md** — generator architecture and resource naming
+- **DEVELOPER_SPEC.md** — architecture, resource/property naming, design decisions, project scope
 - **GENERATOR.md** — schema emission rules (flags, defaults, validators, naming)
 
 The generated schema (e.g. `services/storage`'s `AzapiStorageAccountSchema()`,
