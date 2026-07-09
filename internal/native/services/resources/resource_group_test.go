@@ -23,6 +23,20 @@ var _ = Describe("Azure Resource Group", Ordered, func() {
 		rg.Apply(resources.ResourceGroupCfg_Basic(cfg), acc.Exists()).ImportVerify()
 	})
 
+	It("reads the resource group back through its data source", func() {
+		// The data source reuses the resource read path (compose id, GET, mapper
+		// flatten) against a schema converted from the generated resource schema. Its
+		// state must reproduce the created group: same id, name, and a set location.
+		// The data block is declared before Apply so the create apply reads it.
+		ds := ws.DataSourceUnderTest(resources.NewResourceGroupDataCfg())
+		rg.Apply(resources.ResourceGroupCfg_Basic(cfg), acc.Exists())
+		ds.Check(
+			acc.Key("id").HasValue(rg.IDValue()),
+			acc.Key("name").HasValue(rg.AttrValue("name")),
+			acc.Key("location").HasValue(rg.AttrValue("location")),
+		)
+	})
+
 	It("rejects a name ending with a period", func() {
 		invalid := resources.NewResourceGroupCfg("invalid")
 		ws.ResourceFor(invalid).ApplyExpectError(

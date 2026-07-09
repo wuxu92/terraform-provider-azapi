@@ -759,7 +759,7 @@ func (p Provider) Functions(ctx context.Context) []func() function.Function {
 }
 
 func (p Provider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{
+	dataSources := []func() datasource.DataSource{
 		func() datasource.DataSource {
 			return &services.ResourceIdDataSource{}
 		},
@@ -776,7 +776,16 @@ func (p Provider) DataSources(ctx context.Context) []func() datasource.DataSourc
 			return &services.ClientConfigDataSource{}
 		},
 	}
-
+	// native static data sources (generated from bicep types). Each generated
+	// descriptor becomes a typed data source backed by the shared runtime,
+	// reusing the resource read path against a converted read-only schema.
+	for name := range nativeservices.Registry {
+		name := name
+		dataSources = append(dataSources, func() datasource.DataSource {
+			return nativeresource.NewDataSource(name)
+		})
+	}
+	return dataSources
 }
 
 func (p Provider) Resources(ctx context.Context) []func() resource.Resource {

@@ -434,8 +434,13 @@ func (b *Base) Delete(ctx context.Context, req resource.DeleteRequest, resp *res
 // ---------------------------------------------------------------------------
 
 func (b *Base) rawToObject(ctx context.Context, raw tftypes.Value) (types.Object, diag.Diagnostics) {
+	return decodeObject(ctx, b.objectType(ctx), raw)
+}
+
+// decodeObject decodes a raw Terraform value into a typed object conforming to
+// objType. Shared by the resource Base and the native data source.
+func decodeObject(ctx context.Context, objType basetypes.ObjectType, raw tftypes.Value) (types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	objType := b.objectType(ctx)
 	v, err := objType.ValueFromTerraform(ctx, raw)
 	if err != nil {
 		diags.AddError("Failed to decode configuration", err.Error())

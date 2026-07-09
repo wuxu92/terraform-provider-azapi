@@ -353,6 +353,36 @@ unified flow entirely.
   `location` casing in `AfterRead` (shared hook in the base, not per-resource).
 - `ImportState`: parse the ARM ID (+type), GET, Flatten into state, set `id`.
 
+## Data Source
+
+Every native static resource also gets a **data source** of the same name (e.g.
+`data.azapi_storage_account`), for reading an existing resource into state. There
+is no second generated schema and no per-resource data-source code: one generic
+runtime (`internal/native/resource/datasource.go`) serves them all, mirroring the
+resource `Base`.
+
+- **Schema (reused, converted at runtime).** The framework keeps resource and
+  data-source schemas in distinct packages (whose shared `Attribute` interface is
+  in an un-importable `internal` package), so `schema_convert.go` type-switches on
+  the public concrete `resource/schema.*Attribute` types and rebuilds the
+  `datasource/schema` equivalents. `name` and the parent reference
+  (`Descriptor.ParentAttr`) become **Required** inputs the practitioner supplies to
+  locate the resource; every other attribute — the whole ARM body plus `id` —
+  becomes a **Computed** output. Plan modifiers and defaults are dropped; element
+  types and descriptions are preserved, and string validators on the identity
+  inputs are carried over. The runtime adds only the read-only `timeouts` block.
+- **Read (reuses the resource read path).** `name` + `<parent>_id` compose the ARM
+  ID via `parse.NewResourceID`; a GET (404 → error, since a data source must find
+  its target) feeds `mapper.FlattenInto` over the config object, so the identity
+  inputs and the `timeouts` block are preserved while the computed body is populated
+  from the response; `id`/`name`/`<parent>_id` are set from the parsed ID.
+- **Registration.** `Provider.DataSources()` appends `nativeresource.NewDataSource(name)`
+  for every `services.Registry` entry, exactly as `Resources()` does for
+  `New(name)`.
+
+A data source is read-only, so it runs no hooks; the lookup is by `name` +
+`<parent>_id` only (no `resource_id` alternate path in v1).
+
 ## Phasing
 
 1. **Mapper** (`expand`/`flatten`) + unit tests round-tripping storage_account

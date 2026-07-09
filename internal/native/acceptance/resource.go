@@ -226,3 +226,21 @@ func (r *Resource) Address() string { return r.address() }
 // "azapi_resource_group.rg.id". Pass it to a dependent resource's config builder so
 // the dependent injects this resource as its parent by address.
 func (r *Resource) IDRef() string { return r.address() + ".id" }
+
+// IDValue is the resource's actual id from Terraform state (the composed ARM id), for
+// cross-checking a data source that reads the same resource. Empty if not in state.
+func (r *Resource) IDValue() string { return r.currentID() }
+
+// AttrValue reads a dotted attribute path from the resource's current state, in the
+// same string form the Check helpers compare against. Empty if the path is absent.
+func (r *Resource) AttrValue(path string) string {
+	res := r.stateResource()
+	if res == nil {
+		return ""
+	}
+	v, ok := lookup(res.AttributeValues, path)
+	if !ok {
+		return ""
+	}
+	return formatValue(v)
+}

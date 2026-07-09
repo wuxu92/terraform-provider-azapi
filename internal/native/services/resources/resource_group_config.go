@@ -45,3 +45,31 @@ func (r ResourceGroupCfg) config(name string) string {
 		ParentRef:  `"/subscriptions/{{.SubscriptionID}}"`,
 		Location:   true})
 }
+
+// ResourceGroupDataCfg is the azapi_resource_group data source config for
+// acceptance. It reads back the resource group created by the ResourceGroupCfg
+// resource (same label), referencing that resource's name and subscription_id so
+// Terraform reads the data source after the resource is created. Construct it with
+// NewResourceGroupDataCfg.
+type ResourceGroupDataCfg struct {
+	config.DataSourceConfigBase
+}
+
+// NewResourceGroupDataCfg builds a resource-group data source config. The label
+// defaults to "test" to match the single-instance ResourceGroupCfg it reads back.
+func NewResourceGroupDataCfg(label ...string) ResourceGroupDataCfg {
+	return ResourceGroupDataCfg{config.NewDataSourceConfigBase(ResourceGroup.Name, label...)}
+}
+
+// Config renders a data block that reads the resource group by the managed
+// resource's own name and subscription_id. depends_on forces the read to apply time
+// (after the create) — the inputs are known at plan, so without it Terraform would
+// read the data source during plan, before the resource group exists.
+func (r ResourceGroupDataCfg) Config() string {
+	res := "azapi_resource_group." + r.Label()
+	return `data "azapi_resource_group" "` + r.Label() + `" {
+  name            = ` + res + `.name
+  subscription_id = ` + res + `.subscription_id
+  depends_on      = [` + res + `]
+}`
+}

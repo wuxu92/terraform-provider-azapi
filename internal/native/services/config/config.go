@@ -124,6 +124,22 @@ type DataSourceConfigBase struct {
 	label  string
 }
 
+// NewDataSourceConfigBase builds the embedded base for a data-source config
+// builder's constructor: tfType is the generated Descriptor's Name. The label is
+// optional — omit it for the single-instance default ("test"), or pass exactly one
+// explicit label. Mirrors NewResourceConfigBase.
+func NewDataSourceConfigBase(tfType string, label ...string) DataSourceConfigBase {
+	l := defaultLabel
+	switch len(label) {
+	case 0:
+	case 1:
+		l = label[0]
+	default:
+		panic("generated: NewDataSourceConfigBase accepts at most one label")
+	}
+	return DataSourceConfigBase{tfType: tfType, label: l}
+}
+
 // DataSourceType implements [nativeacc.DataSourceConfig].
 func (b DataSourceConfigBase) DataSourceType() string {
 	return b.tfType
