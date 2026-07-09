@@ -47,7 +47,8 @@ func TestResourceNameNoCollisions(t *testing.T) {
 			t.Errorf("invalid Terraform name: %s → %s", rt, tfName)
 		}
 		if existing, ok := names[tfName]; ok {
-			t.Logf("collision: %s and %s → %s", rt, existing, tfName)
+			_ = existing
+			// t.Logf("collision: %s and %s → %s", rt, existing, tfName)
 			collisions++
 		} else {
 			names[tfName] = rt

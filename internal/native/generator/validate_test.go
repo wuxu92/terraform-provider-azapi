@@ -220,5 +220,5 @@ func TestValidateDetectsMismatches(t *testing.T) {
 		t.Errorf("expected 1 missing in schema, got %d", missingCount)
 	}
 
-	t.Logf("Mismatches:\n%s", typegraph.FormatMismatches(mismatches))
+	t.Logf("Mismatches count: %d", len(mismatches))
 }

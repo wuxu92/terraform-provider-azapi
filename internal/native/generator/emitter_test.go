@@ -100,7 +100,7 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 
 	// Log first 100 lines for manual review
 	lines := strings.Split(source, "\n")
-	maxLines := 80
+	maxLines := 5
 	if len(lines) < maxLines {
 		maxLines = len(lines)
 	}
