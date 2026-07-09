@@ -412,12 +412,16 @@ A data source is read-only, so it runs no hooks; the lookup is by `name` +
 - **Schema customizers** — `internal/native/generator/customizers`: generation-time, per-ARM-type
   Go hooks that bake validators/defaults/parent-name into the generated schema
   (see GENERATOR.md Rule 9d). Not part of the provider runtime.
-- **Generated descriptor** — `services.Descriptor{Name, ARMType, APIVersion, Schema, WritableScopes, ParentAttr}`
-  registered via each generated file's `init()`.
-- **Provider** — `Resources()` appends `nativeresource.New(name)` for every
+- **Generated descriptor** — `services.Descriptor{Name, ARMType, APIVersion, Schema, WritableScopes, ParentAttr, Relational, Timeouts}`
+  registered via each generated file's `init()`. `Timeouts` carries the per-op
+  timeout defaults baked in from azwise at gen time (the runtime reads them, not the
+  azwise registry).
+- **Provider** — `Resources()` appends `nativeresource.New(name)` and
+  `DataSources()` appends `nativeresource.NewDataSource(name)` for every
   `services.Registry` entry.
-- Not yet exercised against live ARM (acceptance tests need credentials); unit and
-  schema-validation coverage in place.
+- Exercised against live ARM via the Ginkgo acceptance suites
+  (`services/<service>/<resource>_test.go`); unit and schema-validation coverage in
+  place.
 
 ## Open Questions
 

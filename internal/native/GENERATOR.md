@@ -239,6 +239,18 @@ descriptor as `ParentAttr` so the runtime can compose/parse the ARM ID without
 recomputing it. The synthesized envelope attributes are excluded from the
 schema↔bicep validator via `EnvelopeAttrNames` (they have no bicep counterpart).
 
+**Meta attributes (synthetic, behavior-only).** A customizer may append a
+`typegraph.MetaAttr` to `def.Envelope.Meta` for a top-level attribute that is *not*
+part of the bicep body and is never sent to or read from ARM — it drives
+provider-side behavior only (e.g. `purge_on_destroy` on `azapi_key_vault`, read by
+an `AfterDelete` hook to purge the soft-deleted shadow). The emitter renders each as
+an `Optional`-only `BoolAttribute` (no default), so it stays null when unset and
+never drifts on read/import; the mapper skips it on `Expand` and leaves it null on
+flatten. Like `name`/parent/`id`, Meta attributes have no bicep counterpart and are
+excluded from the schema↔bicep validator via `EnvelopeAttrNames`. Pair a Meta
+attribute with the runtime hook that reads it — the schema flag and the behavior are
+one feature; ship them together.
+
 ### Schema Customization Plugins
 
 **Rule 9d: Per-resource customizers run last and bake into the generated file**

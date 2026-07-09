@@ -27,6 +27,11 @@ The result is baked into `internal/native/services/<service>/<name>_gen.go`. The
 `timeouts` block. Per-resource runtime *behavior* (not schema) lives beside the
 generated resource in `<name>_hooks.go`; see [Runtime behavior hooks](#runtime-behavior-hooks).
 
+Every resource also gets a **read-only data source** of the same name for free — no
+per-resource work. The runtime converts the generated resource schema into a
+data-source schema (`name` + parent Required, all else Computed) and reads via GET;
+see RESOURCE.md "Data Source".
+
 Two failure modes to internalize:
 - **Customizer paths panic.** `FindProperty` / `IsolateArrayElement` crash generation
   on an unresolvable ARM path — a typo or renamed property can't ship silently.
@@ -295,6 +300,11 @@ description-mining). Common moves:
     `services/<service>/validators/<rule>.go`.
 - **Array element shared with a sibling** (`ipRules` vs `ipv6Rules`) — call
   `IsolateArrayElement(def, "<path>")` **first** so the validator doesn't leak to the sibling.
+- **Behavior-only Meta attribute** — `def.Envelope.Meta = append(def.Envelope.Meta, typegraph.MetaAttr{Name: "purge_on_destroy", Description: …})`
+  for a top-level flag that is *not* in the ARM body and drives provider-side
+  behavior only (emitted as an `Optional` bool; read by a runtime hook). Pair it with
+  the hook that consumes it — schema flag and behavior ship together. See GENERATOR.md
+  Rule 9c "Meta attributes".
 
 `FindProperty` / `IsolateArrayElement` **panic** on a bad path — fix the path, don't suppress.
 

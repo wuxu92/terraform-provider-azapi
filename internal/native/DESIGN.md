@@ -27,6 +27,8 @@ runtime:
 
     internal/native/resource (Base) serves Descriptor.Schema() + a timeouts block.
     Per-resource CRUD behavior: services/<service>/<resource>_hooks.go via RegisterHooks.
+    Each resource also gets a read-only data source (resource/datasource.go): the
+    resource schema is converted to a data-source schema at runtime and read via GET.
 ```
 
 ### Components
@@ -198,9 +200,10 @@ See ADR-0006.
 | Post-processing | ✓ Complete | `generator/postprocess.go` |
 | Schema emitter | ✓ Complete | `generator/emitter.go`, `emitter_test.go` |
 | Runtime defaults | ✓ Complete | `schema/defaults.go` |
-| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site`, `azapi_user_assigned_identity`, `azapi_key_vault` | `services/{storage,resources,web,managedidentity,keyvault}/*_gen.go` |
+| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site`, `azapi_user_assigned_identity`, `azapi_key_vault`, `azapi_authorization_role_definition` | `services/{storage,resources,web,managedidentity,keyvault,authorization}/*_gen.go` |
 | Generator command | ✓ Working | `generator/cmd/generate_poc.go` |
 | CRUD methods | ✓ Complete | `resource/base.go`, `mapper/mapper.go` |
-| Provider registration | ✓ Complete | `internal/provider/provider.go` (iterates `services.Registry`) |
+| Provider registration | ✓ Complete | `internal/provider/provider.go` (`Resources()` + `DataSources()` iterate `services.Registry`) |
 | Schema customization | ✓ Complete | `generator/customizers/` |
+| Data sources | ✓ Complete (read-only, one per resource) | `resource/datasource.go`, `resource/schema_convert.go` |
 | Full generation tool | ◐ PoC (storage + resources services) | `generator/cmd/generate_poc.go` |

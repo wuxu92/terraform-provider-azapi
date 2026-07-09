@@ -17,10 +17,15 @@ Generate user-facing docs per native resource, similar to AzureRM provider docs.
 Native resources currently share the generic runtime base and ARM client; no native operation locking was found. Need keyed locks by ARM ID or parent ID for operations ARM serializes poorly: subnet, app settings, role assignments, network rules. Avoid global locks; implement scoped provider-level lock manager.  
 **Workload:** [INFERENCE] 1 week base lock manager; 1-3 days per resource rule family.
 
-## 4. Automate data source support
+## 4. Automate data source support — DONE
 
-Provider `DataSources()` still registers only existing dynamic data sources; native registry only feeds `Resources()`. Add generated read-only data source descriptors, schema reuse with required `id` or name+parent, GET-only runtime base, and import-like flattening. Hard part: choosing lookup identity per resource.  
-**Workload:** [INFERENCE] 2-3 weeks for framework; 1-2 days per special-case resource.
+Shipped in `resource/datasource.go` + `resource/schema_convert.go`: `Provider.DataSources()`
+now appends `nativeresource.NewDataSource(name)` for every `services.Registry` entry,
+mirroring `Resources()`. The generic `DataSource` converts the generated resource schema
+into a read-only data-source schema at runtime (`name` + parent as Required inputs, all
+else Computed) and reuses the resource read path (compose ARM id → GET → mapper flatten).
+Lookup identity is `name` + `<parent>_id` (no per-resource `resource_id` alt-path yet).
+See RESOURCE.md "Data Source". Remaining (optional): a `resource_id` lookup alternate.
 
 ## 5. Static resource convert from AzureRM to AzAPI native
 
@@ -65,7 +70,7 @@ This is Terraform Plugin Framework resource identity, not Azure managed identity
 ## 13. Resource list support
 
 Provider already has protocol `ListResources()` with `AzapiResourceList`; native has no generated list resource registry. Need typed list schemas, paging, filter inputs, output shape decisions, and mapping list responses to collections. Also clarify Terraform list-resource UX versus data sources.  
-**Workload:** [INFERENCE] 2-4 weeks after native data-source base exists.
+**Workload:** [INFERENCE] 2-4 weeks. The native data-source base (item 4) now exists, so the read/flatten and schema-reuse machinery can be reused.
 
 ## 14. Old API version or multiple API version support
 

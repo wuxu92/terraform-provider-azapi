@@ -208,8 +208,8 @@ terraform CLI ──tfprotov6──► terraform-provider-azapi (plugin process)
                                   │
         ┌─────────────────────────┼──────────────────────────────┐
         ▼                         ▼                              ▼
-  azapi_resource          azapin runtime resource          azapi data sources
-  (dynamic body)          internal/native/resource.Base    (unchanged)
+  azapi_resource          azapin runtime resource +        azapi data sources
+  (dynamic body)          data source (native/resource)    (dynamic; unchanged)
         │                         │
         │                  ┌──────┴───────┐
         │                  ▼              ▼
@@ -248,7 +248,7 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 | `internal/native/armtypes` | ARM resource type string constants |
 | `internal/native/schema` | Runtime static-default impls (`Static*`), shared generic validators (`UUID`, `AzureResourceID`), plan-modifier anchors |
 | `internal/native/mapper` | Generic state ↔ ARM JSON (`Expand`/`Flatten`/`FlattenInto`/`ResolveUnknowns`) |
-| `internal/native/resource` | Generic `Base` resource, hook types/registry, body loader |
+| `internal/native/resource` | Generic `Base` resource + read-only `DataSource` (schema converted from the resource schema, GET-only read path), hook types/registry, body loader |
 | `internal/native/services` | Registry (`Descriptor`/`Register`/`Registry`); per-service sub-packages `services/<service>` (schemas) + `services/<service>/validators/` + hand-written `<resource>_hooks.go`; `services/all` blank-imports every service to populate the registry and hooks |
 | `internal/native/validate` | Compiled-schema ↔ bicep cross-validator |
 | `internal/native/acceptance` | Ginkgo BDD acceptance framework |
@@ -323,6 +323,8 @@ type Descriptor struct {
     Schema         func() schema.Schema // generated body + operational envelope
     WritableScopes int                  // bicep scope bitmask (metadata)
     ParentAttr     string               // generated parent-reference attr, e.g. "resource_group_id"
+    Relational     []RelationalConstraint // azwise cross-property constraints → framework ConfigValidators
+    Timeouts       Timeouts               // per-op timeout defaults baked in from azwise; zero field → runtime fallback
 }
 var Registry = map[string]Descriptor{} // each generated init() calls Register; services/all blank-imports every service package to populate it
 
