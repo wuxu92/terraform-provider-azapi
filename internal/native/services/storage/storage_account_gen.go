@@ -57,6 +57,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					nativeschema.UseStateForEquivalentLocation(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"sku": schema.SingleNestedAttribute{

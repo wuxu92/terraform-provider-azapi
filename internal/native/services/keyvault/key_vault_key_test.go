@@ -35,8 +35,10 @@ var _ = Describe("Azure Key Vault Key", Ordered, func() {
 		scope := ws.Scope()
 		vaultCfg := keyvault.NewKeyVaultCfg(rgCfg, config.ClientConfig, "ap")
 		vault := scope.ResourceFor(vaultCfg)
-		keyCfg := keyvault.NewKeyVaultKeyAccessPolicyCfg(keyvault.KeyVaultCfg_KeyOperationsAccessPolicy(vaultCfg), "ap")
-		key := scope.ResourceFor(keyCfg)
+		basicKeyCfg := keyvault.NewKeyVaultKeyAccessPolicyCfg(keyvault.KeyVaultCfg_KeyOperationsAccessPolicy(vaultCfg), "ap_basic")
+		basicKey := scope.ResourceFor(basicKeyCfg)
+		completeKeyCfg := keyvault.NewKeyVaultKeyAccessPolicyCfg(keyvault.KeyVaultCfg_KeyOperationsAccessPolicy(vaultCfg), "ap_complete")
+		completeKey := scope.ResourceFor(completeKeyCfg)
 
 		BeforeAll(func() {
 			// The key is created through ARM, but Key Vault still enforces vault-side key
@@ -49,19 +51,14 @@ var _ = Describe("Azure Key Vault Key", Ordered, func() {
 			// Basic supplies only the required management-plane key fields (kty and key_ops).
 			// Apply asserts create -> read -> empty plan; ImportVerify proves the import/read
 			// path reproduces that minimal state without drift.
-			key.Apply(keyvault.KeyVaultKeyCfg_Basic(keyCfg), acc.Exists()).ImportVerify()
+			basicKey.Apply(keyvault.KeyVaultKeyCfg_Basic(basicKeyCfg), acc.Exists()).ImportVerify()
 		})
 
-		It("adds management-plane key operations in place", func() {
-			// Complete keeps ForceNew fields stable and adds the ARM schema's import operation
-			// alongside mutable attributes/tags; the follow-up plan proves the update round-trips.
-			key.Apply(keyvault.KeyVaultKeyCfg_Complete(keyCfg)).ImportVerify()
-		})
-
-		It("updates mutable attributes and tags in place", func() {
-			// Complete_update flips only attributes.enabled and tags while holding kty and
-			// key_ops steady, proving a pure mutable update through ARM and import/read.
-			key.Apply(keyvault.KeyVaultKeyCfg_Complete_update(keyCfg)).ImportVerify()
+		It("creates and imports a key with expanded management-plane create parameters", func() {
+			// Microsoft.KeyVault/vaults/keys exposes Keys_CreateIfNotExist: ARM can create
+			// the first version but cannot update an existing key. Exercise the expanded
+			// key_ops/attributes/tags shape as a distinct key, not an in-place mutation.
+			completeKey.Apply(keyvault.KeyVaultKeyCfg_Complete(completeKeyCfg), acc.Exists()).ImportVerify()
 		})
 	})
 

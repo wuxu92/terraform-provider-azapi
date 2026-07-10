@@ -60,6 +60,7 @@ func AzapiKeyVaultSchema() schema.Schema {
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					nativeschema.UseStateForEquivalentLocation(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"properties": schema.SingleNestedAttribute{

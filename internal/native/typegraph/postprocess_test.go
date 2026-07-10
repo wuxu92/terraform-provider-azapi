@@ -21,3 +21,21 @@ func TestDemoteDefaultedRequired(t *testing.T) {
 		t.Error("a read-only property must be left untouched")
 	}
 }
+
+func TestMarkTopLevelLocationForceNew(t *testing.T) {
+	writable := &ResourceDefinition{Body: &Type{Kind: KindObject, Properties: map[string]*Property{
+		"location": {Name: "location", Type: &Type{Kind: KindString}},
+	}}}
+	markTopLevelLocationForceNew(writable)
+	if !writable.Body.Properties["location"].ForceNew {
+		t.Fatal("writable top-level location should require replacement")
+	}
+
+	computed := &ResourceDefinition{Body: &Type{Kind: KindObject, Properties: map[string]*Property{
+		"location": {Name: "location", Type: &Type{Kind: KindString}, Flags: FlagReadOnly},
+	}}}
+	markTopLevelLocationForceNew(computed)
+	if computed.Body.Properties["location"].ForceNew {
+		t.Fatal("computed/read-only location should not get a replacement modifier")
+	}
+}

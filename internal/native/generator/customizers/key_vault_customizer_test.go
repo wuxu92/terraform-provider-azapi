@@ -179,6 +179,9 @@ func TestKeyVaultKeySchemaEmitsManagementPlaneKeyOpsValidator(t *testing.T) {
 			t.Errorf("key_ops block missing %q", want)
 		}
 	}
+	if !strings.Contains(keyOps, "listplanmodifier.RequiresReplace()") {
+		t.Error("key_ops block missing RequiresReplace; ARM Keys_CreateIfNotExist cannot update existing keys")
+	}
 	for _, blocked := range []string{`"backup"`, `"delete"`} {
 		if strings.Contains(keyOps, blocked) {
 			t.Errorf("key_ops block contains data-plane operation %s", blocked)

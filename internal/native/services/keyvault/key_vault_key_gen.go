@@ -81,6 +81,7 @@ func AzapiKeyVaultKeySchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.UseStateForUnknown(),
+									boolplanmodifier.RequiresReplace(),
 								},
 							},
 							"exp": schema.Int64Attribute{
@@ -89,6 +90,7 @@ func AzapiKeyVaultKeySchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.Int64{
 									int64planmodifier.UseStateForUnknown(),
+									int64planmodifier.RequiresReplace(),
 								},
 							},
 							"exportable": schema.BoolAttribute{
@@ -97,6 +99,7 @@ func AzapiKeyVaultKeySchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.Bool{
 									boolplanmodifier.UseStateForUnknown(),
+									boolplanmodifier.RequiresReplace(),
 								},
 							},
 							"nbf": schema.Int64Attribute{
@@ -105,6 +108,7 @@ func AzapiKeyVaultKeySchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.Int64{
 									int64planmodifier.UseStateForUnknown(),
+									int64planmodifier.RequiresReplace(),
 								},
 							},
 							"recovery_level": schema.StringAttribute{
@@ -142,6 +146,9 @@ func AzapiKeyVaultKeySchema() schema.Schema {
 					},
 					"key_ops": schema.ListAttribute{
 						Required: true,
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.RequiresReplace(),
+						},
 						Validators: []validator.List{
 							listvalidator.ValueStringsAre(
 								stringvalidator.OneOf(
@@ -210,6 +217,7 @@ func AzapiKeyVaultKeySchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"data": schema.StringAttribute{
@@ -218,6 +226,7 @@ func AzapiKeyVaultKeySchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 						},
@@ -254,6 +263,9 @@ func AzapiKeyVaultKeySchema() schema.Schema {
 												"must be in datetime format yyyy-MM-ddTHH:mm:ssZ",
 											),
 										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
+										},
 									},
 									"updated": schema.Int64Attribute{
 										Description: "Last updated time in seconds since 1970-01-01T00:00:00Z.",
@@ -270,6 +282,7 @@ func AzapiKeyVaultKeySchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.List{
 									listplanmodifier.UseStateForUnknown(),
+									listplanmodifier.RequiresReplace(),
 								},
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
@@ -417,6 +430,7 @@ func AzapiKeyVaultKeySchema() schema.Schema {
 				Computed:    true,
 				PlanModifiers: []planmodifier.Map{
 					mapplanmodifier.UseStateForUnknown(),
+					mapplanmodifier.RequiresReplace(),
 				},
 				ElementType: types.StringType,
 			},

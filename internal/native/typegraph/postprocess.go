@@ -15,6 +15,8 @@ import (
 //   - Promote single-optional-child block properties to Required
 //   - Overlay azwise knowledge (ForceNew, computed, sensitive, verified defaults,
 //     validation) so curated AzureRM knowledge is the base for the schema
+//   - Mark writable top-level location as ForceNew: ARM tracked-resource locations
+//     are creation-time placement, not in-place mutable state
 //   - Seed the operational-envelope spec (name + parent reference) from the ARM
 //     type and writable scope
 //
@@ -28,10 +30,22 @@ func PostProcess(defs []*ResourceDefinition) {
 			extractDescriptionValidators(def.Body)
 			promoteSingleOptional(def.Body)
 			ApplyAzwise(def)
+			markTopLevelLocationForceNew(def)
 			demoteDefaultedRequired(def.Body)
 			applyEnvelopeDefaults(def)
 		}
 	}
+}
+
+func markTopLevelLocationForceNew(def *ResourceDefinition) {
+	if def == nil || def.Body == nil || def.Body.Kind != KindObject {
+		return
+	}
+	loc := def.Body.Properties["location"]
+	if loc == nil || loc.Type == nil || loc.Type.Kind != KindString || EffectiveComputed(loc) {
+		return
+	}
+	loc.ForceNew = true
 }
 
 // demoteDefaultedRequired makes a Default override the Required flag: a property

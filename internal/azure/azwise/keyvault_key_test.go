@@ -46,6 +46,24 @@ func TestKeyVaultKeyForceNew(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "key operations changed",
+			old:  map[string]interface{}{"properties": map[string]interface{}{"keyOps": []interface{}{"encrypt", "decrypt"}}},
+			new:  map[string]interface{}{"properties": map[string]interface{}{"keyOps": []interface{}{"encrypt", "decrypt", "sign"}}},
+			want: true,
+		},
+		{
+			name: "tags changed",
+			old:  map[string]interface{}{"tags": map[string]interface{}{"scenario": "old"}},
+			new:  map[string]interface{}{"tags": map[string]interface{}{"scenario": "new"}},
+			want: true,
+		},
+		{
+			name: "attribute changed",
+			old:  map[string]interface{}{"properties": map[string]interface{}{"attributes": map[string]interface{}{"enabled": true}}},
+			new:  map[string]interface{}{"properties": map[string]interface{}{"attributes": map[string]interface{}{"enabled": false}}},
+			want: true,
+		},
+		{
 			name: "no change",
 			old:  map[string]interface{}{"name": "key-a", "properties": map[string]interface{}{"kty": "RSA"}},
 			new:  map[string]interface{}{"name": "key-a", "properties": map[string]interface{}{"kty": "RSA"}},

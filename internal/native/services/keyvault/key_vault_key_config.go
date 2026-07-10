@@ -45,8 +45,8 @@ func newKeyVaultKeyCfg(keyVault KeyVaultCfg, dependsOn []string, label ...string
 
 // KeyVaultKeyCfg_Basic is a minimal valid management-plane RSA key: kty and key_ops
 // are the only writable fields required by Microsoft.KeyVault/vaults/keys. ForceNew
-// fields such as name, key_vault_id and kty are held stable across the scenario chain;
-// key_size is deliberately omitted so Azure's RSA default can round-trip as computed.
+// fields such as name, key_vault_id, kty and key_ops are held stable; key_size is
+// deliberately omitted so Azure's RSA default can round-trip as computed.
 type KeyVaultKeyCfg_Basic KeyVaultKeyCfg
 
 func (r KeyVaultKeyCfg_Basic) Config() string {
@@ -57,12 +57,11 @@ func (r KeyVaultKeyCfg_Basic) Config() string {
   }`)
 }
 
-// KeyVaultKeyCfg_Complete expands the Basic key using management-plane-valid mutable
-// fields only: key_ops gains the ARM schema's import operation, attributes.enabled is
-// set explicitly, and tags are added. The release operation is intentionally omitted
-// because live Azure may require a secure-key-release policy/exportable key pairing;
-// import is the management-plane operation this scenario pins without those extra
-// service-side prerequisites.
+// KeyVaultKeyCfg_Complete is a create-time-only key shape that exercises additional
+// management-plane-valid fields. Microsoft.KeyVault/vaults/keys exposes
+// Keys_CreateIfNotExist: ARM can create the first version but cannot update an
+// existing key, so acceptance tests must apply this shape to a distinct key instance
+// rather than mutate a Basic key in place.
 type KeyVaultKeyCfg_Complete KeyVaultKeyCfg
 
 func (r KeyVaultKeyCfg_Complete) Config() string {
@@ -79,10 +78,9 @@ func (r KeyVaultKeyCfg_Complete) Config() string {
   }`)
 }
 
-// KeyVaultKeyCfg_Complete_update flips only in-place-updatable fields from Complete:
-// attributes.enabled and tags. kty remains unchanged because it is ForceNew, and the
-// expanded key_ops list is held stable so this step proves a clean mutable update
-// rather than depending on operation-list replacement semantics.
+// KeyVaultKeyCfg_Complete_update is retained as a replacement-plan fixture: all
+// writable Key Vault key fields are create-time-only through ARM, so a live acceptance
+// test must not apply this over an existing key unless it also changes the key name.
 type KeyVaultKeyCfg_Complete_update KeyVaultKeyCfg
 
 func (r KeyVaultKeyCfg_Complete_update) Config() string {
@@ -114,9 +112,30 @@ func (r KeyVaultKeyCfg) config(body string) string {
 	}
 
 	return r.RenderConfig(config.ConfigEnvelope{
-		Name:       "acctestkey{{.RandomString}}",
+		Name:       keyVaultKeyName(r.ResourceLabel()),
 		ParentAttr: "key_vault_id",
 		ParentRef:  r.keyVault.IDRef(),
 		Body:       body,
 	})
+}
+
+func keyVaultKeyName(label string) string {
+	suffix := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r
+		case r >= '0' && r <= '9':
+			return r
+		case r == '-':
+			return r
+		default:
+			return -1
+		}
+	}, label)
+	if suffix == "" {
+		suffix = "test"
+	}
+	return "acctestkey" + suffix + "{{.RandomString}}"
 }

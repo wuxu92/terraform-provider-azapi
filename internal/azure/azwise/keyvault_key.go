@@ -21,9 +21,22 @@ func NewKeyVaultKey() *KeyVaultKey {
 			ApiVersions:  []string{"2025-05-01", "2026-02-01"},
 			ForceNew: []ForceNewRule{
 				{PropertyPath: "name"},
-				{PropertyPath: "properties.kty"},       // key_type → kty in ARM
-				{PropertyPath: "properties.keySize"},   // key_size → keySize in ARM
-				{PropertyPath: "properties.curveName"}, // curve → curveName in ARM
+				// The management-plane operation is Keys_CreateIfNotExist: it creates
+				// only the first version and explicitly does not update existing keys.
+				// Every user-writable create parameter must therefore require replacement.
+				{PropertyPath: "properties.attributes.enabled"},
+				{PropertyPath: "properties.attributes.exp"},
+				{PropertyPath: "properties.attributes.exportable"},
+				{PropertyPath: "properties.attributes.nbf"},
+				{PropertyPath: "properties.curveName"},
+				{PropertyPath: "properties.keyOps"},
+				{PropertyPath: "properties.keySize"},
+				{PropertyPath: "properties.kty"},
+				{PropertyPath: "properties.release_policy.contentType"},
+				{PropertyPath: "properties.release_policy.data"},
+				{PropertyPath: "properties.rotationPolicy.attributes.expiryTime"},
+				{PropertyPath: "properties.rotationPolicy.lifetimeActions"},
+				{PropertyPath: "tags"},
 			},
 			SoftDelete: true, // keys inherit vault soft-delete; purge via PurgeSoftDeletedKeysOnDestroy feature flag
 			// key_type and key_opts are Required in AzureRM schema.

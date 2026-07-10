@@ -158,6 +158,9 @@ func TestApplyAzwiseKeyVaultKey(t *testing.T) {
 	if keyOps == nil {
 		t.Fatal("properties.keyOps not found")
 	}
+	if !keyOps.ForceNew {
+		t.Error("expected properties.keyOps to be ForceNew because ARM Keys_CreateIfNotExist cannot update existing keys")
+	}
 	if keyOps.Type.Kind != typegraph.KindArray || keyOps.Type.ElementType == nil || !keyOps.Type.ElementType.IsEnum() {
 		t.Fatalf("properties.keyOps type = %#v, want array of enum values", keyOps.Type)
 	}
@@ -171,6 +174,11 @@ func TestApplyAzwiseKeyVaultKey(t *testing.T) {
 		if contains(allowed, op) {
 			t.Errorf("properties.keyOps enum includes non-ARM key operation %q: %v", op, allowed)
 		}
+	}
+	if tags := typegraph.Navigate(key.Body, "tags"); tags == nil {
+		t.Fatal("tags not found")
+	} else if !tags.ForceNew {
+		t.Error("expected tags to be ForceNew because ARM Keys_CreateIfNotExist cannot update existing keys")
 	}
 }
 

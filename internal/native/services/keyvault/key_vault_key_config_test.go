@@ -19,7 +19,7 @@ func TestKeyVaultKeyCfgAuthDependencies(t *testing.T) {
 		).Config()
 		want := `
 resource "azapi_key_vault_key" "ap" {
-  name         = "acctestkey{{.RandomString}}"
+  name         = "acctestkeyap{{.RandomString}}"
   key_vault_id = azapi_key_vault.kv.id
   properties = {
     kty     = "RSA"
@@ -39,7 +39,7 @@ resource "azapi_key_vault_key" "ap" {
 		).Config()
 		want := `
 resource "azapi_key_vault_key" "rbac" {
-  name         = "acctestkey{{.RandomString}}"
+  name         = "acctestkeyrbac{{.RandomString}}"
   key_vault_id = azapi_key_vault.kv.id
   properties = {
     kty     = "RSA"
