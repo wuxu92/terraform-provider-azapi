@@ -376,13 +376,13 @@ func TestKeyVaultSchemaComposition(t *testing.T) {
 
 func TestRoleDefinitionSchemaComposition(t *testing.T) {
 	ctx := context.Background()
-	r := nativeresource.New("azapi_authorization_role_definition")
+	r := nativeresource.New("azapi_role_definition")
 
 	// Metadata: provider prefix + resource suffix.
 	mdResp := &resource.MetadataResponse{}
 	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
-	if mdResp.TypeName != "azapi_authorization_role_definition" {
-		t.Errorf("TypeName = %q, want azapi_authorization_role_definition", mdResp.TypeName)
+	if mdResp.TypeName != "azapi_role_definition" {
+		t.Errorf("TypeName = %q, want azapi_role_definition", mdResp.TypeName)
 	}
 
 	// Schema: composed (envelope + body), and framework-valid.
@@ -434,7 +434,7 @@ func TestRoleDefinitionSchemaComposition(t *testing.T) {
 }
 
 func TestRoleDefinitionAssignableScopesHookRegistered(t *testing.T) {
-	roleDefinition := nativeresource.New("azapi_authorization_role_definition")
+	roleDefinition := nativeresource.New("azapi_role_definition")
 	if hookField(t, roleDefinition, "BeforeCreate").IsNil() || hookField(t, roleDefinition, "BeforeUpdate").IsNil() {
 		t.Fatal("role definition ensureAssignableScopes hook must be registered for both create and update")
 	}

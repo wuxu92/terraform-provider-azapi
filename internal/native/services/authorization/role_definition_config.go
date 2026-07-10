@@ -8,7 +8,7 @@ import (
 )
 
 // RoleDefinitionCfg carries the Terraform address metadata and the fixed role
-// definition GUID for azapi_authorization_role_definition acceptance scenarios.
+// definition GUID for azapi_role_definition acceptance scenarios.
 // Construct it with NewRoleDefinitionCfg, then wrap it in a scenario type
 // (RoleDefinitionCfg_Basic, _Complete, _Complete_update) when applying. Every
 // scenario scopes the role at the subscription (parent_id =

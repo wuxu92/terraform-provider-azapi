@@ -16,8 +16,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiAuthorizationRoleDefinitionSchema returns the Terraform resource schema for Microsoft.Authorization/roleDefinitions@2022-04-01.
-func AzapiAuthorizationRoleDefinitionSchema() schema.Schema {
+// AzapiRoleDefinitionSchemaSchema returns the Terraform resource schema for Microsoft.Authorization/roleDefinitions@2022-04-01.
+func AzapiRoleDefinitionSchemaSchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.Authorization/roleDefinitions resource. [azapin:Microsoft.Authorization/roleDefinitions@2022-04-01]",
 		Attributes: map[string]schema.Attribute{
@@ -158,12 +158,12 @@ func AzapiAuthorizationRoleDefinitionSchema() schema.Schema {
 	}
 }
 
-// AuthorizationRoleDefinition describes azapi_authorization_role_definition for registration and config builders.
+// AuthorizationRoleDefinition describes azapi_role_definition for registration and config builders.
 var AuthorizationRoleDefinition = services.Descriptor{
-	Name:           "azapi_authorization_role_definition",
+	Name:           "azapi_role_definition",
 	ARMType:        "Microsoft.Authorization/roleDefinitions",
 	APIVersion:     "2022-04-01",
-	Schema:         AzapiAuthorizationRoleDefinitionSchema,
+	Schema:         AzapiRoleDefinitionSchemaSchema,
 	WritableScopes: 31,
 	ParentAttr:     "parent_id",
 	Timeouts: services.Timeouts{

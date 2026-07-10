@@ -309,7 +309,7 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 | `Microsoft.Web/sites` | `azapi_web_site` |
 | `Microsoft.Network/virtualNetworks/subnets` | `azapi_network_virtual_network_subnet` |
 | `Microsoft.Compute/virtualMachines/extensions` | `azapi_compute_virtual_machine_extension` |
-| `Microsoft.Authorization/roleDefinitions` | `azapi_authorization_role_definition` |
+| `Microsoft.Authorization/roleDefinitions` | `azapi_role_definition` |
 | `Microsoft.Sql/servers/databases` | `azapi_sql_server_database` |
 | `Dynatrace.Observability/monitors` | `azapi_dynatrace_monitor` |
 
@@ -712,7 +712,7 @@ At-a-glance inventory of what exists today (the roadmap lives in §6.3):
 | Post-processing | ✓ Complete | `generator/postprocess.go` |
 | Schema emitter | ✓ Complete | `generator/emitter.go`, `emitter_test.go` |
 | Runtime defaults | ✓ Complete | `schema/defaults.go` |
-| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site`, `azapi_user_assigned_identity`, `azapi_key_vault`, `azapi_authorization_role_definition` | `services/{storage,resources,web,managedidentity,keyvault,authorization}/*_gen.go` |
+| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site`, `azapi_user_assigned_identity`, `azapi_key_vault`, `azapi_role_definition` | `services/{storage,resources,web,managedidentity,keyvault,authorization}/*_gen.go` |
 | Generator command | ✓ Working | `generator/cmd/generate_poc.go` |
 | CRUD methods | ✓ Complete | `resource/base.go`, `mapper/mapper.go` |
 | Provider registration | ✓ Complete | `internal/provider/provider.go` (`Resources()` + `DataSources()` iterate `services.Registry`) |
