@@ -65,10 +65,11 @@ func (r KeyVaultKeyCfg_Basic) Config() string {
 type KeyVaultKeyCfg_Complete KeyVaultKeyCfg
 
 func (r KeyVaultKeyCfg_Complete) Config() string {
+	// do not include "import" in key_ops as it's for rsa-hsm only
 	return KeyVaultKeyCfg(r).config(`
   properties = {
     kty     = "RSA"
-    key_ops = ["encrypt", "decrypt", "sign", "verify", "wrapKey", "unwrapKey", "import"]
+    key_ops = ["encrypt", "decrypt", "sign", "verify", "wrapKey", "unwrapKey"]
     attributes = {
       enabled = true
     }
