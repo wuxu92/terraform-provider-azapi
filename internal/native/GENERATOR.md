@@ -15,7 +15,7 @@ step (2):** without it the generated schema carries only bicep-derived flags and
 loses the curated AzureRM validation, defaults, and ForceNew knowledge.
 
 1. **Register the ARM type.** Add the fully-qualified type constant to
-   `internal/native/armtypes/armtypes.go` (e.g. `StorageAccountBlobService =
+   `internal/native/armtype/armtype.go` (e.g. `StorageAccountBlobService =
    "Microsoft.Storage/storageAccounts/blobServices"`).
 
 2. **Learn AzureRM knowledge (azwise).** Extract operational knowledge — ForceNew,
@@ -276,9 +276,9 @@ func customizeStorageAccount(def *generator.ResourceDefinition) {
     generator.FindProperty(def, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"
 }
 
-// register.go — the single registration point (ARM types come from the armtypes catalog)
+// register.go — the single registration point (ARM types come from the armtype catalog)
 func init() {
-    Register(armtypes.StorageAccount, customizeStorageAccount)
+    Register(armtype.StorageAccount, customizeStorageAccount)
 }
 ```
 

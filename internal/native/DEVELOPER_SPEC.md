@@ -274,10 +274,10 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 | Package | Responsibility |
 |---|---|
 | `internal/azure/azwise` | Knowledge registry + interface; `Validate`, `CheckForceNew`, `StripComputedFields`, `TimeoutDefault`, `SchemaKnowledge` accessors |
-| `internal/native/naming` | ARM type → TF resource name; camelCase ↔ snake_case |
+| `internal/native/naming` | ARM type → TF resource name; camelCase ↔ snake_case; parent-reference attribute naming + ID-shape patterns |
 | `internal/native/generator` | `types.json` walker, post-processing, azwise overlay, schema emitter, source-string validator |
 | `internal/native/generator/customizers` | Generation-time per-ARM-type schema customizers (`Register`/`Apply`) — bake validators/defaults/ForceNew into the schema |
-| `internal/native/armtypes` | ARM resource type string constants |
+| `internal/native/armtype` | ARM resource type string constants |
 | `internal/native/schema` | Runtime static-default impls (`Static*`), shared generic validators (`UUID`, `AzureResourceID`), plan-modifier anchors |
 | `internal/native/mapper` | Generic state ↔ ARM JSON (`Expand`/`Flatten`/`FlattenInto`/`ResolveUnknowns`) |
 | `internal/native/resource` | Generic `Base` resource + read-only `DataSource` (schema converted from the resource schema, GET-only read path), hook types/registry, body loader |

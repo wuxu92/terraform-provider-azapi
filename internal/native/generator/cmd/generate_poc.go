@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure"
-	"github.com/Azure/terraform-provider-azapi/internal/native/armtypes"
+	"github.com/Azure/terraform-provider-azapi/internal/native/armtype"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 	// Registers the per-resource schema customizers (init()) and exposes Apply.
@@ -25,14 +25,14 @@ import (
 // provider runtime loads — so adding a resource is one line here (plus its
 // customizer, if any) and no per-namespace directory is hardcoded.
 var targets = []string{
-	armtypes.StorageAccount,
-	armtypes.StorageAccountBlobService,
-	armtypes.ResourceGroup,
-	armtypes.WebServerFarm,
-	armtypes.WebSite,
-	armtypes.UserAssignedIdentity,
-	armtypes.KeyVault,
-	armtypes.RoleDefinition,
+	armtype.StorageAccount,
+	armtype.StorageAccountBlobService,
+	armtype.ResourceGroup,
+	armtype.WebServerFarm,
+	armtype.WebSite,
+	armtype.UserAssignedIdentity,
+	armtype.KeyVault,
+	armtype.RoleDefinition,
 }
 
 func main() {

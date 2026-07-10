@@ -46,7 +46,7 @@ Two failure modes to internalize:
 
 | What | Path |
 |---|---|
-| ARM type constants | `internal/native/armtypes/armtypes.go` |
+| ARM type constants | `internal/native/armtype/armtype.go` |
 | azwise knowledge (curated AzureRM) | `internal/azure/azwise/<resource>.go` + `register.go` |
 | Generation targets | `internal/native/generator/cmd/generate_poc.go` |
 | Customizers (generation-time schema) | `internal/native/generator/customizers/<resource>.go` + `register.go` |
@@ -213,7 +213,7 @@ Worked example: `Microsoft.Storage/storageAccounts/blobServices` →
 ### Step 1 — Register the ARM type
 
 ```go
-// internal/native/armtypes/armtypes.go
+// internal/native/armtype/armtype.go
 const StorageAccountBlobService = "Microsoft.Storage/storageAccounts/blobServices"
 ```
 
@@ -268,8 +268,8 @@ The generator overlays this via `ApplyAzwise` (Rule 9b).
 ```go
 // internal/native/generator/cmd/generate_poc.go
 var targets = []string{
-    armtypes.StorageAccount,
-    armtypes.StorageAccountBlobService, // ← add
+    armtype.StorageAccount,
+    armtype.StorageAccountBlobService, // ← add
 }
 ```
 
@@ -288,7 +288,7 @@ func customizeStorageAccountBlobService(def *generator.ResourceDefinition) {
         generator.OneOfValidator(`blob service name must be "default"`, "default"),
     }
 }
-// register.go init(): Register(armtypes.StorageAccountBlobService, customizeStorageAccountBlobService)
+// register.go init(): Register(armtype.StorageAccountBlobService, customizeStorageAccountBlobService)
 ```
 
 Customizers mutate `*Property` by ARM dot path and run **last** (win over azwise +
@@ -424,7 +424,7 @@ component's status changed.
 
 ### New-resource checklist
 
-- [ ] ARM type constant in `armtypes.go`
+- [ ] ARM type constant in `armtype.go`
 - [ ] azwise `<resource>.go` written + `Register(New…())` in `register.go`
 - [ ] Sub-service settings in the sub-service file, not the parent
 - [ ] Target added to `generate_poc.go`

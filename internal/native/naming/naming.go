@@ -1,5 +1,5 @@
-// Package naming converts ARM resource types and property names to Terraform-compatible
-// identifiers. Terraform SDK enforces ^[a-z_][a-z0-9_]*$ for attribute names.
+// Package naming converts ARM resource types, property names, and parent-reference
+// attributes to Terraform-compatible identifiers and ID-shape patterns.
 package naming
 
 import (
