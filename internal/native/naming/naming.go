@@ -24,6 +24,19 @@ var resourceNameOverrides = map[string]string{
 	// The service token "keyvault" plus the singularized segment "vault" stutters
 	// ("keyvault_vault"). AzureRM and users know this resource as the key vault.
 	"Microsoft.KeyVault/vaults": "azapi_key_vault",
+	// Keep child-resource names aligned with the user-facing Key Vault resource name
+	// instead of leaking the raw ARM segment "vaults" into Terraform names.
+	"Microsoft.KeyVault/vaults/keys": "azapi_key_vault_key",
+	// Authorization's native resource names match the AzureRM/user-facing nouns and
+	// avoid the redundant "authorization_" service prefix.
+	"Microsoft.Authorization/roleDefinitions": "azapi_role_definition",
+	"Microsoft.Authorization/roleAssignments": "azapi_role_assignment",
+}
+
+// typeReferenceNameOverrides pins parent-reference attribute nouns for ARM types
+// whose raw segment name is less useful than the Terraform-facing resource noun.
+var typeReferenceNameOverrides = map[string]string{
+	"Microsoft.KeyVault/vaults": "key_vault",
 }
 
 // ResourceName converts an ARM resource type (e.g., "Microsoft.Storage/storageAccounts")
@@ -292,6 +305,9 @@ func ParentReference(armType string, writableScopes int) ParentRef {
 // it keeps the full last type segment (no service-prefix stripping) so the result
 // reads unambiguously as a parent-id attribute name.
 func TypeReferenceName(armType string) string {
+	if override, ok := typeReferenceNameOverrides[armType]; ok {
+		return override
+	}
 	parts := strings.Split(armType, "/")
 	last := strings.ReplaceAll(parts[len(parts)-1], "-", "_")
 	return singularize(CamelToSnake(last))

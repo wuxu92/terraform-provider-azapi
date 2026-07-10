@@ -278,6 +278,53 @@ func TestHookContractFieldLiveness(t *testing.T) {
 	})
 }
 
+// TestDeleteHookOverridesDefaultARMDelete pins the delete override seam for
+// resources whose ARM type supports PUT/GET but has no management-plane DELETE.
+// A custom Delete hook must run between BeforeDelete and AfterDelete, must receive
+// the same delete-time CrudCtx liveness, and must replace -- not supplement -- the
+// default ResourceClient.Delete call. The transport fails the test on any ARM
+// request, so a regression to the default DELETE path reddens immediately.
+func TestDeleteHookOverridesDefaultARMDelete(t *testing.T) {
+	ctx := context.Background()
+	desc := resourceGroupDescriptor()
+
+	b := &Base{desc: desc, provider: scriptClient(t, func(req *http.Request, _ int) (int, string) {
+		t.Fatalf("delete hook override issued an unexpected ARM request: %s %s", req.Method, req.URL.String())
+		return http.StatusInternalServerError, `{"error":{"code":"UnexpectedARMCall"}}`
+	})}
+
+	var order []string
+	var before, hookDelete, after liveness
+	b.hooks = &Hooks{
+		BeforeDelete: func(hc *CrudCtx) {
+			order = append(order, "before")
+			before = snapCrud(hc)
+		},
+		Delete: func(hc *CrudCtx) {
+			order = append(order, "delete")
+			hookDelete = snapCrud(hc)
+		},
+		AfterDelete: func(hc *CrudCtx) {
+			order = append(order, "after")
+			after = snapCrud(hc)
+		},
+	}
+
+	resp := &resource.DeleteResponse{}
+	b.Delete(ctx, resource.DeleteRequest{State: resourceGroupReadState(ctx, b, rgArmID)}, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("Delete returned errors: %v", resp.Diagnostics.Errors())
+	}
+	if got, want := strings.Join(order, ","), "before,delete,after"; got != want {
+		t.Fatalf("delete hook order = %q, want %q", got, want)
+	}
+	want := liveness{planLive: false, stateLive: true, bodyLive: false, responseLive: false}
+	assertLiveness(t, "BeforeDelete", before, want)
+	assertLiveness(t, "Delete", hookDelete, want)
+	assertLiveness(t, "AfterDelete", after, want)
+}
+
 // TestSingletonDeleteSkipsBeforeDelete pins the Singleton suppression rule: a
 // Delete on a Singleton resource resets it via PUT (ARM has no DELETE for it) and
 // that reset path bypasses both BeforeDelete and AfterDelete entirely. The reset

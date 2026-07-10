@@ -21,6 +21,8 @@ func customizeRoleDefinition(def *typegraph.ResourceDefinition) {
 	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{
 		typegraph.SharedValidator("UUID()"),
 	}
+	def.Envelope.Parent.Name = "scope_id"
+	def.Envelope.Parent.Description = "The scope ID where this role definition is defined."
 
 	typegraph.FindProperty(def, "properties.roleName").Flags |= typegraph.FlagRequired
 }

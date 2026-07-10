@@ -175,6 +175,37 @@ func (r KeyVaultCfg_AccessPolicy) Config() string {
   }`, kv.clientConfig.RefOf("tenant_id"), kv.clientConfig.RefOf("object_id")))
 }
 
+// KeyVaultCfg_KeyOperationsAccessPolicy is a minimal vault under the legacy
+// access-policy authorization model with enough key permissions for the
+// management-plane Microsoft.KeyVault/vaults/keys child resource to create, read,
+// update, and delete a key. The key itself is still managed through ARM; the access
+// policy is only the vault-side authorization prerequisite used by ARM template
+// examples for keys.
+type KeyVaultCfg_KeyOperationsAccessPolicy KeyVaultCfg
+
+func (r KeyVaultCfg_KeyOperationsAccessPolicy) Config() string {
+	kv := KeyVaultCfg(r)
+	return kv.config(fmt.Sprintf(`
+  properties = {
+    tenant_id                 = %[1]s
+    enable_rbac_authorization = false
+    sku = {
+      name   = "standard"
+      family = "A"
+    }
+    access_policies = [
+      {
+        tenant_id = %[1]s
+        object_id = %[2]s
+        permissions = {
+          keys    = ["Get", "List", "Create", "Update", "Delete", "Import"]
+          secrets = []
+        }
+      }
+    ]
+  }`, kv.clientConfig.RefOf("tenant_id"), kv.clientConfig.RefOf("object_id")))
+}
+
 // KeyVaultCfg_RBAC is the same minimal vault under the Azure RBAC authorization model:
 // enable_rbac_authorization is true and no access policies are configured (they conflict
 // with RBAC). It is the RBAC pole of the in-place authorization-model switch scenario.

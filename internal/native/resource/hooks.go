@@ -101,16 +101,22 @@ type Hooks struct {
 	// Plan, Body. Not reached on a 404 (the resource is removed from state).
 	AfterRead func(*CrudCtx)
 	// BeforeDelete fires on delete, after the timeout is resolved but before the
-	// ARM DELETE. Live: State. Null: Plan, Body, Response. It does NOT run on the
-	// Singleton reset path (see Singleton), so do not rely on it for a singleton
+	// delete operation. Live: State. Null: Plan, Body, Response. It does NOT run on
+	// the Singleton reset path (see Singleton), so do not rely on it for a singleton
 	// default.
 	BeforeDelete func(*CrudCtx)
-	// AfterDelete fires on delete, after the ARM DELETE succeeds, and is the place
+	// Delete, when non-nil, replaces the default ARM DELETE call for resources whose
+	// control-plane type has create/read/update but no delete operation. Base still
+	// handles state decoding, timeouts, BeforeDelete and AfterDelete around it. Live:
+	// State. Null: Plan, Body, Response. Like the other delete hooks, it does NOT run
+	// on the Singleton reset path.
+	Delete func(*CrudCtx)
+	// AfterDelete fires on delete, after the delete operation succeeds, and is the place
 	// for destroy-time orchestration that only makes sense once the resource is gone
 	// (e.g. purging a Key Vault's soft-deleted shadow). Live: State (the prior state
 	// of the just-deleted resource). Null: Plan, Body, Response. Like BeforeDelete it
 	// does NOT run on the Singleton reset path. A diagnostic appended here surfaces to
-	// the practitioner but the ARM DELETE has already committed.
+	// the practitioner but the delete operation has already committed.
 	AfterDelete func(*CrudCtx)
 
 	// Singleton, when non-nil, marks a resource that always exists as a fixed-named

@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -109,6 +110,67 @@ func TestApplyAzwiseBlobService(t *testing.T) {
 	}
 	if !hasOneOf {
 		t.Error("expected a OneOf validator on defaultServiceVersion from azwise")
+	}
+}
+
+// TestApplyAzwiseKeyVaultKey verifies that the native generator can parse the
+// latest stable ARM management-plane Key Vault key definition and lower the
+// resource to the static Azapin shape callers depend on.
+func TestApplyAzwiseKeyVaultKey(t *testing.T) {
+	defs, ver := latestStableDefs(t, "Microsoft.KeyVault/vaults/keys")
+	typegraph.PostProcess(defs)
+
+	tag := "Microsoft.KeyVault/vaults/keys@" + ver
+	var key *typegraph.ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			key = d
+			break
+		}
+	}
+	if key == nil {
+		t.Fatalf("Key Vault key definition %s not found", tag)
+	}
+
+	if got := FileName(key); got != "keyvault/key_vault_key_gen.go" {
+		t.Errorf("FileName() = %q, want keyvault/key_vault_key_gen.go", got)
+	}
+	if got := key.Envelope.Parent.Name; got != "key_vault_id" {
+		t.Errorf("parent attr = %q, want key_vault_id", got)
+	}
+	if len(key.Envelope.Parent.Validators) != 1 {
+		t.Fatalf("parent validators = %d, want 1", len(key.Envelope.Parent.Validators))
+	}
+	parentID := "/subscriptions/s/resourceGroups/rg/providers/Microsoft.KeyVault/vaults/vault1"
+	if !regexp.MustCompile(key.Envelope.Parent.Validators[0].Pattern).MatchString(parentID) {
+		t.Errorf("parent validator should accept Key Vault ID %q", parentID)
+	}
+
+	kty := typegraph.Navigate(key.Body, "properties.kty")
+	if kty == nil {
+		t.Fatal("properties.kty not found")
+	}
+	if !kty.ForceNew {
+		t.Error("expected properties.kty to be ForceNew via azwise")
+	}
+
+	keyOps := typegraph.Navigate(key.Body, "properties.keyOps")
+	if keyOps == nil {
+		t.Fatal("properties.keyOps not found")
+	}
+	if keyOps.Type.Kind != typegraph.KindArray || keyOps.Type.ElementType == nil || !keyOps.Type.ElementType.IsEnum() {
+		t.Fatalf("properties.keyOps type = %#v, want array of enum values", keyOps.Type)
+	}
+	allowed := keyOps.Type.ElementType.EnumValues()
+	for _, op := range []string{"import", "release"} {
+		if !contains(allowed, op) {
+			t.Errorf("properties.keyOps enum missing management-plane operation %q: %v", op, allowed)
+		}
+	}
+	for _, op := range []string{"backup", "delete"} {
+		if contains(allowed, op) {
+			t.Errorf("properties.keyOps enum includes non-ARM key operation %q: %v", op, allowed)
+		}
 	}
 }
 
@@ -337,6 +399,56 @@ func TestApplyAzwiseUserAssignedIdentity(t *testing.T) {
 		}
 		if !typegraph.EffectiveComputed(p) {
 			t.Errorf("expected %s to be Computed-only via azwise", path)
+		}
+	}
+}
+
+// TestApplyAzwiseRoleAssignment verifies that the real latest-stable
+// Microsoft.Authorization/roleAssignments graph preserves the ARM body contract for
+// role assignments: the two ARM body fields Azure requires are emitted as Required,
+// and every AzureRM immutable body field is marked ForceNew so the emitter adds
+// RequiresReplace. The user-facing scope_id envelope name is a customizer concern.
+func TestApplyAzwiseRoleAssignment(t *testing.T) {
+	defs, ver := latestRoleAssignmentDefs(t)
+	typegraph.PostProcess(defs)
+
+	tag := "Microsoft.Authorization/roleAssignments@" + ver
+	var def *typegraph.ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			def = d
+			break
+		}
+	}
+	if def == nil {
+		t.Fatal("role assignment definition not found")
+	}
+
+	for _, path := range []string{"properties.roleDefinitionId", "properties.principalId"} {
+		p := typegraph.Navigate(def.Body, path)
+		if p == nil {
+			t.Fatalf("%s not found", path)
+		}
+		if !p.Flags.IsRequired() {
+			t.Errorf("%s should be Required", path)
+		}
+	}
+
+	for _, path := range []string{
+		"properties.roleDefinitionId",
+		"properties.principalId",
+		"properties.principalType",
+		"properties.delegatedManagedIdentityResourceId",
+		"properties.description",
+		"properties.condition",
+		"properties.conditionVersion",
+	} {
+		p := typegraph.Navigate(def.Body, path)
+		if p == nil {
+			t.Fatalf("%s not found", path)
+		}
+		if !p.ForceNew {
+			t.Errorf("%s should be ForceNew", path)
 		}
 	}
 }

@@ -12,5 +12,6 @@ func RegisterAll() {
 	Register(NewWebServerFarm())
 	Register(NewResourceGroup())
 	Register(NewUserAssignedIdentity())
+	Register(NewRoleAssignment())
 	Register(NewRoleDefinition())
 }

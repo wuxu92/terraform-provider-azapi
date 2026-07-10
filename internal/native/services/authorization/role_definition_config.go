@@ -11,7 +11,7 @@ import (
 // definition GUID for azapi_role_definition acceptance scenarios.
 // Construct it with NewRoleDefinitionCfg, then wrap it in a scenario type
 // (RoleDefinitionCfg_Basic, _Complete, _Complete_update) when applying. Every
-// scenario scopes the role at the subscription (parent_id =
+// scenario scopes the role at the subscription (scope_id =
 // "/subscriptions/{{.SubscriptionID}}"), the azapi analogue of azurerm's
 // data.azurerm_subscription scope, so no base resource is needed.
 //
@@ -28,14 +28,14 @@ type RoleDefinitionCfg struct {
 // NewRoleDefinitionCfg builds a role-definition config scoped at the subscription. The
 // label is optional — omit it for the single-instance default ("test"), or pass an
 // explicit label when a scope holds more than one. The resource type is read from the
-// AuthorizationRoleDefinition descriptor.
+// RoleDefinition descriptor.
 func NewRoleDefinitionCfg(label ...string) RoleDefinitionCfg {
 	guid, err := uuid.GenerateUUID()
 	if err != nil {
 		panic(fmt.Sprintf("authorization: generating role definition GUID: %v", err))
 	}
 	return RoleDefinitionCfg{
-		ResourceConfigBase: config.NewResourceConfigBase(AuthorizationRoleDefinition.Name, label...),
+		ResourceConfigBase: config.NewResourceConfigBase(RoleDefinition.Name, label...),
 		name:               guid,
 	}
 }
@@ -108,11 +108,16 @@ func (r RoleDefinitionCfg_Complete_update) Config() string {
   }`)
 }
 
-func (r RoleDefinitionCfg) config(body string) string {
+func (r RoleDefinitionCfg) config(body string, scopes ...string) string {
+  scope := "/subscriptions/{{.SubscriptionID}}"
+  if len(scopes) > 0 {
+    scope = scopes[0]
+  }
+
 	return r.RenderConfig(config.ConfigEnvelope{
 		Name:       r.name,
-		ParentAttr: "parent_id",
-		ParentRef:  `"/subscriptions/{{.SubscriptionID}}"`,
+		ParentAttr: "scope_id",
+		ParentRef:  scope,
 		Body:       body,
 	})
 }

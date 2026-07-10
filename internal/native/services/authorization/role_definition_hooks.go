@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	nativeresource.RegisterHooks(AuthorizationRoleDefinition.Name, &nativeresource.Hooks{
+	nativeresource.RegisterHooks(RoleDefinition.Name, &nativeresource.Hooks{
 		BeforeCreate: ensureAssignableScopes,
 		BeforeUpdate: ensureAssignableScopes,
 		AfterUpdate:  settleAfterUpdate,
@@ -19,7 +19,7 @@ func init() {
 
 // ensureAssignableScopes guarantees properties.assignableScopes is present and
 // non-empty in the ARM request body, defaulting it to the role's own scope (the
-// parent_id / ARM ID scope) when the user omitted it. The role definition API
+// scope_id / ARM ID scope) when the user omitted it. The role definition API
 // requires at least one assignable scope; AzureRM supplies [scope] via
 // expandRoleDefinitionAssignableScopes, and azapi's mapper otherwise omits an unset
 // Optional+Computed list. The scope round-trips without drift: Azure echoes it back

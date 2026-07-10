@@ -38,6 +38,14 @@ const (
 	// key vault (envelope parent: resource_group_id).
 	KeyVault = "Microsoft.KeyVault/vaults"
 
+	// KeyVaultKey is Microsoft.KeyVault/vaults/keys, the management-plane child
+	// resource for keys in a Key Vault.
+	KeyVaultKey = "Microsoft.KeyVault/vaults/keys"
+
+	// RoleAssignment is Microsoft.Authorization/roleAssignments, a scope-based
+	// extension resource assigning a role definition to a principal at that scope.
+	RoleAssignment = "Microsoft.Authorization/roleAssignments"
+
 	// RoleDefinition is Microsoft.Authorization/roleDefinitions, a custom RBAC role
 	// definition. It is a scope-based extension resource (writable at tenant,
 	// management-group, subscription, resource-group, and extension scopes), so its

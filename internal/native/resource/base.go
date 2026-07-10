@@ -418,7 +418,13 @@ func (b *Base) Delete(ctx context.Context, req resource.DeleteRequest, resp *res
 		}
 	}
 
-	if _, err := b.provider.ResourceClient.Delete(ctx, id.AzureResourceId, id.ApiVersion, clients.DefaultRequestOptions()); err != nil && !utils.ResponseErrorWasNotFound(err) {
+	deleteCtx := &CrudCtx{Ctx: ctx, Client: b.provider, ID: id, State: stateObj, Diags: &resp.Diagnostics}
+	if b.hooks != nil && b.hooks.Delete != nil {
+		b.hooks.Delete(deleteCtx)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	} else if _, err := b.provider.ResourceClient.Delete(ctx, id.AzureResourceId, id.ApiVersion, clients.DefaultRequestOptions()); err != nil && !utils.ResponseErrorWasNotFound(err) {
 		resp.Diagnostics.AddError("Failed to delete resource", fmt.Errorf("deleting %s: %w", id.ID(), err).Error())
 		return
 	}

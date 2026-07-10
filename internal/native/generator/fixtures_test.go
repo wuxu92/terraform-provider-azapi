@@ -73,3 +73,10 @@ func latestRoleDefinitionDefs(t *testing.T) ([]*typegraph.ResourceDefinition, st
 	t.Helper()
 	return latestStableDefs(t, "Microsoft.Authorization/roleDefinitions")
 }
+
+// latestRoleAssignmentDefs returns the role assignment defs for the latest stable
+// API version, mirroring latestRoleDefinitionDefs for the authorization service.
+func latestRoleAssignmentDefs(t *testing.T) ([]*typegraph.ResourceDefinition, string) {
+	t.Helper()
+	return latestStableDefs(t, "Microsoft.Authorization/roleAssignments")
+}

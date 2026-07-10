@@ -132,6 +132,16 @@ func TestKeyVaultKeyValidateProperties(t *testing.T) {
 			wantCount: 0,
 		},
 		{
+			name: "valid management-plane import and release operations",
+			body: map[string]interface{}{
+				"properties": map[string]interface{}{
+					"kty":    "RSA",
+					"keyOps": []interface{}{"import", "release"},
+				},
+			},
+			wantCount: 0,
+		},
+		{
 			name: "invalid key type",
 			body: map[string]interface{}{
 				"properties": map[string]interface{}{
@@ -150,10 +160,10 @@ func TestKeyVaultKeyValidateProperties(t *testing.T) {
 			wantCount: 1,
 		},
 		{
-			name: "invalid key operation",
+			name: "rejects non-ARM key operation",
 			body: map[string]interface{}{
 				"properties": map[string]interface{}{
-					"keyOps": []interface{}{"encrypt", "delete"},
+					"keyOps": []interface{}{"encrypt", "backup"},
 				},
 			},
 			wantCount: 1,

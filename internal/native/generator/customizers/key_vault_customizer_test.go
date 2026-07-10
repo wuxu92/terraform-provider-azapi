@@ -51,6 +51,141 @@ func keyVaultDef(t *testing.T) *typegraph.ResourceDefinition {
 	return nil
 }
 
+// keyVaultKeyDef loads the real latest-stable Key Vault key bicep defs and runs
+// the same generation graph builder used by generated _gen.go files. The test
+// below asserts emitted source because the generated schema is the compatibility
+// surface consumed by native resource registration.
+func keyVaultKeyDef(t *testing.T) *typegraph.ResourceDefinition {
+	t.Helper()
+	const armType = "Microsoft.KeyVault/vaults/keys"
+
+	version, err := azure.GetLatestStableApiVersion(armType)
+	if err != nil {
+		t.Skipf("no stable version for %s: %v", armType, err)
+	}
+	location, err := azure.GetResourceTypeLocation(armType, version)
+	if err != nil {
+		t.Skipf("no types.json for %s: %v", armType, err)
+	}
+	data, err := azure.StaticFiles.ReadFile("generated/" + location)
+	if err != nil {
+		t.Skipf("types.json not found: %v", err)
+	}
+
+	defs, err := generator.BuildForGeneration(data)
+	if err != nil {
+		t.Fatalf("BuildForGeneration: %v", err)
+	}
+	for _, def := range defs {
+		if typegraph.ARMTypeOf(def) == armType {
+			return def
+		}
+	}
+	t.Fatalf("no %s def in generated graph (version %s)", armType, version)
+	return nil
+}
+
+func sourceAttributeBlock(t *testing.T, src, marker string) string {
+	t.Helper()
+	start := strings.Index(src, marker)
+	if start == -1 {
+		t.Fatalf("emitted source missing attribute marker %q", marker)
+	}
+	open := strings.Index(src[start:], "{")
+	if open == -1 {
+		t.Fatalf("emitted source attribute marker %q has no opening brace", marker)
+	}
+
+	depth := 0
+	for i := start + open; i < len(src); i++ {
+		switch src[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return src[start : i+1]
+			}
+		}
+	}
+	t.Fatalf("emitted source attribute marker %q has no closing brace", marker)
+	return ""
+}
+
+func assertRequiredOnlyAttribute(t *testing.T, name, block string) {
+	t.Helper()
+
+	if !attributeBlockContainsTrueField(block, "Required:") {
+		t.Errorf("%s block is not required", name)
+	}
+	for _, forbidden := range []string{"Optional:", "Computed:"} {
+		if strings.Contains(block, forbidden) {
+			t.Errorf("%s block contains %s", name, forbidden)
+		}
+	}
+}
+
+func attributeBlockContainsTrueField(block, field string) bool {
+	for _, line := range strings.Split(block, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, field) && strings.Contains(line, "true,") {
+			return true
+		}
+	}
+	return false
+}
+
+// TestKeyVaultKeySchemaEmitsManagementPlaneKeyOpsValidator guards the generated
+// schema contract for Key Vault keys: callers get the native azapi_key_vault_key
+// resource under key_vault_id, create-time key material fields are required, and
+// the key_ops list validates the ARM management-plane operations. It catches the
+// past drift where data-plane operations leaked into keyOps and management-plane
+// import/release were absent.
+func TestKeyVaultKeySchemaEmitsManagementPlaneKeyOpsValidator(t *testing.T) {
+	def := keyVaultKeyDef(t)
+
+	src, err := generator.EmitSchema(def)
+	if err != nil {
+		t.Fatalf("EmitSchema: %v", err)
+	}
+
+	descriptor := sourceAttributeBlock(t, src, "var KeyVaultKey = services.Descriptor{")
+	for _, want := range []string{`"azapi_key_vault_key"`, `"key_vault_id"`} {
+		if !strings.Contains(descriptor, want) {
+			t.Errorf("KeyVaultKey descriptor missing %q", want)
+		}
+	}
+
+	kty := sourceAttributeBlock(t, src, `"kty": schema.StringAttribute{`)
+	keyOps := sourceAttributeBlock(t, src, `"key_ops": schema.ListAttribute{`)
+	for _, attr := range []struct {
+		name  string
+		block string
+	}{
+		{name: "kty", block: kty},
+		{name: "key_ops", block: keyOps},
+	} {
+		assertRequiredOnlyAttribute(t, attr.name, attr.block)
+	}
+
+	for _, want := range []string{
+		"Validators: []validator.List{",
+		"listvalidator.ValueStringsAre(",
+		"stringvalidator.OneOf(",
+		`"import"`,
+		`"release"`,
+	} {
+		if !strings.Contains(keyOps, want) {
+			t.Errorf("key_ops block missing %q", want)
+		}
+	}
+	for _, blocked := range []string{`"backup"`, `"delete"`} {
+		if strings.Contains(keyOps, blocked) {
+			t.Errorf("key_ops block contains data-plane operation %s", blocked)
+		}
+	}
+}
+
 // keyVaultPermissionSets is the ordered, per-list allowed value set the
 // customizer attaches to each access-policy permission list. Order matters — the
 // customizer preserves it, and the graph/emit assertions below are order-sensitive.

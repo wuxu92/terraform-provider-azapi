@@ -394,16 +394,16 @@ func TestRoleDefinitionSchemaComposition(t *testing.T) {
 	}
 
 	// role definition is an extension/multi-scope resource: its parent reference is
-	// an arbitrary scope named parent_id, not resource_group_id or subscription_id.
-	for _, name := range []string{"name", "parent_id", "id"} {
+	// an arbitrary Azure scope named scope_id, not resource_group_id or subscription_id.
+	for _, name := range []string{"name", "scope_id", "id"} {
 		if _, ok := s.Attributes[name]; !ok {
 			t.Errorf("missing envelope attribute %q", name)
 		}
 	}
-	// Keyed by parent_id, and role definitions have no location.
-	for _, absent := range []string{"resource_group_id", "subscription_id", "location"} {
+	// Keyed by scope_id, and role definitions have no location.
+	for _, absent := range []string{"resource_group_id", "subscription_id", "parent_id", "location"} {
 		if _, ok := s.Attributes[absent]; ok {
-			t.Errorf("role definition should be keyed by parent_id with no location, not expose %q", absent)
+			t.Errorf("role definition should be keyed by scope_id with no location, not expose %q", absent)
 		}
 	}
 	if _, ok := s.Blocks["timeouts"]; !ok {

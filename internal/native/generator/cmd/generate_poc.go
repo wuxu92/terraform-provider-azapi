@@ -32,6 +32,8 @@ var targets = []string{
 	armtype.WebSite,
 	armtype.UserAssignedIdentity,
 	armtype.KeyVault,
+	armtype.KeyVaultKey,
+	armtype.RoleAssignment,
 	armtype.RoleDefinition,
 }
 

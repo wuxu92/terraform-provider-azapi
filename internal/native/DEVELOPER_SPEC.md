@@ -304,11 +304,12 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 | `Microsoft.Storage/storageAccounts/blobServices` | `azapi_storage_account_blob_service` |
 | `Microsoft.Resources/resourceGroups` | `azapi_resource_group` |
 | `Microsoft.KeyVault/vaults` | `azapi_key_vault` (naming override; mechanical `azapi_keyvault_vault` stutters) |
-| `Microsoft.KeyVault/vaults/keys` | `azapi_keyvault_vault_key` |
+| `Microsoft.KeyVault/vaults/keys` | `azapi_key_vault_key` (naming override; child of `azapi_key_vault`) |
 | `Microsoft.Web/serverfarms` | `azapi_web_server_farm` |
 | `Microsoft.Web/sites` | `azapi_web_site` |
 | `Microsoft.Network/virtualNetworks/subnets` | `azapi_network_virtual_network_subnet` |
 | `Microsoft.Compute/virtualMachines/extensions` | `azapi_compute_virtual_machine_extension` |
+| `Microsoft.Authorization/roleAssignments` | `azapi_role_assignment` |
 | `Microsoft.Authorization/roleDefinitions` | `azapi_role_definition` |
 | `Microsoft.Sql/servers/databases` | `azapi_sql_server_database` |
 | `Dynatrace.Observability/monitors` | `azapi_dynatrace_monitor` |
@@ -410,7 +411,8 @@ type Base struct { desc Descriptor; hooks *Hooks; provider *clients.Client }
 type Hooks struct {
     BeforeCreate, AfterCreate, BeforeUpdate, AfterUpdate,
     BeforeRead, AfterRead, BeforeDelete func(*CrudCtx)
-    Singleton      *SingletonDefault // fixed-named default child: skip create existence check, reset-via-PUT on destroy (no BeforeDelete)
+    Delete        func(*CrudCtx) // optional replacement for the default ARM DELETE
+    Singleton     *SingletonDefault // fixed-named default child: skip create existence check, reset-via-PUT on destroy (no delete hooks)
     ValidateConfig func(ctx, req, resp)
     ModifyPlan     func(ctx, req, resp)
 }
@@ -712,7 +714,7 @@ At-a-glance inventory of what exists today (the roadmap lives in §6.3):
 | Post-processing | ✓ Complete | `generator/postprocess.go` |
 | Schema emitter | ✓ Complete | `generator/emitter.go`, `emitter_test.go` |
 | Runtime defaults | ✓ Complete | `schema/defaults.go` |
-| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site`, `azapi_user_assigned_identity`, `azapi_key_vault`, `azapi_role_definition` | `services/{storage,resources,web,managedidentity,keyvault,authorization}/*_gen.go` |
+| Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site`, `azapi_user_assigned_identity`, `azapi_key_vault`, `azapi_key_vault_key`, `azapi_role_assignment`, `azapi_role_definition` | `services/{storage,resources,web,managedidentity,keyvault,authorization}/*_gen.go` |
 | Generator command | ✓ Working | `generator/cmd/generate_poc.go` |
 | CRUD methods | ✓ Complete | `resource/base.go`, `mapper/mapper.go` |
 | Provider registration | ✓ Complete | `internal/provider/provider.go` (`Resources()` + `DataSources()` iterate `services.Registry`) |

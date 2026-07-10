@@ -53,7 +53,7 @@ var _ = Describe("Azure Key Vault", Ordered, func() {
 				acc.Key("properties.enable_rbac_authorization").HasValue("true")).ImportVerify()
 		})
 
-		It("enables purge-on-destroy in place", NodeTimeout(20 * time.Minute), func() {
+		It("enables purge-on-destroy in place", NodeTimeout(20*time.Minute), func(_ SpecContext) {
 			// An in-place add of the write-only purge_on_destroy flag onto the same vault:
 			// no ARM body change, so no ImportVerify (ARM never echoes it). Its whole purpose
 			// is the scope teardown below, where the AfterDelete hook must purge the vault's

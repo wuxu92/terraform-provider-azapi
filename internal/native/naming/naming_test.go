@@ -66,7 +66,7 @@ func TestResourceName(t *testing.T) {
 		{"Microsoft.Storage/storageAccounts/blobServices", "azapi_storage_account_blob_service"},
 		{"Microsoft.Resources/resourceGroups", "azapi_resource_group"},
 		{"Microsoft.KeyVault/vaults", "azapi_key_vault"},
-		{"Microsoft.KeyVault/vaults/keys", "azapi_keyvault_vault_key"},
+		{"Microsoft.KeyVault/vaults/keys", "azapi_key_vault_key"},
 		{"Microsoft.KeyVault/vaults/secrets", "azapi_keyvault_vault_secret"},
 		{"Microsoft.Network/virtualNetworks", "azapi_virtual_network"},
 		{"Microsoft.Network/virtualNetworks/subnets", "azapi_virtual_network_subnet"},
@@ -82,6 +82,7 @@ func TestResourceName(t *testing.T) {
 		{"Microsoft.EventHub/namespaces", "azapi_eventhub_namespace"},
 		{"Microsoft.DBforPostgreSQL/flexibleServers", "azapi_dbforpostgresql_flexible_server"},
 		{"Microsoft.ManagedIdentity/userAssignedIdentities", "azapi_user_assigned_identity"},
+		{"Microsoft.Authorization/roleAssignments", "azapi_role_assignment"},
 		// Third-party providers
 		{"Dynatrace.Observability/monitors", "azapi_dynatrace_monitor"},
 		{"NewRelic.Observability/monitors", "azapi_newrelic_monitor"},
@@ -149,6 +150,15 @@ func TestParentReference(t *testing.T) {
 			rejects:     "/subscriptions/s/resourceGroups/rg",
 		},
 		{
+			name:        "key vault key references its key vault parent",
+			armType:     "Microsoft.KeyVault/vaults/keys",
+			scopes:      ScopeResourceGroup,
+			wantName:    "key_vault_id",
+			constrained: true,
+			matches:     "/subscriptions/s/resourceGroups/rg/providers/Microsoft.KeyVault/vaults/vault1",
+			rejects:     "/subscriptions/s/resourceGroups/rg/providers/Microsoft.KeyVault/keys/key1",
+		},
+		{
 			// Deeply nested type: the parent ID interleaves type segments with
 			// instance names (.../service/<name>/apis/<name>), so the validator
 			// must NOT expect the type segments back-to-back.
@@ -182,6 +192,12 @@ func TestParentReference(t *testing.T) {
 			name:     "multi-scope falls back to generic parent_id",
 			armType:  "Microsoft.Foo/bars",
 			scopes:   ScopeResourceGroup | ScopeExtension,
+			wantName: "parent_id",
+		},
+		{
+			name:     "authorization role assignment uses generic parent for extension multi-scope",
+			armType:  "Microsoft.Authorization/roleAssignments",
+			scopes:   ScopeTenant | ScopeManagementGroup | ScopeSubscription | ScopeResourceGroup | ScopeExtension,
 			wantName: "parent_id",
 		},
 		{

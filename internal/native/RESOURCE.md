@@ -216,7 +216,8 @@ create (`Get` → "already exists") mirrors `azapi_resource`.
 2. timeout := b.timeout("delete", 30m)   ← from services.Descriptor.Timeouts
 3. if hooks.Singleton: client.CreateOrUpdate(..., Singleton.DefaultBody) → return  // fixed-name default, no ARM delete: reset to baseline; BeforeDelete is NOT run
 4. hook.BeforeDelete (optional)  ← State live; not reached on the Singleton reset path
-5. client.Delete(...)           // 404 tolerated
+5. if hooks.Delete: hook.Delete(...) else client.Delete(...)  // custom delete replaces ARM DELETE; 404 tolerated on default path
+6. hook.AfterDelete (optional)   ← State live; not reached on the Singleton reset path
 ```
 
 ## The Mapper (state ↔ ARM JSON)
@@ -298,6 +299,8 @@ type Hooks struct {
     BeforeUpdate, AfterUpdate func(*CrudCtx)
     BeforeRead,   AfterRead   func(*CrudCtx)
     BeforeDelete              func(*CrudCtx)
+    Delete                    func(*CrudCtx) // optional replacement for default ARM DELETE
+    AfterDelete               func(*CrudCtx)
     Singleton                 *SingletonDefault // fixed-named default child (reset-on-destroy)
     ValidateConfig            func(context.Context, resource.ValidateConfigRequest, *resource.ValidateConfigResponse)
     ModifyPlan                func(context.Context, resource.ModifyPlanRequest, *resource.ModifyPlanResponse)

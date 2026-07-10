@@ -9,7 +9,7 @@ import (
 
 // TestEnsureAssignableScopes exercises the ensureAssignableScopes BeforeCreate/BeforeUpdate
 // hook directly (white-box) over the body shapes that define its contract: the role's own
-// scope (parent_id) is injected as the sole assignable scope when the user omits or empties
+// scope (scope_id) is injected as the sole assignable scope when the user omits or empties
 // the list, a user-supplied list is left untouched, and absent properties is a no-op.
 func TestEnsureAssignableScopes(t *testing.T) {
 	const parentScope = "/subscriptions/00000000-0000-0000-0000-000000000000"

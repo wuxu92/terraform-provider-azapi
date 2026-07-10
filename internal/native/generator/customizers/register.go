@@ -14,5 +14,7 @@ func init() {
 	Register(armtype.WebServerFarm, customizeWebServerFarm)
 	Register(armtype.WebSite, customizeWebSite)
 	Register(armtype.KeyVault, customizeKeyVault)
+	Register(armtype.KeyVaultKey, customizeKeyVaultKey)
+	Register(armtype.RoleAssignment, customizeRoleAssignment)
 	Register(armtype.RoleDefinition, customizeRoleDefinition)
 }

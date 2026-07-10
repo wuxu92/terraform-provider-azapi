@@ -7,7 +7,7 @@ import "time"
 // Sources:
 //   - AzureRM key_vault_key_resource.go schema + CRUD functions
 //   - go-azure-helpers keyvault/nested_item.go (name validation: alphanumeric+dash, 1-127 chars)
-//   - go-azure-sdk data-plane/keyvault/7-4/keys/constants.go (key types, curves, operations)
+//   - Microsoft.KeyVault/vaults/keys management-plane ARM schema (2025-05-01 / 2026-02-01)
 type KeyVaultKey struct {
 	BaseKnowledge
 }
@@ -18,6 +18,7 @@ func NewKeyVaultKey() *KeyVaultKey {
 	return &KeyVaultKey{
 		BaseKnowledge: BaseKnowledge{
 			ResourceType: "Microsoft.KeyVault/vaults/keys",
+			ApiVersions:  []string{"2025-05-01", "2026-02-01"},
 			ForceNew: []ForceNewRule{
 				{PropertyPath: "name"},
 				{PropertyPath: "properties.kty"},       // key_type → kty in ARM
@@ -60,35 +61,25 @@ func NewKeyVaultKey() *KeyVaultKey {
 					Message:       "must be P-256, P-256K, P-384, or P-521",
 				},
 				// ── properties.keyOps[*] ──
-				// AzureRM validates 6 operations (not export/import).
+				// Management-plane ARM API values for JsonWebKeyOperation; includes import
+				// and release, which AzureRM's historical data-plane resource did not allow.
 				{
 					PropertyPath:  "properties.keyOps[*]",
-					AllowedValues: []string{"decrypt", "encrypt", "sign", "unwrapKey", "verify", "wrapKey"},
-					Message:       "must be a valid key operation",
-				},
-				// ── properties.attributes.notBefore ──
-				// AzureRM validates with IsRFC3339Time (not_before_date).
-				{
-					PropertyPath: "properties.attributes.notBefore",
-					Regex:        `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$`,
-					Message:      "must be a valid RFC3339 date/time string",
-				},
-				// ── properties.attributes.expires ──
-				// AzureRM validates with IsRFC3339Time (expiration_date).
-				{
-					PropertyPath: "properties.attributes.expires",
-					Regex:        `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$`,
-					Message:      "must be a valid RFC3339 date/time string",
+					AllowedValues: []string{"decrypt", "encrypt", "import", "release", "sign", "unwrapKey", "verify", "wrapKey"},
+					Message:       "must be a valid management-plane key operation",
 				},
 			},
-			// Key material fields returned by Azure after key creation.
+			// Management-plane read-only fields returned by ARM after key creation.
 			ComputedFields: []string{
-				"properties.key.n", // RSA modulus
-				"properties.key.e", // RSA exponent
-				"properties.key.x", // EC x coordinate
-				"properties.key.y", // EC y coordinate
+				"location",
+				"systemData",
+				"properties.keyUri",
+				"properties.keyUriWithVersion",
+				"properties.attributes.created",
+				"properties.attributes.updated",
+				"properties.attributes.recoveryLevel",
 			},
-			// curveName is Optional+Computed; Azure infers it for EC key types (no explicit AzureRM default).
+			// curveName is Optional+Computed; Azure infers it for EC key types.
 			DefaultValues: []DefaultValue{
 				{PropertyPath: "properties.curveName"}, // nil Value: server infers from key type
 			},

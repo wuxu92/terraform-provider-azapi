@@ -16,8 +16,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiRoleDefinitionSchemaSchema returns the Terraform resource schema for Microsoft.Authorization/roleDefinitions@2022-04-01.
-func AzapiRoleDefinitionSchemaSchema() schema.Schema {
+// AzapiRoleDefinitionSchema returns the Terraform resource schema for Microsoft.Authorization/roleDefinitions@2022-04-01.
+func AzapiRoleDefinitionSchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.Authorization/roleDefinitions resource. [azapin:Microsoft.Authorization/roleDefinitions@2022-04-01]",
 		Attributes: map[string]schema.Attribute{
@@ -29,10 +29,10 @@ func AzapiRoleDefinitionSchemaSchema() schema.Schema {
 				},
 				MarkdownDescription: "Specifies the name of the Azure resource.",
 			},
-			"parent_id": schema.StringAttribute{
+			"scope_id": schema.StringAttribute{
 				Required:            true,
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
-				MarkdownDescription: "The ID of the parent resource that contains this resource.",
+				MarkdownDescription: "The scope ID where this role definition is defined.",
 			},
 			"properties": schema.SingleNestedAttribute{
 				Description: "Role definition properties.",
@@ -158,14 +158,14 @@ func AzapiRoleDefinitionSchemaSchema() schema.Schema {
 	}
 }
 
-// AuthorizationRoleDefinition describes azapi_role_definition for registration and config builders.
-var AuthorizationRoleDefinition = services.Descriptor{
+// RoleDefinition describes azapi_role_definition for registration and config builders.
+var RoleDefinition = services.Descriptor{
 	Name:           "azapi_role_definition",
 	ARMType:        "Microsoft.Authorization/roleDefinitions",
 	APIVersion:     "2022-04-01",
-	Schema:         AzapiRoleDefinitionSchemaSchema,
+	Schema:         AzapiRoleDefinitionSchema,
 	WritableScopes: 31,
-	ParentAttr:     "parent_id",
+	ParentAttr:     "scope_id",
 	Timeouts: services.Timeouts{
 		Create: 30 * time.Minute,
 		Read:   5 * time.Minute,
@@ -174,4 +174,4 @@ var AuthorizationRoleDefinition = services.Descriptor{
 	},
 }
 
-func init() { services.Register(AuthorizationRoleDefinition) }
+func init() { services.Register(RoleDefinition) }

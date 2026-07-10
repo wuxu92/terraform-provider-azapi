@@ -122,11 +122,12 @@ field — means "use the base behavior".
 | `AfterUpdate` | update, after the follow-up GET | inspect `ctx.Response` |
 | `BeforeRead` | read, before the GET | preflight/guard using `ctx.State` (e.g. skip or short-circuit) |
 | `AfterRead` | read, after GET, before mapping into state | massage `ctx.Response` before flatten |
-| `BeforeDelete` | delete, before the DELETE call | preflight/guard using `ctx.State` |
-| `AfterDelete` | delete, after the DELETE succeeds | destroy-time orchestration once the resource is gone (e.g. purge a Key Vault's soft-deleted shadow) using `ctx.State` |
+| `BeforeDelete` | delete, before the delete operation | preflight/guard using `ctx.State` |
+| `Delete` | delete, instead of the default ARM DELETE | route destroy through a service-specific endpoint when ARM has no DELETE |
+| `AfterDelete` | delete, after the delete operation succeeds | destroy-time orchestration once the resource is gone (e.g. purge a Key Vault's soft-deleted shadow) using `ctx.State` |
 | `ValidateConfig` | config validation (plan-time; values may be unknown) | cross-field rules one validator can't express |
 | `ModifyPlan` | plan, **after** the base's default work | conditional `RequiresReplace`, plan-time derivation |
-| `Singleton` (data) | create/delete of a fixed-named default child ARM never creates or deletes | skip the create existence check + reset to `DefaultBody` via PUT on destroy (e.g. `blobServices/default`); the reset path runs neither `BeforeDelete` nor `AfterDelete` |
+| `Singleton` (data) | create/delete of a fixed-named default child ARM never creates or deletes | skip the create existence check + reset to `DefaultBody` via PUT on destroy (e.g. `blobServices/default`); the reset path runs none of the delete hooks |
 
 `Before/AfterCreate` vs `Before/AfterUpdate` dispatch by whether the op is a create
 (same body-composition path). `ValidateConfig`/`ModifyPlan` use framework signatures and
