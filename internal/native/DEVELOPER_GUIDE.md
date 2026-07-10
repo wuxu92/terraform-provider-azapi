@@ -79,6 +79,7 @@ go run ./internal/native/cmd/azapin-validate/
 go test ./internal/native/... ./internal/azure/azwise/...
 
 # 5. acceptance (live Azure; needs TF_ACC=1 + ARM_SUBSCRIPTION_ID, else skips)
+# **DO NOT** run acceptance tests with AI Agent
 TF_ACC=1 go test ./internal/native/services/<service>/ -run <TestXxxAcceptance>
 ```
 
