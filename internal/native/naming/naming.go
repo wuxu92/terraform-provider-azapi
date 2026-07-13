@@ -160,7 +160,10 @@ func SnakeToCamel(s string) string {
 		if p == "" {
 			continue
 		}
-		result.WriteString(strings.ToUpper(p[:1]) + p[1:])
+		_, err := result.WriteString(strings.ToUpper(p[:1]) + p[1:])
+		if err != nil {
+			panic(err)
+		}
 	}
 	return result.String()
 }
