@@ -14,4 +14,5 @@ func RegisterAll() {
 	Register(NewUserAssignedIdentity())
 	Register(NewRoleAssignment())
 	Register(NewRoleDefinition())
+	Register(NewVirtualNetwork())
 }
