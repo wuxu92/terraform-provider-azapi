@@ -125,6 +125,7 @@ const (
 	ValidatorCustom                                          // Service-specific validator: services/<service>/validators (validators.X())
 	ValidatorShared                                          // Generic shared validator: internal/native/schema (nativeschema.X())
 	ValidatorListSizeAtLeast                                 // Minimum list length (listvalidator.SizeAtLeast); uses Min
+	ValidatorListSizeAtMost                                  // Maximum list length (listvalidator.SizeAtMost); uses Max
 )
 
 // IsEnum returns true if this type is a union of string literals (enum).

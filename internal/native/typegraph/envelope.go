@@ -191,6 +191,13 @@ func ListSizeAtLeastValidator(min int64) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorListSizeAtLeast, Min: &min}
 }
 
+// ListSizeAtMostValidator builds a maximum-list-length validator, emitted as
+// listvalidator.SizeAtMost(n) on a list attribute. Use it to cap a collection at
+// a fixed number of elements (e.g. n=2 for a dual-stack IPv4/IPv6 pool pair).
+func ListSizeAtMostValidator(max int64) DescriptionValidator {
+	return DescriptionValidator{Kind: ValidatorListSizeAtMost, Max: &max}
+}
+
 // CustomValidator builds a reference to a resource-/service-specific validator
 // that lives with the generated schema in services/<service>/validators. The
 // call is emitted qualified with that package (validators.<call>), so it must name

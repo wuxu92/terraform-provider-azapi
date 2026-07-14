@@ -289,7 +289,7 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 				needs.custom = true
 			case typegraph.ValidatorShared:
 				needs.shared = true
-			case typegraph.ValidatorListSizeAtLeast:
+			case typegraph.ValidatorListSizeAtLeast, typegraph.ValidatorListSizeAtMost:
 				needs.listValidator = true
 			}
 		}
@@ -825,8 +825,9 @@ func emitStringValidators(b *strings.Builder, validators []typegraph.Description
 }
 
 // emitListValidators writes a single Validators: []validator.List{} block for a
-// list attribute. It emits minimum-size validators (listvalidator.SizeAtLeast, e.g.
-// SizeAtLeast(1) to reject an empty list) and, when elementValidators is true (a
+// list attribute. It emits list-size validators (listvalidator.SizeBetween when both
+// bounds are set, else SizeAtLeast / SizeAtMost — e.g. SizeAtLeast(1) rejects an
+// empty list, SizeBetween(1, 2) also caps length) and, when elementValidators is true (a
 // settable primitive string list), the property's string validators applied to
 // every element via listvalidator.ValueStringsAre (e.g. case-insensitive key-vault
 // permission enums). Emits nothing when neither applies.
@@ -853,16 +854,28 @@ func emitListValidators(b *strings.Builder, prop *typegraph.Property, tabs strin
 	b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 }
 
-// listSizeValidatorItems renders the listvalidator.SizeAtLeast(n) call strings for
-// a property's minimum-list-length validators.
+// listSizeValidatorItems renders a property's list-length validators: a combined
+// listvalidator.SizeBetween(min, max) when both bounds are present, otherwise the
+// single-sided listvalidator.SizeAtLeast(min) / SizeAtMost(max).
 func listSizeValidatorItems(validators []typegraph.DescriptionValidator) []string {
-	var items []string
+	var lo, hi *int64
 	for _, v := range validators {
-		if v.Kind == typegraph.ValidatorListSizeAtLeast && v.Min != nil {
-			items = append(items, fmt.Sprintf("listvalidator.SizeAtLeast(%d)", *v.Min))
+		switch {
+		case v.Kind == typegraph.ValidatorListSizeAtLeast && v.Min != nil:
+			lo = v.Min
+		case v.Kind == typegraph.ValidatorListSizeAtMost && v.Max != nil:
+			hi = v.Max
 		}
 	}
-	return items
+	switch {
+	case lo != nil && hi != nil:
+		return []string{fmt.Sprintf("listvalidator.SizeBetween(%d, %d)", *lo, *hi)}
+	case lo != nil:
+		return []string{fmt.Sprintf("listvalidator.SizeAtLeast(%d)", *lo)}
+	case hi != nil:
+		return []string{fmt.Sprintf("listvalidator.SizeAtMost(%d)", *hi)}
+	}
+	return nil
 }
 
 // emitEnvelope writes synthetic name/parent/id attrs outside the bicep body.

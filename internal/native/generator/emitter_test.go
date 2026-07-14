@@ -183,3 +183,32 @@ func TestEmitPlanModifiersHonorsNonNullStateForUnknown(t *testing.T) {
 		})
 	}
 }
+
+func TestListSizeValidatorItems(t *testing.T) {
+	atLeast := func(n int64) typegraph.DescriptionValidator { return typegraph.ListSizeAtLeastValidator(n) }
+	atMost := func(n int64) typegraph.DescriptionValidator { return typegraph.ListSizeAtMostValidator(n) }
+
+	for _, tc := range []struct {
+		name       string
+		validators []typegraph.DescriptionValidator
+		want       []string
+	}{
+		{"none", nil, nil},
+		{"min-only", []typegraph.DescriptionValidator{atLeast(1)}, []string{"listvalidator.SizeAtLeast(1)"}},
+		{"max-only", []typegraph.DescriptionValidator{atMost(2)}, []string{"listvalidator.SizeAtMost(2)"}},
+		{"both-collapse", []typegraph.DescriptionValidator{atLeast(1), atMost(2)}, []string{"listvalidator.SizeBetween(1, 2)"}},
+		{"both-reverse-order", []typegraph.DescriptionValidator{atMost(2), atLeast(1)}, []string{"listvalidator.SizeBetween(1, 2)"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := listSizeValidatorItems(tc.validators)
+			if len(got) != len(tc.want) {
+				t.Fatalf("listSizeValidatorItems = %v, want %v", got, tc.want)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Errorf("item %d = %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
