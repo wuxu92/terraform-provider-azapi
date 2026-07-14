@@ -439,3 +439,42 @@ func TestRoleDefinitionAssignableScopesHookRegistered(t *testing.T) {
 		t.Fatal("role definition ensureAssignableScopes hook must be registered for both create and update")
 	}
 }
+
+func TestVirtualNetworkSchemaComposition(t *testing.T) {
+	ctx := context.Background()
+	r := nativeresource.New("azapi_virtual_network")
+
+	// Metadata: provider prefix + resource suffix.
+	mdResp := &resource.MetadataResponse{}
+	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
+	if mdResp.TypeName != "azapi_virtual_network" {
+		t.Errorf("TypeName = %q, want azapi_virtual_network", mdResp.TypeName)
+	}
+
+	// Schema: composed (envelope + body), and framework-valid.
+	schemaResp := &resource.SchemaResponse{}
+	r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+	if diags := s.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("schema validation failed: %v", diags)
+	}
+
+	// virtualNetworks is resource-group scoped: parent reference resource_group_id.
+	for _, name := range []string{"name", "resource_group_id", "id"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing envelope attribute %q", name)
+		}
+	}
+	if _, ok := s.Attributes["parent_id"]; ok {
+		t.Error("virtual network should expose resource_group_id, not the generic parent_id")
+	}
+	if _, ok := s.Blocks["timeouts"]; !ok {
+		t.Error("missing timeouts block")
+	}
+	// Body attributes present (from the generated schema).
+	for _, name := range []string{"location", "properties"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing body attribute %q", name)
+		}
+	}
+}

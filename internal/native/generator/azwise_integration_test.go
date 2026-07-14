@@ -498,3 +498,130 @@ func TestApplyAzwiseRoleDefinition(t *testing.T) {
 		t.Error("expected properties.description not-empty validator from azwise")
 	}
 }
+
+// TestApplyAzwiseVirtualNetwork verifies the Microsoft.Network/virtualNetworks
+// overlay applies AzureRM ForceNew (location, extendedLocation), the flow-timeout
+// int range, the encryption/private-endpoint enums, the private-endpoint default,
+// and the address_space/ip_address_pool ExactlyOneOf relational constraint.
+func TestApplyAzwiseVirtualNetwork(t *testing.T) {
+	defs, ver := latestVirtualNetworkDefs(t)
+	typegraph.PostProcess(defs)
+
+	tag := "Microsoft.Network/virtualNetworks@" + ver
+	var vnet *typegraph.ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			vnet = d
+			break
+		}
+	}
+	if vnet == nil {
+		t.Fatal("virtual network definition not found")
+	}
+
+	for _, path := range []string{"location", "extendedLocation"} {
+		if p := typegraph.Navigate(vnet.Body, path); p == nil {
+			t.Fatalf("%s not found", path)
+		} else if !p.ForceNew {
+			t.Errorf("expected %s to be ForceNew via azwise", path)
+		}
+	}
+
+	if p := typegraph.Navigate(vnet.Body, "properties.flowTimeoutInMinutes"); p == nil {
+		t.Fatal("properties.flowTimeoutInMinutes not found")
+	} else if len(p.Validators) == 0 {
+		t.Error("expected properties.flowTimeoutInMinutes int-range validator from azwise")
+	}
+	// enforcement is a bicep enum (UnionType); the emitter provides its OneOf, so
+	// the azwise AllowedValues rule is intentionally a no-op — assert the enum.
+	if p := typegraph.Navigate(vnet.Body, "properties.encryption.enforcement"); p == nil {
+		t.Fatal("properties.encryption.enforcement not found")
+	} else if !p.Type.IsEnum() {
+		t.Error("expected properties.encryption.enforcement to carry bicep enum validation")
+	}
+	if p := typegraph.Navigate(vnet.Body, "properties.privateEndpointVNetPolicies"); p == nil {
+		t.Fatal("properties.privateEndpointVNetPolicies not found")
+	} else if p.DefaultValue != "Disabled" {
+		t.Errorf("properties.privateEndpointVNetPolicies default = %q, want Disabled", p.DefaultValue)
+	}
+
+	// address_space and ip_address_pool are mutually exclusive (ExactlyOneOf),
+	// lowered from the azwise overlay onto the resource definition.
+	var exactlyOne *typegraph.RelationalConstraintDef
+	for i := range vnet.Relational {
+		if vnet.Relational[i].Kind == "ExactlyOneOf" {
+			exactlyOne = &vnet.Relational[i]
+			break
+		}
+	}
+	if exactlyOne == nil {
+		t.Fatal("expected an ExactlyOneOf relational constraint from azwise")
+	}
+	if len(exactlyOne.Paths) != 2 {
+		t.Errorf("ExactlyOneOf Paths = %v, want 2 paths", exactlyOne.Paths)
+	}
+
+	// Both ExactlyOneOf members must opt out of UseStateForUnknown so that dropping
+	// one side from config clears it (server re-owns) rather than pinning stale state.
+	for _, path := range []string{
+		"properties.addressSpace.addressPrefixes",
+		"properties.addressSpace.ipamPoolPrefixAllocations",
+	} {
+		if p := typegraph.Navigate(vnet.Body, path); p == nil {
+			t.Fatalf("%s not found", path)
+		} else if !p.SuppressStateReuse {
+			t.Errorf("expected %s to have SuppressStateReuse set (ExactlyOneOf member)", path)
+		}
+	}
+}
+
+// TestVirtualNetworkMutexMembersDropStateReuse verifies the emitted schema omits
+// UseStateForUnknown on the ExactlyOneOf members (address_prefixes,
+// ipam_pool_prefix_allocations) so an omitted side clears, while their parent
+// address_space object and unrelated siblings keep the state-reuse modifier.
+func TestVirtualNetworkMutexMembersDropStateReuse(t *testing.T) {
+	defs, ver := latestVirtualNetworkDefs(t)
+	typegraph.PostProcess(defs)
+
+	tag := "Microsoft.Network/virtualNetworks@" + ver
+	var vnet *typegraph.ResourceDefinition
+	for _, d := range defs {
+		if d.Name == tag {
+			vnet = d
+			break
+		}
+	}
+	if vnet == nil {
+		t.Fatal("virtual network definition not found")
+	}
+
+	src, err := EmitSchema(vnet)
+	if err != nil {
+		t.Fatalf("EmitSchema: %v", err)
+	}
+
+	// The member list attributes must be emitted without a PlanModifiers block.
+	for _, decl := range []string{
+		"\"address_prefixes\": schema.ListAttribute{",
+		"\"ipam_pool_prefix_allocations\": schema.ListNestedAttribute{",
+	} {
+		i := strings.Index(src, decl)
+		if i < 0 {
+			t.Fatalf("declaration %q not found in emitted schema", decl)
+		}
+		// Inspect the attribute header up to the next nested block / element type.
+		window := src[i : i+300]
+		if strings.Contains(window, "UseStateForUnknown") {
+			t.Errorf("%s must not emit UseStateForUnknown (ExactlyOneOf member)", decl)
+		}
+	}
+
+	// The parent address_space object keeps its state-reuse modifier.
+	i := strings.Index(src, "\"address_space\": schema.SingleNestedAttribute{")
+	if i < 0 {
+		t.Fatal("address_space declaration not found")
+	}
+	if !strings.Contains(src[i:i+300], "objectplanmodifier.UseStateForUnknown()") {
+		t.Error("address_space object must keep UseStateForUnknown (not a constraint member)")
+	}
+}

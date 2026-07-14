@@ -51,4 +51,8 @@ const (
 	// management-group, subscription, resource-group, and extension scopes), so its
 	// envelope parent is the generic parent_id (the scope the role is defined at).
 	RoleDefinition = "Microsoft.Authorization/roleDefinitions"
+
+	// VirtualNetwork is Microsoft.Network/virtualNetworks, a resource-group-scoped
+	// standalone virtual network (envelope parent: resource_group_id).
+	VirtualNetwork = "Microsoft.Network/virtualNetworks"
 )

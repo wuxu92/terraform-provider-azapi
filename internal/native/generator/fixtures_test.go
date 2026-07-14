@@ -80,3 +80,10 @@ func latestRoleAssignmentDefs(t *testing.T) ([]*typegraph.ResourceDefinition, st
 	t.Helper()
 	return latestStableDefs(t, "Microsoft.Authorization/roleAssignments")
 }
+
+// latestVirtualNetworkDefs returns the virtual network defs for the latest stable
+// API version, mirroring latestStorageDefs for the network service.
+func latestVirtualNetworkDefs(t *testing.T) ([]*typegraph.ResourceDefinition, string) {
+	t.Helper()
+	return latestStableDefs(t, "Microsoft.Network/virtualNetworks")
+}

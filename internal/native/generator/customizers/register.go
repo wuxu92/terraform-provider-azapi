@@ -17,4 +17,5 @@ func init() {
 	Register(armtype.KeyVaultKey, customizeKeyVaultKey)
 	Register(armtype.RoleAssignment, customizeRoleAssignment)
 	Register(armtype.RoleDefinition, customizeRoleDefinition)
+	Register(armtype.VirtualNetwork, customizeVirtualNetwork)
 }

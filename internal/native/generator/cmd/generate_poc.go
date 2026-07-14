@@ -35,6 +35,7 @@ var targets = []string{
 	armtype.KeyVaultKey,
 	armtype.RoleAssignment,
 	armtype.RoleDefinition,
+	armtype.VirtualNetwork,
 }
 
 func main() {
