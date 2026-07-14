@@ -122,7 +122,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 								Optional:    true,
 								Computed:    true,
 								Validators: []validator.List{
-									listvalidator.SizeAtLeast(1),
+									listvalidator.SizeBetween(1, 2),
 								},
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
@@ -864,7 +864,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 												listplanmodifier.UseStateForUnknown(),
 											},
 											Validators: []validator.List{
-												listvalidator.SizeAtLeast(1),
+												listvalidator.SizeBetween(1, 2),
 											},
 											NestedObject: schema.NestedAttributeObject{
 												Attributes: map[string]schema.Attribute{
@@ -5735,7 +5735,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 													Optional:    true,
 													Computed:    true,
 													Validators: []validator.List{
-														listvalidator.SizeAtLeast(1),
+														listvalidator.SizeBetween(1, 2),
 													},
 													NestedObject: schema.NestedAttributeObject{
 														Attributes: map[string]schema.Attribute{
@@ -5799,7 +5799,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 													Optional:    true,
 													Computed:    true,
 													Validators: []validator.List{
-														listvalidator.SizeAtLeast(1),
+														listvalidator.SizeBetween(1, 2),
 													},
 													NestedObject: schema.NestedAttributeObject{
 														Attributes: map[string]schema.Attribute{
@@ -5900,7 +5900,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 													Optional:    true,
 													Computed:    true,
 													Validators: []validator.List{
-														listvalidator.SizeAtLeast(1),
+														listvalidator.SizeBetween(1, 2),
 													},
 													NestedObject: schema.NestedAttributeObject{
 														Attributes: map[string]schema.Attribute{
@@ -6005,7 +6005,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 													Optional:    true,
 													Computed:    true,
 													Validators: []validator.List{
-														listvalidator.SizeAtLeast(1),
+														listvalidator.SizeBetween(1, 2),
 													},
 													NestedObject: schema.NestedAttributeObject{
 														Attributes: map[string]schema.Attribute{

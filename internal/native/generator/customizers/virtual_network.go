@@ -21,8 +21,10 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //     with AzureRM's positive-number regex, so a missing pool or a non-numeric count
 //     fails at plan time instead of as a cryptic ARM 400. The array itself is
 //     Optional+Computed (one side of the address_space/ipam ExactlyOneOf), so an
-//     empty list would otherwise satisfy "set"; a SizeAtLeast(1) validator rejects
-//     an explicit empty list at plan time. Both the addressSpace and subnet ipam
+//     empty list would otherwise satisfy "set"; SizeAtLeast(1) rejects an explicit
+//     empty list, and SizeAtMost(2) caps it at a dual-stack IPv4/IPv6 pool pair
+//     (matching AzureRM's MaxItems: 2 on ip_address_pool). Both the addressSpace
+//     and subnet ipam
 //     arrays share one bicep element type; IsolateArrayElement un-shares each before
 //     flagging so the rules land independently.
 func customizeVirtualNetwork(def *typegraph.ResourceDefinition) {
@@ -54,6 +56,9 @@ func customizeVirtualNetwork(def *typegraph.ResourceDefinition) {
 		))
 
 		arr := typegraph.FindProperty(def, path)
-		arr.Validators = append(arr.Validators, typegraph.ListSizeAtLeastValidator(1))
+		arr.Validators = append(arr.Validators,
+			typegraph.ListSizeAtLeastValidator(1),
+			typegraph.ListSizeAtMostValidator(2),
+		)
 	}
 }

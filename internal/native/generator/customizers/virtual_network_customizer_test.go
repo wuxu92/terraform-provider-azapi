@@ -76,10 +76,14 @@ func TestVirtualNetworkCustomizerRequiresIpamPool(t *testing.T) {
 		if !hasRegexValidator(count.Validators, `^[1-9]\d*$`) {
 			t.Errorf("%s.numberOfIpAddresses missing positive-number regex validator: %#v", arrayPath, count.Validators)
 		}
-		// The array itself must reject an empty list (listvalidator.SizeAtLeast(1)).
+		// The array rejects an empty list (SizeAtLeast(1)) and caps at 2 (SizeAtMost(2),
+		// matching AzureRM's MaxItems: 2 on ip_address_pool).
 		arr := typegraph.FindProperty(def, arrayPath)
 		if !hasListSizeAtLeast(arr.Validators, 1) {
 			t.Errorf("%s missing SizeAtLeast(1) validator (empty list must fail at plan time): %#v", arrayPath, arr.Validators)
+		}
+		if !hasListSizeAtMost(arr.Validators, 2) {
+			t.Errorf("%s missing SizeAtMost(2) validator (more than 2 pools must fail at plan time): %#v", arrayPath, arr.Validators)
 		}
 	}
 }
@@ -139,6 +143,15 @@ func hasRegexValidator(vs []typegraph.DescriptionValidator, pattern string) bool
 func hasListSizeAtLeast(vs []typegraph.DescriptionValidator, min int64) bool {
 	for _, v := range vs {
 		if v.Kind == typegraph.ValidatorListSizeAtLeast && v.Min != nil && *v.Min == min {
+			return true
+		}
+	}
+	return false
+}
+
+func hasListSizeAtMost(vs []typegraph.DescriptionValidator, max int64) bool {
+	for _, v := range vs {
+		if v.Kind == typegraph.ValidatorListSizeAtMost && v.Max != nil && *v.Max == max {
 			return true
 		}
 	}
