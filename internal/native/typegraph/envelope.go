@@ -184,6 +184,13 @@ func IntRangeValidator(min, max int64) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorIntRange, Min: &min, Max: &max}
 }
 
+// ListSizeAtLeastValidator builds a minimum-list-length validator, emitted as
+// listvalidator.SizeAtLeast(n) on a list attribute. Use it to reject an empty
+// list (n=1) on an Optional collection whose presence must be non-empty.
+func ListSizeAtLeastValidator(min int64) DescriptionValidator {
+	return DescriptionValidator{Kind: ValidatorListSizeAtLeast, Min: &min}
+}
+
 // CustomValidator builds a reference to a resource-/service-specific validator
 // that lives with the generated schema in services/<service>/validators. The
 // call is emitted qualified with that package (validators.<call>), so it must name

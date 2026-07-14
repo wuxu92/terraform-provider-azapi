@@ -113,12 +113,21 @@ func ApplyAzwise(def *ResourceDefinition) {
 	// Relational cross-property constraints → lowered onto the ResourceDefinition
 	// for emission as resource-level ConfigValidators. Paths that do not resolve to
 	// object-level attributes (missing, array-element, scalar mid-path) are skipped.
+	// suppressStateReuse marks whether a constraint kind lets a member be toggled
+	// off by omission (a switch between mutually-exclusive or optional-choice sides).
+	// RequiredWith is co-presence, not a switch, so its members keep state reuse.
+	suppressStateReuse := map[string]bool{
+		"ConflictsWith": true,
+		"ExactlyOneOf":  true,
+		"AtLeastOneOf":  true,
+	}
 	lower := func(kind string, rules []azwise.RelationalRule) {
 		for _, r := range rules {
 			if len(r.Paths) < 2 {
 				continue
 			}
 			segsList := make([][]string, 0, len(r.Paths))
+			props := make([]*Property, 0, len(r.Paths))
 			ok := true
 			for _, p := range r.Paths {
 				segs, good := resolveObjectPathSegments(def.Body, p)
@@ -127,9 +136,17 @@ func ApplyAzwise(def *ResourceDefinition) {
 					break
 				}
 				segsList = append(segsList, segs)
+				props = append(props, Navigate(def.Body, p))
 			}
 			if ok {
 				def.Relational = append(def.Relational, RelationalConstraintDef{Kind: kind, Paths: segsList, Message: r.Message})
+				if suppressStateReuse[kind] {
+					for _, prop := range props {
+						if prop != nil {
+							prop.SuppressStateReuse = true
+						}
+					}
+				}
 			}
 		}
 	}

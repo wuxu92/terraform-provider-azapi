@@ -5,6 +5,7 @@ package typegraph
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -86,6 +87,17 @@ type Property struct {
 	// (including an explicit []) is left untouched because the default only fires on
 	// a null config value. Set by customizers; ignored for non-array properties.
 	DefaultEmptyList bool
+	// SuppressStateReuse opts an Optional+Computed attribute out of the default
+	// UseStateForUnknown plan modifier. Set by ApplyAzwise on every member of a
+	// mutual-exclusion / choice constraint (ExactlyOneOf, ConflictsWith,
+	// AtLeastOneOf). Such a member must be un-settable by omission: with
+	// UseStateForUnknown, dropping it from config pins its stale prior value into the
+	// plan (so it is re-sent and never clears), while an explicit empty value trips
+	// the constraint validator's non-null "is set" test. Dropping the state-reuse
+	// lets an omitted member plan as "(known after apply)" so it is left out of the
+	// PUT body and the server re-owns it, letting callers switch sides of the
+	// constraint. A member explicitly set in config is known and unaffected.
+	SuppressStateReuse bool
 }
 
 // DescriptionValidator is a validation rule extracted from a property description
@@ -112,6 +124,7 @@ const (
 	ValidatorStringLength                                    // String length min/max (azwise)
 	ValidatorCustom                                          // Service-specific validator: services/<service>/validators (validators.X())
 	ValidatorShared                                          // Generic shared validator: internal/native/schema (nativeschema.X())
+	ValidatorListSizeAtLeast                                 // Minimum list length (listvalidator.SizeAtLeast); uses Min
 )
 
 // IsEnum returns true if this type is a union of string literals (enum).
@@ -302,7 +315,21 @@ func (w *walker) resolve(idx int, depth int) *Type {
 		t = &Type{Kind: KindAny}
 	case "ObjectType":
 		obj := &Type{Kind: KindObject, Name: entry.Name, Properties: make(map[string]*Property)}
-		for name, prop := range entry.Properties {
+		// Resolve properties in a stable (sorted) order. entry.Properties is a Go
+		// map, whose iteration order is randomized per run; for mutually-recursive
+		// ARM types (e.g. the Microsoft.Network virtualNetwork -> subnet -> ...
+		// -> virtualNetworkTap cycle) that randomness decides which reference
+		// realizes the full ObjectType and which becomes the KindAny cycle-break
+		// sentinel. A stable order makes generation reproducible and keeps the
+		// emitter and the compiled-schema validator (both call BuildForGeneration
+		// independently) in agreement.
+		propNames := make([]string, 0, len(entry.Properties))
+		for name := range entry.Properties {
+			propNames = append(propNames, name)
+		}
+		sort.Strings(propNames)
+		for _, name := range propNames {
+			prop := entry.Properties[name]
 			propIdx, err := parseRef(&prop.Type)
 			if err != nil {
 				continue

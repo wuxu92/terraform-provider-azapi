@@ -289,6 +289,8 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 				needs.custom = true
 			case typegraph.ValidatorShared:
 				needs.shared = true
+			case typegraph.ValidatorListSizeAtLeast:
+				needs.listValidator = true
 			}
 		}
 		// A primitive array/set carrying validators emits them as list-element
@@ -484,6 +486,9 @@ func emitAttribute(b *strings.Builder, tfName string, prop *typegraph.Property, 
 			if prop.DefaultEmptyList {
 				b.WriteString(fmt.Sprintf("%s\tDefault: listdefault.StaticValue(types.ListValueMust(%s, nil)),\n", tabs, attrTypeLiteral(typ.ElementType)))
 			}
+			if !computed {
+				emitListValidators(b, prop, tabs, false)
+			}
 			b.WriteString(fmt.Sprintf("%s\tNestedObject: schema.NestedAttributeObject{\n", tabs))
 			b.WriteString(fmt.Sprintf("%s\t\tAttributes: map[string]schema.Attribute{\n", tabs))
 			emitAttributes(b, typ.ElementType, indent+3, true)
@@ -504,7 +509,7 @@ func emitAttribute(b *strings.Builder, tfName string, prop *typegraph.Property, 
 			// with element validators (e.g. case-insensitive permission enums) gets
 			// them via listvalidator.ValueStringsAre.
 			if !prop.UseSet && !computed {
-				emitListElementStringValidators(b, prop, tabs)
+				emitListValidators(b, prop, tabs, true)
 			}
 			b.WriteString(fmt.Sprintf("%s\tElementType: %s,\n", tabs, listElementType(typ.ElementType)))
 			b.WriteString(fmt.Sprintf("%s},\n", tabs))
@@ -554,8 +559,10 @@ func emitAttribute(b *strings.Builder, tfName string, prop *typegraph.Property, 
 // emitPlanModifiers writes state-reuse and replacement plan modifiers.
 func emitPlanModifiers(b *strings.Builder, prop *typegraph.Property, computed bool, tabs string) {
 	// State reuse keeps Optional+Computed/read-only values stable; customizers can
-	// make null prior state unknown for Azure-populated values.
-	useState := !prop.Flags.IsRequired() && prop.DefaultValue == "" && !prop.DefaultEmptyList
+	// make null prior state unknown for Azure-populated values. Members of a
+	// mutual-exclusion / choice constraint opt out (SuppressStateReuse) so an omitted
+	// side plans as unknown and the server re-owns it, instead of pinning stale state.
+	useState := !prop.Flags.IsRequired() && prop.DefaultValue == "" && !prop.DefaultEmptyList && !prop.SuppressStateReuse
 	forceNew := prop.ForceNew && !computed
 	location := usesLocationPlanModifier(prop, computed)
 	if !useState && !forceNew && !location {
@@ -817,21 +824,45 @@ func emitStringValidators(b *strings.Builder, validators []typegraph.Description
 	b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 }
 
-// emitListElementStringValidators writes a List validator block that applies the
-// property's string validators to every element of a primitive string list via
-// listvalidator.ValueStringsAre (e.g. case-insensitive key-vault permission enums).
-func emitListElementStringValidators(b *strings.Builder, prop *typegraph.Property, tabs string) {
-	items := stringValidatorItems(prop.Validators, tabs)
-	if len(items) == 0 {
+// emitListValidators writes a single Validators: []validator.List{} block for a
+// list attribute. It emits minimum-size validators (listvalidator.SizeAtLeast, e.g.
+// SizeAtLeast(1) to reject an empty list) and, when elementValidators is true (a
+// settable primitive string list), the property's string validators applied to
+// every element via listvalidator.ValueStringsAre (e.g. case-insensitive key-vault
+// permission enums). Emits nothing when neither applies.
+func emitListValidators(b *strings.Builder, prop *typegraph.Property, tabs string, elementValidators bool) {
+	sizeItems := listSizeValidatorItems(prop.Validators)
+	var elemItems []string
+	if elementValidators {
+		elemItems = stringValidatorItems(prop.Validators, tabs)
+	}
+	if len(sizeItems) == 0 && len(elemItems) == 0 {
 		return
 	}
 	b.WriteString(fmt.Sprintf("%s\tValidators: []validator.List{\n", tabs))
-	b.WriteString(fmt.Sprintf("%s\t\tlistvalidator.ValueStringsAre(\n", tabs))
-	for _, item := range items {
-		b.WriteString(item + ",\n")
+	for _, item := range sizeItems {
+		b.WriteString(fmt.Sprintf("%s\t\t%s,\n", tabs, item))
 	}
-	b.WriteString(fmt.Sprintf("%s\t\t),\n", tabs))
+	if len(elemItems) > 0 {
+		b.WriteString(fmt.Sprintf("%s\t\tlistvalidator.ValueStringsAre(\n", tabs))
+		for _, item := range elemItems {
+			b.WriteString(item + ",\n")
+		}
+		b.WriteString(fmt.Sprintf("%s\t\t),\n", tabs))
+	}
 	b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+}
+
+// listSizeValidatorItems renders the listvalidator.SizeAtLeast(n) call strings for
+// a property's minimum-list-length validators.
+func listSizeValidatorItems(validators []typegraph.DescriptionValidator) []string {
+	var items []string
+	for _, v := range validators {
+		if v.Kind == typegraph.ValidatorListSizeAtLeast && v.Min != nil {
+			items = append(items, fmt.Sprintf("listvalidator.SizeAtLeast(%d)", *v.Min))
+		}
+	}
+	return items
 }
 
 // emitEnvelope writes synthetic name/parent/id attrs outside the bicep body.
