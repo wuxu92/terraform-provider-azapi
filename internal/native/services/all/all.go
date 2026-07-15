@@ -10,6 +10,7 @@ package all
 
 import (
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/authorization"
+	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/datafactory"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/keyvault"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/managedidentity"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/network"

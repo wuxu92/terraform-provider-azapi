@@ -32,8 +32,13 @@ func ExtractResourceTag(description string) (string, bool) {
 // lists top-level attribute names to exclude — the synthesized operational-envelope
 // attributes (name / parent reference / id) are not part of the bicep body.
 func SchemaAgainstBicep(s schema.Schema, body *typegraph.Type, ignoreTopLevel ...string) []typegraph.Mismatch {
-	if body == nil || body.Kind != typegraph.KindObject {
-		return []typegraph.Mismatch{{Kind: typegraph.MismatchTypeMismatch, Detail: "bicep body is not an ObjectType"}}
+	if body == nil || (body.Kind != typegraph.KindObject && body.Kind != typegraph.KindDiscriminated) {
+		return []typegraph.Mismatch{{Kind: typegraph.MismatchTypeMismatch, Detail: "bicep body is not an ObjectType or DiscriminatedObjectType"}}
+	}
+	if body.Kind == typegraph.KindDiscriminated {
+		// A discriminated root wraps base props + one nested object per variant at
+		// the top level; project it so validateObject checks the emitted attributes.
+		body = typegraph.DiscriminatedAsObject(body)
 	}
 	attrs := s.Attributes
 	if len(ignoreTopLevel) > 0 {
@@ -121,7 +126,7 @@ func validateType(tfAttr schema.Attribute, bicepProp *typegraph.Property, path s
 		case typegraph.KindObject:
 			mismatches = append(mismatches, validateObject(attr.Attributes, bt, path)...)
 		case typegraph.KindDiscriminated:
-			mismatches = append(mismatches, validateObject(attr.Attributes, discriminatedAsObject(bt), path)...)
+			mismatches = append(mismatches, validateObject(attr.Attributes, typegraph.DiscriminatedAsObject(bt), path)...)
 		default:
 			mismatches = append(mismatches, typeMismatch(path, bicepProp, "SingleNestedAttribute", bt))
 		}
@@ -131,7 +136,7 @@ func validateType(tfAttr schema.Attribute, bicepProp *typegraph.Property, path s
 		} else if bt.ElementType != nil && bt.ElementType.Kind == typegraph.KindObject {
 			mismatches = append(mismatches, validateObject(attr.NestedObject.Attributes, bt.ElementType, path+"[*]")...)
 		} else if bt.ElementType != nil && bt.ElementType.Kind == typegraph.KindDiscriminated {
-			mismatches = append(mismatches, validateObject(attr.NestedObject.Attributes, discriminatedAsObject(bt.ElementType), path+"[*]")...)
+			mismatches = append(mismatches, validateObject(attr.NestedObject.Attributes, typegraph.DiscriminatedAsObject(bt.ElementType), path+"[*]")...)
 		}
 	case schema.ListAttribute:
 		if bt.Kind != typegraph.KindArray {
@@ -207,22 +212,6 @@ func bicepDesc(t *typegraph.Type) string {
 	default:
 		return fmt.Sprintf("Unknown(%d)", t.Kind)
 	}
-}
-
-// discriminatedAsObject projects a KindDiscriminated type onto the KindObject
-// shape the emitter produces: the base properties plus one nested object property
-// per variant (keyed by the discriminator value). This lets validateObject check a
-// discriminated block's emitted SingleNestedAttribute against the same attribute
-// set the emitter wrote, so parity holds without a discriminated-specific walker.
-func discriminatedAsObject(t *typegraph.Type) *typegraph.Type {
-	obj := &typegraph.Type{Kind: typegraph.KindObject, Name: t.Name, Properties: make(map[string]*typegraph.Property, len(t.Properties)+len(t.Variants))}
-	for name, prop := range t.Properties {
-		obj.Properties[name] = prop
-	}
-	for value, variant := range t.Variants {
-		obj.Properties[value] = &typegraph.Property{Name: value, Type: variant}
-	}
-	return obj
 }
 
 func sortedAttrKeys(m map[string]schema.Attribute) []string {

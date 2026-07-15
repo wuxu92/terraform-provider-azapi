@@ -24,10 +24,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiStorageAccountSchema returns the Terraform resource schema for Microsoft.Storage/storageAccounts@2025-06-01.
+// AzapiStorageAccountSchema returns the Terraform resource schema for Microsoft.Storage/storageAccounts@2026-04-01.
 func AzapiStorageAccountSchema() schema.Schema {
 	return schema.Schema{
-		Description: "Manages a Microsoft.Storage/storageAccounts resource. [azapin:Microsoft.Storage/storageAccounts@2025-06-01]",
+		Description: "Manages a Microsoft.Storage/storageAccounts resource. [azapin:Microsoft.Storage/storageAccounts@2026-04-01]",
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				Required:      true,
@@ -181,6 +181,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 								"Cool",
 								"Premium",
 								"Cold",
+								"Smart",
 							),
 						},
 					},
@@ -209,6 +210,72 @@ func AzapiStorageAccountSchema() schema.Schema {
 						Computed:    true,
 						Default:     booldefault.StaticBool(true),
 					},
+					"allow_shared_key_access_for_services": schema.SingleNestedAttribute{
+						Description: "Indicate shared key access properties at service level",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+						Attributes: map[string]schema.Attribute{
+							"blob": schema.SingleNestedAttribute{
+								Description: "Shared key access settings for Blob service.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
+								Attributes: map[string]schema.Attribute{
+									"enabled": schema.BoolAttribute{
+										Description: "Indicates whether shared key access is enabled for the service.",
+										Required:    true,
+									},
+								},
+							},
+							"file": schema.SingleNestedAttribute{
+								Description: "Shared key access settings for File service.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
+								Attributes: map[string]schema.Attribute{
+									"enabled": schema.BoolAttribute{
+										Description: "Indicates whether shared key access is enabled for the service.",
+										Required:    true,
+									},
+								},
+							},
+							"queue": schema.SingleNestedAttribute{
+								Description: "Shared key access settings for Queue service.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
+								Attributes: map[string]schema.Attribute{
+									"enabled": schema.BoolAttribute{
+										Description: "Indicates whether shared key access is enabled for the service.",
+										Required:    true,
+									},
+								},
+							},
+							"table": schema.SingleNestedAttribute{
+								Description: "Shared key access settings for Table service.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Object{
+									objectplanmodifier.UseStateForUnknown(),
+								},
+								Attributes: map[string]schema.Attribute{
+									"enabled": schema.BoolAttribute{
+										Description: "Indicates whether shared key access is enabled for the service.",
+										Required:    true,
+									},
+								},
+							},
+						},
+					},
 					"allowed_copy_scope": schema.StringAttribute{
 						Description: "Restrict copy to and from Storage Accounts within an AAD tenant or with Private Links to the same VNet.",
 						Optional:    true,
@@ -217,6 +284,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 							stringvalidator.OneOf(
 								"PrivateLink",
 								"AAD",
+								"All",
 							),
 						},
 						PlanModifiers: []planmodifier.String{
@@ -441,6 +509,40 @@ func AzapiStorageAccountSchema() schema.Schema {
 								Optional:    true,
 								Computed:    true,
 								Default:     booldefault.StaticBool(false),
+							},
+						},
+					},
+					"data_collaboration_policy_properties": schema.SingleNestedAttribute{
+						Description: "Data Collaboration policy for the storage account.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+						Attributes: map[string]schema.Attribute{
+							"allow_cross_tenant_data_sharing": schema.BoolAttribute{
+								Description: "Indicates whether cross-entra tenant data sharing is allowed on the storage account.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
+							},
+							"allow_storage_connectors": schema.BoolAttribute{
+								Description: "Indicates whether storage connectors are allowed to created or managed on the storage account.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
+							},
+							"allow_storage_data_shares": schema.BoolAttribute{
+								Description: "Indicates whether data shares are allowed to be created or managed on the storage account.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.Bool{
+									boolplanmodifier.UseStateForUnknown(),
+								},
 							},
 						},
 					},
@@ -993,7 +1095,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 						},
 					},
 					"minimum_tls_version": schema.StringAttribute{
-						Description: "Set the minimum TLS version to be permitted on requests to storage. The default interpretation is TLS 1.0 for this property.",
+						Description: "Set the minimum TLS version to be permitted on requests to storage. The default interpretation is TLS 1.0 for this property. Minimum TLS version 1.3 version is not supported.",
 						Optional:    true,
 						Computed:    true,
 						Default:     stringdefault.StaticString("TLS1_2"),
@@ -1145,17 +1247,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 										},
 										"state": schema.StringAttribute{
 											Description: "Gets the state of virtual network rule.",
-											Optional:    true,
 											Computed:    true,
-											Validators: []validator.String{
-												stringvalidator.OneOf(
-													"Provisioning",
-													"Deprovisioning",
-													"Succeeded",
-													"Failed",
-													"NetworkSourceDeleted",
-												),
-											},
 											PlanModifiers: []planmodifier.String{
 												stringplanmodifier.UseStateForUnknown(),
 											},
@@ -2163,7 +2255,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 var StorageAccount = services.Descriptor{
 	Name:           "azapi_storage_account",
 	ARMType:        "Microsoft.Storage/storageAccounts",
-	APIVersion:     "2025-06-01",
+	APIVersion:     "2026-04-01",
 	Schema:         AzapiStorageAccountSchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",

@@ -1065,3 +1065,122 @@ func TestNestedDiscriminatedRoundTrip(t *testing.T) {
 		t.Errorf("inner round-trip: %v", connOut["auth"])
 	}
 }
+
+// discriminatedRootBody models a resource whose body IS a discriminated type
+// (like Microsoft.Resources/deploymentScripts, discriminated by `kind`): base
+// props sit beside one variant block per discriminator value at the top level,
+// wrapped by the operational envelope (name/parent_id/id).
+func discriminatedRootBody() (*typegraph.Type, basetypes.ObjectType) {
+	strT := &typegraph.Type{Kind: typegraph.KindString}
+	cliVar := &typegraph.Type{Kind: typegraph.KindObject, Name: "AzureCLI", Properties: map[string]*typegraph.Property{
+		"scriptContent": {Name: "scriptContent", Type: strT},
+	}}
+	psVar := &typegraph.Type{Kind: typegraph.KindObject, Name: "AzurePowerShell", Properties: map[string]*typegraph.Property{
+		"azPowerShellVersion": {Name: "azPowerShellVersion", Type: strT},
+	}}
+	body := &typegraph.Type{
+		Kind:          typegraph.KindDiscriminated,
+		Name:          "DeploymentScript",
+		Discriminator: "kind",
+		Properties:    map[string]*typegraph.Property{"location": {Name: "location", Type: strT}},
+		Variants:      map[string]*typegraph.Type{"AzureCLI": cliVar, "AzurePowerShell": psVar},
+	}
+	// Top-level object type = envelope (name, id) + base (location) + variant blocks.
+	bodyType := basetypes.ObjectType{AttrTypes: map[string]attr.Type{
+		"name":              types.StringType,
+		"id":                types.StringType,
+		"location":          types.StringType,
+		"azure_cli":         basetypes.ObjectType{AttrTypes: map[string]attr.Type{"script_content": types.StringType}},
+		"azure_power_shell": basetypes.ObjectType{AttrTypes: map[string]attr.Type{"az_power_shell_version": types.StringType}},
+	}}
+	return body, bodyType
+}
+
+// TestDiscriminatedRootRoundTrip locks the discriminated-ROOT seams: Expand emits
+// the flat tagged ARM body directly (ignoring envelope attrs), Flatten rebuilds
+// the top-level state with the envelope winning over the response, and FlattenInto
+// refreshes base+variant while preserving the envelope. Shape mirrors
+// deploymentScripts (root discriminated by `kind`, AzureCLI/AzurePowerShell).
+func TestDiscriminatedRootRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	body, bodyType := discriminatedRootBody()
+
+	cliType := bodyType.AttrTypes["azure_cli"].(basetypes.ObjectType)
+	psType := bodyType.AttrTypes["azure_power_shell"].(basetypes.ObjectType)
+	cli, d := types.ObjectValue(cliType.AttrTypes, map[string]attr.Value{"script_content": types.StringValue("echo hi")})
+	if d.HasError() {
+		t.Fatalf("build cli: %v", d)
+	}
+	state, d := types.ObjectValue(bodyType.AttrTypes, map[string]attr.Value{
+		"name":              types.StringValue("ds1"),
+		"id":                types.StringValue("/subscriptions/x/ds1"),
+		"location":          types.StringValue("westus"),
+		"azure_cli":         cli,
+		"azure_power_shell": types.ObjectNull(psType.AttrTypes),
+	})
+	if d.HasError() {
+		t.Fatalf("build state: %v", d)
+	}
+
+	// Expand: the discriminated root flattens directly into the tagged ARM body,
+	// synthesizing the discriminator; envelope attrs (name, id) are not sent.
+	out := mapper.Expand(state, body)
+	if out["kind"] != "AzureCLI" {
+		t.Errorf("discriminator: got %v, want AzureCLI", out["kind"])
+	}
+	if out["scriptContent"] != "echo hi" {
+		t.Errorf("variant property scriptContent: got %v", out["scriptContent"])
+	}
+	if out["location"] != "westus" {
+		t.Errorf("base property location: got %v", out["location"])
+	}
+	for _, leaked := range []string{"name", "id", "azPowerShellVersion"} {
+		if _, ok := out[leaked]; ok {
+			t.Errorf("unexpected key %q in ARM body: %v", leaked, out)
+		}
+	}
+
+	// Flatten: rebuild state from an ARM GET; the envelope map wins over the body.
+	arm := map[string]interface{}{"kind": "AzureCLI", "location": "westus", "scriptContent": "echo hi"}
+	envelope := map[string]attr.Value{
+		"name": types.StringValue("ds1"),
+		"id":   types.StringValue("/subscriptions/x/ds1"),
+	}
+	got, diags := mapper.Flatten(ctx, arm, bodyType, body, envelope)
+	if diags.HasError() {
+		t.Fatalf("Flatten diags: %v", diags)
+	}
+	if n, _ := got.Attributes()["name"].(types.String); n.ValueString() != "ds1" {
+		t.Errorf("envelope name: got %v", got.Attributes()["name"])
+	}
+	if !got.Attributes()["azure_power_shell"].IsNull() {
+		t.Errorf("inactive azure_power_shell should be null, got %v", got.Attributes()["azure_power_shell"])
+	}
+	cliOut, ok := got.Attributes()["azure_cli"].(types.Object)
+	if !ok || cliOut.IsNull() {
+		t.Fatalf("active azure_cli missing: %v", got.Attributes()["azure_cli"])
+	}
+	if sc, _ := cliOut.Attributes()["script_content"].(types.String); sc.ValueString() != "echo hi" {
+		t.Errorf("script_content: got %v", cliOut.Attributes()["script_content"])
+	}
+
+	// FlattenInto: a switched response clears the old variant, keeps the envelope.
+	armPS := map[string]interface{}{"kind": "AzurePowerShell", "location": "eastus", "azPowerShellVersion": "9.7"}
+	refreshed, diags := mapper.FlattenInto(ctx, armPS, state, body)
+	if diags.HasError() {
+		t.Fatalf("FlattenInto diags: %v", diags)
+	}
+	if !refreshed.Attributes()["azure_cli"].IsNull() {
+		t.Errorf("switched-away azure_cli should clear, got %v", refreshed.Attributes()["azure_cli"])
+	}
+	ps, ok := refreshed.Attributes()["azure_power_shell"].(types.Object)
+	if !ok || ps.IsNull() {
+		t.Fatalf("newly-active azure_power_shell missing: %v", refreshed.Attributes()["azure_power_shell"])
+	}
+	if v, _ := ps.Attributes()["az_power_shell_version"].(types.String); v.ValueString() != "9.7" {
+		t.Errorf("az_power_shell_version: got %v", ps.Attributes()["az_power_shell_version"])
+	}
+	if n, _ := refreshed.Attributes()["name"].(types.String); n.ValueString() != "ds1" {
+		t.Errorf("envelope name not preserved through FlattenInto: got %v", refreshed.Attributes()["name"])
+	}
+}

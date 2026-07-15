@@ -109,10 +109,32 @@ func RecurseChild(t *Type) *Type {
 	switch t.Kind {
 	case KindObject:
 		return t
+	case KindDiscriminated:
+		// A discriminated block emits base props + one nested object per variant;
+		// descend the projected object so verification covers both (matches the
+		// emitter's emitDiscriminatedAttributes and the compiled adapter).
+		return DiscriminatedAsObject(t)
 	case KindArray, KindMap:
 		if t.ElementType != nil && t.ElementType.Kind == KindObject {
 			return t.ElementType
 		}
 	}
 	return nil
+}
+
+// DiscriminatedAsObject projects a KindDiscriminated type onto the KindObject
+// shape the emitter produces: the shared base properties plus one nested object
+// property per variant, keyed by the discriminator value. Both schema-verification
+// adapters and the emitted-path collector use it so a discriminated block is
+// checked against exactly the attribute set the emitter wrote — no
+// discriminated-specific walker.
+func DiscriminatedAsObject(t *Type) *Type {
+	obj := &Type{Kind: KindObject, Name: t.Name, Properties: make(map[string]*Property, len(t.Properties)+len(t.Variants))}
+	for name, prop := range t.Properties {
+		obj.Properties[name] = prop
+	}
+	for value, variant := range t.Variants {
+		obj.Properties[value] = &Property{Name: value, Type: variant}
+	}
+	return obj
 }

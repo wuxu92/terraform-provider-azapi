@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -149,6 +150,79 @@ func AzapiRoleAssignmentSchema() schema.Schema {
 					"updated_on": schema.StringAttribute{
 						Description: "Time it was updated",
 						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+				},
+			},
+			"system_data": schema.SingleNestedAttribute{
+				Description: "Azure Resource Manager metadata containing createdBy and modifiedBy information.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
+				Attributes: map[string]schema.Attribute{
+					"created_at": schema.StringAttribute{
+						Description: "The timestamp of resource creation (UTC).",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"created_by": schema.StringAttribute{
+						Description: "The identity that created the resource.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"created_by_type": schema.StringAttribute{
+						Description: "The type of identity that created the resource.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"User",
+								"Application",
+								"ManagedIdentity",
+								"Key",
+							),
+						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_at": schema.StringAttribute{
+						Description: "The timestamp of resource last modification (UTC)",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_by": schema.StringAttribute{
+						Description: "The identity that last modified the resource.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_by_type": schema.StringAttribute{
+						Description: "The type of identity that last modified the resource.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"User",
+								"Application",
+								"ManagedIdentity",
+								"Key",
+							),
+						},
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
 						},

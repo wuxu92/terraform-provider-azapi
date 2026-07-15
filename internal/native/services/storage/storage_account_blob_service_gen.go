@@ -22,10 +22,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiStorageAccountBlobServiceSchema returns the Terraform resource schema for Microsoft.Storage/storageAccounts/blobServices@2025-06-01.
+// AzapiStorageAccountBlobServiceSchema returns the Terraform resource schema for Microsoft.Storage/storageAccounts/blobServices@2026-04-01.
 func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 	return schema.Schema{
-		Description: "Manages a Microsoft.Storage/storageAccounts/blobServices resource. [azapin:Microsoft.Storage/storageAccounts/blobServices@2025-06-01]",
+		Description: "Manages a Microsoft.Storage/storageAccounts/blobServices resource. [azapin:Microsoft.Storage/storageAccounts/blobServices@2026-04-01]",
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				Required:      true,
@@ -371,6 +371,44 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 							},
 						},
 					},
+					"static_website": schema.SingleNestedAttribute{
+						Description: "The static website properties for blob storage.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+						Attributes: map[string]schema.Attribute{
+							"default_index_document_path": schema.StringAttribute{
+								Description: "The absolute path where the default index file is present. This absolute path is mutually exclusive to \\\"indexDocument\\\" and it is case-sensitive.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
+							},
+							"enabled": schema.BoolAttribute{
+								Description: "Indicates whether static website support is enabled for the specified account.",
+								Required:    true,
+							},
+							"error_document404_path": schema.StringAttribute{
+								Description: "The absolute path to a webpage that Azure Storage serves for requests that don't correspond to an existing file. The contents of the page are returned with HTTP 404 Not Found. Only a single custom 404...",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
+							},
+							"index_document": schema.StringAttribute{
+								Description: "The webpage that Azure Storage serves for requests to the root of a website or any subfolder (for example, index.html). The value is case-sensitive.",
+								Optional:    true,
+								Computed:    true,
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.UseStateForUnknown(),
+								},
+							},
+						},
+					},
 				},
 			},
 			"system_data": schema.SingleNestedAttribute{
@@ -459,7 +497,7 @@ func AzapiStorageAccountBlobServiceSchema() schema.Schema {
 var StorageAccountBlobService = services.Descriptor{
 	Name:           "azapi_storage_account_blob_service",
 	ARMType:        "Microsoft.Storage/storageAccounts/blobServices",
-	APIVersion:     "2025-06-01",
+	APIVersion:     "2026-04-01",
 	Schema:         AzapiStorageAccountBlobServiceSchema,
 	WritableScopes: 8,
 	ParentAttr:     "storage_account_id",

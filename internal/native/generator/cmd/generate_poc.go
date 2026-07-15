@@ -36,6 +36,8 @@ var targets = []string{
 	armtype.RoleAssignment,
 	armtype.RoleDefinition,
 	armtype.VirtualNetwork,
+	armtype.DataFactory,
+	armtype.DeploymentScript,
 }
 
 func main() {

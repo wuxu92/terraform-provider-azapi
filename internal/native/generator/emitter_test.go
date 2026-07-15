@@ -212,3 +212,43 @@ func TestListSizeValidatorItems(t *testing.T) {
 		})
 	}
 }
+
+// TestEmitDiscriminatedRootBody confirms a resource whose body IS a discriminated
+// type (e.g. Microsoft.Resources/deploymentScripts, discriminated by kind) emits
+// its shared base props plus one variant block per discriminator value directly
+// at the top level, wrapped by the operational envelope, and gets an ExactlyOneOf
+// over the variant blocks.
+func TestEmitDiscriminatedRootBody(t *testing.T) {
+	strT := &typegraph.Type{Kind: typegraph.KindString}
+	body := &typegraph.Type{
+		Kind: typegraph.KindDiscriminated, Name: "DeploymentScript", Discriminator: "kind",
+		Properties: map[string]*typegraph.Property{"location": {Name: "location", Type: strT}},
+		Variants: map[string]*typegraph.Type{
+			"AzureCLI":        {Kind: typegraph.KindObject, Name: "AzureCLI", Properties: map[string]*typegraph.Property{"scriptContent": {Name: "scriptContent", Type: strT}}},
+			"AzurePowerShell": {Kind: typegraph.KindObject, Name: "AzurePowerShell", Properties: map[string]*typegraph.Property{"azPowerShellVersion": {Name: "azPowerShellVersion", Type: strT}}},
+		},
+	}
+	def := &typegraph.ResourceDefinition{Name: "Microsoft.Resources/deploymentScripts@2023-08-01", Body: body}
+	typegraph.PostProcess([]*typegraph.ResourceDefinition{def})
+
+	source, err := EmitSchema(def)
+	if err != nil {
+		t.Fatalf("EmitSchema: %v", err)
+	}
+	for _, needle := range []string{
+		`"name": schema.StringAttribute{`,
+		`"location": schema.StringAttribute{`,
+		`"azure_cli": schema.SingleNestedAttribute{`,
+		`"azure_power_shell": schema.SingleNestedAttribute{`,
+		`"script_content": schema.StringAttribute{`,
+		`services.ExactlyOneOf`,
+	} {
+		if !strings.Contains(source, needle) {
+			t.Errorf("emitted source missing %q:\n%s", needle, source)
+		}
+	}
+	// The discriminator itself is synthesized by the mapper, never a schema attribute.
+	if strings.Contains(source, `"kind": schema.`) {
+		t.Errorf("discriminator `kind` must not surface as a schema attribute:\n%s", source)
+	}
+}

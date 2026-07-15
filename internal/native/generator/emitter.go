@@ -13,8 +13,8 @@ import (
 
 // EmitSchema renders Go source for a generated Terraform resource schema.
 func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
-	if def.Body == nil || def.Body.Kind != typegraph.KindObject {
-		return "", fmt.Errorf("resource %s has no object body", def.Name)
+	if def.Body == nil || (def.Body.Kind != typegraph.KindObject && def.Body.Kind != typegraph.KindDiscriminated) {
+		return "", fmt.Errorf("resource %s has no object or discriminated body", def.Name)
 	}
 
 	// Resource type without @version drives package/function names.
@@ -133,7 +133,13 @@ func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
 	// remaining body, then common metadata/outputs.
 	emitEnvelopeStringAttr(&b, def.Envelope.Name, "\t\t\t")
 	emitEnvelopeStringAttr(&b, def.Envelope.Parent, "\t\t\t")
-	emitAttributes(&b, def.Body, 3, false)
+	if def.Body.Kind == typegraph.KindDiscriminated {
+		// A discriminated root body emits its shared base props plus one variant
+		// block per discriminator value directly at the top level (envelope-wrapped).
+		emitDiscriminatedAttributes(&b, def.Body, 3, false)
+	} else {
+		emitAttributes(&b, def.Body, 3, false)
+	}
 	emitEnvelopeIDAttr(&b, "\t\t\t")
 	for _, m := range def.Envelope.Meta {
 		emitMetaAttr(&b, m, "\t\t\t")

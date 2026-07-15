@@ -27,7 +27,17 @@ import (
 // that are null/unknown, system-managed, or absent from the type graph (the
 // envelope: name, parent_id, id, timeouts) are skipped.
 func Expand(obj types.Object, body *typegraph.Type) map[string]interface{} {
-	if obj.IsNull() || obj.IsUnknown() || body == nil || body.Kind != typegraph.KindObject {
+	if obj.IsNull() || obj.IsUnknown() || body == nil {
+		return map[string]interface{}{}
+	}
+	if body.Kind == typegraph.KindDiscriminated {
+		// A discriminated root flattens directly into the tagged ARM body; the
+		// envelope attributes (name, parent_id, id, timeouts) are ignored here just
+		// as they are for an object root (they are not in the type graph).
+		out, _ := expandDiscriminated(obj, body)
+		return out
+	}
+	if body.Kind != typegraph.KindObject {
 		return map[string]interface{}{}
 	}
 	return expandObject(obj, body)
@@ -208,6 +218,12 @@ func expandValue(v attr.Value, t *typegraph.Type) (interface{}, bool) {
 func Flatten(ctx context.Context, arm map[string]interface{}, objType basetypes.ObjectType, body *typegraph.Type, envelope map[string]attr.Value) (types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
+	if body != nil && body.Kind == typegraph.KindDiscriminated {
+		// A discriminated root: base props + the active variant come from the flat
+		// tagged ARM body, the envelope attributes win over the response.
+		return flattenDiscriminated(ctx, arm, objType, body, envelope)
+	}
+
 	// Index the body's settable properties by snake_case attribute name.
 	index := map[string]*typegraph.Property{}
 	if body != nil && body.Kind == typegraph.KindObject {
@@ -251,7 +267,7 @@ func Flatten(ctx context.Context, arm map[string]interface{}, objType basetypes.
 // base properties and the active variant's properties are read from the same flat
 // ARM object; every inactive variant block is null. When the discriminator is
 // absent from the response, no variant is populated (all variant blocks null).
-func flattenDiscriminated(ctx context.Context, arm map[string]interface{}, objType basetypes.ObjectType, disc *typegraph.Type) (types.Object, diag.Diagnostics) {
+func flattenDiscriminated(ctx context.Context, arm map[string]interface{}, objType basetypes.ObjectType, disc *typegraph.Type, envelope map[string]attr.Value) (types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	baseIndex := discriminatedBaseIndex(disc)
@@ -264,6 +280,10 @@ func flattenDiscriminated(ctx context.Context, arm map[string]interface{}, objTy
 	attrTypes := objType.AttributeTypes()
 	values := make(map[string]attr.Value, len(attrTypes))
 	for name, at := range attrTypes {
+		if env, ok := envelope[name]; ok && env != nil {
+			values[name] = env // envelope attr (root only); nil map for a nested block
+			continue
+		}
 		if value, ok := variantIndex[name]; ok {
 			// The active variant reads its properties from the same flat ARM object;
 			// inactive variants are null.
@@ -303,7 +323,7 @@ func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *
 
 	if ot, ok := at.(basetypes.ObjectType); ok && bicep != nil && bicep.Kind == typegraph.KindDiscriminated {
 		if m, ok := armVal.(map[string]interface{}); ok {
-			return flattenDiscriminated(ctx, m, ot, bicep)
+			return flattenDiscriminated(ctx, m, ot, bicep, nil)
 		}
 		return nullOf(ctx, at), diags
 	}
@@ -485,6 +505,18 @@ func flattenInto(ctx context.Context, arm map[string]interface{}, base types.Obj
 	values := make(map[string]attr.Value, len(attrTypes))
 	for k, v := range base.Attributes() {
 		values[k] = v
+	}
+
+	if body != nil && body.Kind == typegraph.KindDiscriminated {
+		// A discriminated root: refresh base props + the active variant from the flat
+		// ARM body, preserving the envelope (name, parent_id, id, timeouts) already
+		// copied above. flattenDiscriminatedInto leaves non-base/variant attrs intact.
+		v, d := flattenDiscriminatedInto(ctx, arm, base, body, preserveKnown)
+		diags.Append(d...)
+		if obj, ok := v.(types.Object); ok {
+			return obj, diags
+		}
+		return base, diags
 	}
 
 	if body != nil && body.Kind == typegraph.KindObject {

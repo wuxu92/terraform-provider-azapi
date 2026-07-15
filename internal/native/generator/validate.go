@@ -24,10 +24,10 @@ import (
 //   - Every non-SystemManaged bicep property has a corresponding attribute in the emitted source
 //   - Every quoted attribute name in the emitted source exists in the bicep type graph
 func ValidateEmittedSchema(emittedSource string, body *typegraph.Type, ignoreTopLevel ...string) []typegraph.Mismatch {
-	if body == nil || body.Kind != typegraph.KindObject {
+	if body == nil || (body.Kind != typegraph.KindObject && body.Kind != typegraph.KindDiscriminated) {
 		return []typegraph.Mismatch{{
 			Kind:   typegraph.MismatchTypeMismatch,
-			Detail: "bicep body is not an ObjectType",
+			Detail: "bicep body is not an ObjectType or DiscriminatedObjectType",
 		}}
 	}
 
@@ -44,13 +44,13 @@ func ValidateEmittedSchema(emittedSource string, body *typegraph.Type, ignoreTop
 	CollectExpectedPaths(body, "", expectedPaths)
 
 	// Extract all attribute paths from the emitted Go source
-	emittedPaths := extractEmittedPaths(emittedSource)
+	emittedPaths, synthesizedPaths := extractEmittedPaths(emittedSource)
 
 	var mismatches []typegraph.Mismatch
 
 	// Check: every emitted path should exist in expected
 	for _, path := range sortedStringSet(emittedPaths) {
-		if ignore[path] {
+		if ignore[path] || synthesizedPaths[path] {
 			continue
 		}
 		if _, ok := expectedPaths[path]; !ok {
@@ -83,6 +83,11 @@ func ValidateEmittedSchema(emittedSource string, body *typegraph.Type, ignoreTop
 // (typegraph.SchemaAttrName): skip SystemManaged, convert names with
 // CamelToSnake, recurse into objects / arrays-of-objects / maps-of-objects.
 func CollectExpectedPaths(typ *typegraph.Type, prefix string, out map[string]*typegraph.Property) {
+	if typ != nil && typ.Kind == typegraph.KindDiscriminated {
+		// A discriminated body (root or nested) contributes its base props plus one
+		// nested object per variant; project it so the walk matches the emitter.
+		typ = typegraph.DiscriminatedAsObject(typ)
+	}
 	if typ == nil || typ.Kind != typegraph.KindObject {
 		return
 	}
@@ -113,8 +118,13 @@ var managedIdentityInSource = regexp.MustCompile(`"([a-z][a-z0-9_]*)"\s*:\s*nati
 
 // extractEmittedPaths parses the emitted Go source and extracts all attribute
 // paths by tracking the nesting of quoted attribute names in schema declarations.
-func extractEmittedPaths(source string) map[string]bool {
-	paths := make(map[string]bool)
+// It also returns the subset of paths synthesized by fixed provider helpers (the
+// ManagedServiceIdentity envelope): those child leaves are provider-fixed, not
+// bicep-derived, so a looser bicep identity shape (e.g. userAssignedIdentities
+// typed as an open AnyType map) must not flag them as extra-in-schema.
+func extractEmittedPaths(source string) (paths, synthesized map[string]bool) {
+	paths = make(map[string]bool)
+	synthesized = make(map[string]bool)
 
 	// Track nesting from gofmt indentation instead of brace depth. Attribute
 	// blocks contain validators, plan modifiers, and descriptions whose braces do
@@ -150,7 +160,13 @@ func extractEmittedPaths(source string) map[string]bool {
 				"user_assigned_identities.client_id",
 				"user_assigned_identities.principal_id",
 			} {
-				paths[joinPathAllowEmpty(fullPath, suffix)] = true
+				p := joinPathAllowEmpty(fullPath, suffix)
+				paths[p] = true
+				// The helper's child leaves are provider-fixed; exempt them (not the
+				// identity root, a real bicep property) from the extra-in-schema check.
+				if suffix != "" {
+					synthesized[p] = true
+				}
 			}
 			continue
 		}
@@ -177,7 +193,7 @@ func extractEmittedPaths(source string) map[string]bool {
 		}
 	}
 
-	return paths
+	return paths, synthesized
 }
 
 func joinPathAllowEmpty(prefix, name string) string {

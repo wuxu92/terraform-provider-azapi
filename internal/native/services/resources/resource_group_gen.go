@@ -47,7 +47,7 @@ func AzapiResourceGroupSchema() schema.Schema {
 				MarkdownDescription: "The ID of the parent resource that contains this resource.",
 			},
 			"location": schema.StringAttribute{
-				Description: "The location of the resource group. It cannot be changed after the resource group has been created. It must be one of the supported Azure locations.",
+				Description: "The geo-location where the resource lives",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					nativeschema.UseStateForEquivalentLocation(),
@@ -81,8 +81,81 @@ func AzapiResourceGroupSchema() schema.Schema {
 					},
 				},
 			},
+			"system_data": schema.SingleNestedAttribute{
+				Description: "Azure Resource Manager metadata containing createdBy and modifiedBy information.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
+				Attributes: map[string]schema.Attribute{
+					"created_at": schema.StringAttribute{
+						Description: "The timestamp of resource creation (UTC).",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"created_by": schema.StringAttribute{
+						Description: "The identity that created the resource.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"created_by_type": schema.StringAttribute{
+						Description: "The type of identity that created the resource.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"User",
+								"Application",
+								"ManagedIdentity",
+								"Key",
+							),
+						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_at": schema.StringAttribute{
+						Description: "The timestamp of resource last modification (UTC)",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_by": schema.StringAttribute{
+						Description: "The identity that last modified the resource.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"last_modified_by_type": schema.StringAttribute{
+						Description: "The type of identity that last modified the resource.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"User",
+								"Application",
+								"ManagedIdentity",
+								"Key",
+							),
+						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+				},
+			},
 			"tags": schema.MapAttribute{
-				Description: "The tags attached to the resource group.",
+				Description: "Resource tags.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Map{

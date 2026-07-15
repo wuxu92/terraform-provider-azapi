@@ -30,8 +30,12 @@ Downstream consequence:
   `KindAny` ↔ `types.Dynamic` via `dynamic.ToJSON` / `dynamic.FromJSONImplied`
   — an opaque JSON blob the practitioner writes by hand, with **no schema, no
   validation, no per-field plan diffing**.
-- **Root-body discriminated** resources are skipped entirely — they fall back
-  to the untyped `azapi_resource`.
+- **Root-body discriminated** resources were skipped entirely (fell back to the
+  untyped `azapi_resource`). **Now supported** — the emitter, mapper
+  (Expand/Flatten/FlattenInto), constraint synthesis, and both schema verifiers
+  handle a `KindDiscriminated` body at the root, wrapped by the operational
+  envelope. Pilot: `azapi_resources_deployment_script`
+  (`Microsoft.Resources/deploymentScripts`, root discriminated by `kind`).
 - Design docs (`internal/native/DEVELOPER_SPEC.md:99`,
   `internal/native/GENERATOR.md:574-578`) mark full typing as deferred Phase-3
   work; the only sanctioned path today is a per-resource customizer that types
@@ -206,8 +210,9 @@ surface is items #8–#9 (mapper round-trip) plus emitter output.
 
 ## 8. Recommendation
 
-Adopt **Option B (nested per-variant blocks)**. Suggested rollout: implement the
-generator + mapper change behind a variant-count fallback, then validate on a
-single pilot resource first — Kusto `DataConnection` (6 clean disjoint variants,
-non-trivial but no name collisions) — before enabling the 632 root-body
-discriminated resources broadly.
+Adopt **Option B (nested per-variant blocks)**. **Shipped**: the generator +
+mapper change is implemented with a variant-count fallback (wide unions past the
+cap degrade to `KindAny`). Validated on two real pilots — a nested discriminated
+property (`azapi_datafactory_factory`, `repoConfiguration`) and a discriminated
+root (`azapi_resources_deployment_script`, `kind`). The remaining root-body
+discriminated resources can now be enabled by adding generation targets.

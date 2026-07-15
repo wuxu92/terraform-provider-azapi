@@ -55,4 +55,15 @@ const (
 	// VirtualNetwork is Microsoft.Network/virtualNetworks, a resource-group-scoped
 	// standalone virtual network (envelope parent: resource_group_id).
 	VirtualNetwork = "Microsoft.Network/virtualNetworks"
+
+	// DataFactory is Microsoft.DataFactory/factories, a resource-group-scoped
+	// data integration service. Its body carries a nested discriminated property
+	// (repoConfiguration, discriminated by type: FactoryVSTSConfiguration /
+	// FactoryGitHubConfiguration).
+	DataFactory = "Microsoft.DataFactory/factories"
+
+	// DeploymentScript is Microsoft.Resources/deploymentScripts, a
+	// resource-group-scoped resource whose body is itself a discriminated type
+	// (root discriminated by kind: AzureCLI / AzurePowerShell).
+	DeploymentScript = "Microsoft.Resources/deploymentScripts"
 )

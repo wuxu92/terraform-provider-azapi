@@ -132,7 +132,7 @@ func TestExtractEmittedPathsKeepsNestedSiblingsSeparate(t *testing.T) {
 		},
 	`
 
-	paths := extractEmittedPaths(source)
+	paths, _ := extractEmittedPaths(source)
 	for _, p := range []string{"identity", "identity.type", "properties", "properties.server_farm_id"} {
 		if !paths[p] {
 			t.Fatalf("missing extracted path %q in %#v", p, paths)
@@ -148,7 +148,7 @@ func TestExtractEmittedPathsExpandsManagedIdentityHelper(t *testing.T) {
 		"identity": nativeschema.ManagedServiceIdentity(false, ""),
 	`
 
-	paths := extractEmittedPaths(source)
+	paths, synthesized := extractEmittedPaths(source)
 	for _, p := range []string{
 		"identity",
 		"identity.principal_id",
@@ -160,6 +160,17 @@ func TestExtractEmittedPathsExpandsManagedIdentityHelper(t *testing.T) {
 	} {
 		if !paths[p] {
 			t.Fatalf("missing extracted path %q in %#v", p, paths)
+		}
+	}
+	// The helper's child leaves are provider-fixed and exempt from the
+	// extra-in-schema check; the identity root is a real bicep property and must
+	// not be exempt.
+	if synthesized["identity"] {
+		t.Fatalf("identity root must not be marked synthesized: %#v", synthesized)
+	}
+	for _, p := range []string{"identity.user_assigned_identities.client_id", "identity.user_assigned_identities.principal_id"} {
+		if !synthesized[p] {
+			t.Fatalf("expected synthesized helper leaf %q in %#v", p, synthesized)
 		}
 	}
 }

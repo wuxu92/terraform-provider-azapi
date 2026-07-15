@@ -25,10 +25,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiVirtualNetworkSchema returns the Terraform resource schema for Microsoft.Network/virtualNetworks@2025-05-01.
+// AzapiVirtualNetworkSchema returns the Terraform resource schema for Microsoft.Network/virtualNetworks@2025-07-01.
 func AzapiVirtualNetworkSchema() schema.Schema {
 	return schema.Schema{
-		Description: "Manages a Microsoft.Network/virtualNetworks resource. [azapin:Microsoft.Network/virtualNetworks@2025-05-01]",
+		Description: "Manages a Microsoft.Network/virtualNetworks resource. [azapin:Microsoft.Network/virtualNetworks@2025-07-01]",
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				Required:            true,
@@ -583,7 +583,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 									},
 								},
 								"name": schema.StringAttribute{
-									Description: "The name of the resource that is unique within a resource group. This name can be used to access the resource.",
+									Description: "Name of the resource.",
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
@@ -986,7 +986,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																		},
 																	},
 																	"name": schema.StringAttribute{
-																		Description: "The name of the resource that is unique within a resource group. This name can be used to access the resource.",
+																		Description: "Name of the resource.",
 																		Optional:    true,
 																		Computed:    true,
 																		PlanModifiers: []planmodifier.String{
@@ -1300,8 +1300,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																		},
 																	},
 																	"type": schema.StringAttribute{
-																		Description: "The type of the resource.",
-																		Optional:    true,
+																		Description: "Resource type.",
 																		Computed:    true,
 																		PlanModifiers: []planmodifier.String{
 																			stringplanmodifier.UseStateForUnknown(),
@@ -1979,6 +1978,20 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																									},
 																								},
 																							},
+																							"billing_sku": schema.StringAttribute{
+																								Description: "The billing sku of the private endpoint.",
+																								Optional:    true,
+																								Computed:    true,
+																								Validators: []validator.String{
+																									stringvalidator.OneOf(
+																										"PayAsYouGo",
+																										"Fixed",
+																									),
+																								},
+																								PlanModifiers: []planmodifier.String{
+																									stringplanmodifier.UseStateForUnknown(),
+																								},
+																							},
 																							"custom_dns_configs": schema.ListNestedAttribute{
 																								Description: "An array of custom dns configurations.",
 																								Optional:    true,
@@ -2647,7 +2660,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																											},
 																										},
 																										"name": schema.StringAttribute{
-																											Description: "The name of the resource that is unique within the set of frontend IP configurations used by the load balancer. This name can be used to access the resource.",
+																											Description: "Name of the resource.",
 																											Optional:    true,
 																											Computed:    true,
 																											PlanModifiers: []planmodifier.String{
@@ -2662,6 +2675,29 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																												objectplanmodifier.UseStateForUnknown(),
 																											},
 																											Attributes: map[string]schema.Attribute{
+																												"ddos_settings": schema.SingleNestedAttribute{
+																													Description: "The DDoS protection settings associated with the frontend IP configuration.",
+																													Optional:    true,
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.Object{
+																														objectplanmodifier.UseStateForUnknown(),
+																													},
+																													Attributes: map[string]schema.Attribute{
+																														"ddos_custom_policy": schema.SingleNestedAttribute{
+																															Description: "The reference to the DDoS Custom Policy resource.",
+																															Required:    true,
+																															Attributes: map[string]schema.Attribute{
+																																"id": schema.StringAttribute{
+																																	Description: "Resource ID.",
+																																	Required:    true,
+																																	Validators: []validator.String{
+																																		nativeschema.AzureResourceID(),
+																																	},
+																																},
+																															},
+																														},
+																													},
+																												},
 																												"gateway_load_balancer": schema.SingleNestedAttribute{
 																													Description: "The reference to gateway load balancer frontend IP.",
 																													Optional:    true,
@@ -2824,7 +2860,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																											},
 																										},
 																										"type": schema.StringAttribute{
-																											Description: "Type of the resource.",
+																											Description: "Resource type.",
 																											Computed:    true,
 																											PlanModifiers: []planmodifier.String{
 																												stringplanmodifier.UseStateForUnknown(),
@@ -2874,7 +2910,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																											},
 																										},
 																										"name": schema.StringAttribute{
-																											Description: "The name of the resource that is unique within a resource group. This name can be used to access the resource.",
+																											Description: "Name of the resource.",
 																											Optional:    true,
 																											Computed:    true,
 																											PlanModifiers: []planmodifier.String{
@@ -3053,6 +3089,20 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																				},
 																																			},
 																																		},
+																																	},
+																																},
+																																"billing_sku": schema.StringAttribute{
+																																	Description: "The billing sku of the private endpoint.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"PayAsYouGo",
+																																			"Fixed",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
 																																	},
 																																},
 																																"custom_dns_configs": schema.ListNestedAttribute{
@@ -3498,7 +3548,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																											},
 																										},
 																										"type": schema.StringAttribute{
-																											Description: "The resource type.",
+																											Description: "Resource type.",
 																											Computed:    true,
 																											PlanModifiers: []planmodifier.String{
 																												stringplanmodifier.UseStateForUnknown(),
@@ -3587,7 +3637,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																							},
 																						},
 																						"name": schema.StringAttribute{
-																							Description: "The name of the resource that is unique within a resource group. This name can be used to access the resource.",
+																							Description: "Name of the resource.",
 																							Optional:    true,
 																							Computed:    true,
 																							PlanModifiers: []planmodifier.String{
@@ -3676,7 +3726,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																															},
 																														},
 																														"name": schema.StringAttribute{
-																															Description: "The name of the resource that is unique within the set of frontend IP configurations used by the load balancer. This name can be used to access the resource.",
+																															Description: "Name of the resource.",
 																															Optional:    true,
 																															Computed:    true,
 																															PlanModifiers: []planmodifier.String{
@@ -3691,6 +3741,29 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																objectplanmodifier.UseStateForUnknown(),
 																															},
 																															Attributes: map[string]schema.Attribute{
+																																"ddos_settings": schema.SingleNestedAttribute{
+																																	Description: "The DDoS protection settings associated with the frontend IP configuration.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Object{
+																																		objectplanmodifier.UseStateForUnknown(),
+																																	},
+																																	Attributes: map[string]schema.Attribute{
+																																		"ddos_custom_policy": schema.SingleNestedAttribute{
+																																			Description: "The reference to the DDoS Custom Policy resource.",
+																																			Required:    true,
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						nativeschema.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																	},
+																																},
 																																"gateway_load_balancer": schema.SingleNestedAttribute{
 																																	Description: "The reference to gateway load balancer frontend IP.",
 																																	Optional:    true,
@@ -3853,7 +3926,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																															},
 																														},
 																														"type": schema.StringAttribute{
-																															Description: "Type of the resource.",
+																															Description: "Resource type.",
 																															Computed:    true,
 																															PlanModifiers: []planmodifier.String{
 																																stringplanmodifier.UseStateForUnknown(),
@@ -3928,7 +4001,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																							},
 																						},
 																						"type": schema.StringAttribute{
-																							Description: "Sub Resource type.",
+																							Description: "Resource type.",
 																							Computed:    true,
 																							PlanModifiers: []planmodifier.String{
 																								stringplanmodifier.UseStateForUnknown(),
@@ -4028,7 +4101,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																		},
 																	},
 																	"name": schema.StringAttribute{
-																		Description: "The name of the resource that is unique within a resource group. This name can be used to access the resource.",
+																		Description: "Name of the resource.",
 																		Optional:    true,
 																		Computed:    true,
 																		PlanModifiers: []planmodifier.String{
@@ -4342,8 +4415,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																		},
 																	},
 																	"type": schema.StringAttribute{
-																		Description: "The type of the resource.",
-																		Optional:    true,
+																		Description: "Resource type.",
 																		Computed:    true,
 																		PlanModifiers: []planmodifier.String{
 																			stringplanmodifier.UseStateForUnknown(),
@@ -4554,6 +4626,20 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																			},
 																		},
 																	},
+																},
+															},
+															"billing_sku": schema.StringAttribute{
+																Description: "The billing sku of the private endpoint.",
+																Optional:    true,
+																Computed:    true,
+																Validators: []validator.String{
+																	stringvalidator.OneOf(
+																		"PayAsYouGo",
+																		"Fixed",
+																	),
+																},
+																PlanModifiers: []planmodifier.String{
+																	stringplanmodifier.UseStateForUnknown(),
 																},
 															},
 															"custom_dns_configs": schema.ListNestedAttribute{
@@ -5110,6 +5196,20 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																boolplanmodifier.UseStateForUnknown(),
 															},
 														},
+														"disable_peering_route": schema.StringAttribute{
+															Description: "Whether to disable the routes learned by peering on the route table. 'None' means peering routes are enabled, 'All' means all peering routes are disabled.",
+															Optional:    true,
+															Computed:    true,
+															Validators: []validator.String{
+																stringvalidator.OneOf(
+																	"None",
+																	"All",
+																),
+															},
+															PlanModifiers: []planmodifier.String{
+																stringplanmodifier.UseStateForUnknown(),
+															},
+														},
 														"provisioning_state": schema.StringAttribute{
 															Description: "The provisioning state of the route table resource.",
 															Computed:    true,
@@ -5149,7 +5249,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																		},
 																	},
 																	"name": schema.StringAttribute{
-																		Description: "The name of the resource that is unique within a resource group. This name can be used to access the resource.",
+																		Description: "Name of the resource.",
 																		Optional:    true,
 																		Computed:    true,
 																		PlanModifiers: []planmodifier.String{
@@ -5179,6 +5279,21 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																					boolplanmodifier.UseStateForUnknown(),
 																				},
 																			},
+																			"next_hop": schema.SingleNestedAttribute{
+																				Description: "The next hop definition containing ECMP next hop IP addresses. Only allowed when nextHopType is VirtualApplianceEcmp.",
+																				Optional:    true,
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.Object{
+																					objectplanmodifier.UseStateForUnknown(),
+																				},
+																				Attributes: map[string]schema.Attribute{
+																					"next_hop_ip_addresses": schema.ListAttribute{
+																						Description: "List of next hop IP addresses for ECMP routing. Must contain between 2 and 64 IP addresses.",
+																						Required:    true,
+																						ElementType: types.StringType,
+																					},
+																				},
+																			},
 																			"next_hop_ip_address": schema.StringAttribute{
 																				Description: "The IP address packets should be forwarded to. Next hop values are only allowed in routes where the next hop type is VirtualAppliance.",
 																				Optional:    true,
@@ -5196,6 +5311,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																						"VnetLocal",
 																						"Internet",
 																						"VirtualAppliance",
+																						"VirtualApplianceEcmp",
 																						"None",
 																					),
 																				},
@@ -5210,8 +5326,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																		},
 																	},
 																	"type": schema.StringAttribute{
-																		Description: "The type of the resource.",
-																		Optional:    true,
+																		Description: "Resource type.",
 																		Computed:    true,
 																		PlanModifiers: []planmodifier.String{
 																			stringplanmodifier.UseStateForUnknown(),
@@ -5450,7 +5565,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																			},
 																		},
 																		"name": schema.StringAttribute{
-																			Description: "The name of the resource that is unique within a resource group. This name can be used to access the resource.",
+																			Description: "Name of the resource.",
 																			Optional:    true,
 																			Computed:    true,
 																			PlanModifiers: []planmodifier.String{
@@ -5500,8 +5615,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																			},
 																		},
 																		"type": schema.StringAttribute{
-																			Description: "The type of the resource.",
-																			Optional:    true,
+																			Description: "Resource type.",
 																			Computed:    true,
 																			PlanModifiers: []planmodifier.String{
 																				stringplanmodifier.UseStateForUnknown(),
@@ -5627,10 +5741,64 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 								},
 								"type": schema.StringAttribute{
 									Description: "Resource type.",
-									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
 										stringplanmodifier.UseStateForUnknown(),
+									},
+								},
+							},
+						},
+					},
+					"summarized_gateway_prefixes": schema.SingleNestedAttribute{
+						Description: "A configurable list of summarized gateway prefixes advertised for the virtual network.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+						Attributes: map[string]schema.Attribute{
+							"address_prefixes": schema.ListAttribute{
+								Description: "A list of address blocks reserved for this virtual network in CIDR notation.",
+								Optional:    true,
+								Computed:    true,
+								ElementType: types.StringType,
+							},
+							"ipam_pool_prefix_allocations": schema.ListNestedAttribute{
+								Description: "A list of IPAM Pools allocating IP address prefixes.",
+								Optional:    true,
+								Computed:    true,
+								Validators: []validator.List{
+									listvalidator.SizeBetween(1, 2),
+								},
+								NestedObject: schema.NestedAttributeObject{
+									Attributes: map[string]schema.Attribute{
+										"allocated_address_prefixes": schema.ListAttribute{
+											Description: "List of assigned IP address prefixes in the IpamPool of the associated resource.",
+											Computed:    true,
+											PlanModifiers: []planmodifier.List{
+												listplanmodifier.UseStateForUnknown(),
+											},
+											ElementType: types.StringType,
+										},
+										"number_of_ip_addresses": schema.StringAttribute{
+											Description: "Number of IP addresses to allocate.",
+											Required:    true,
+											Validators: []validator.String{
+												stringvalidator.RegexMatches(
+													regexp.MustCompile(`^[1-9]\d*$`),
+													"number_of_ip_addresses must be a string representing a positive number",
+												),
+											},
+										},
+										"pool": schema.SingleNestedAttribute{
+											Required: true,
+											Attributes: map[string]schema.Attribute{
+												"id": schema.StringAttribute{
+													Description: "Resource id of the associated Azure IpamPool resource.",
+													Required:    true,
+												},
+											},
+										},
 									},
 								},
 							},
@@ -5661,7 +5829,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 									},
 								},
 								"name": schema.StringAttribute{
-									Description: "The name of the resource that is unique within a resource group. This name can be used to access the resource.",
+									Description: "Name of the resource.",
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
@@ -6087,7 +6255,6 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 								},
 								"type": schema.StringAttribute{
 									Description: "Resource type.",
-									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
 										stringplanmodifier.UseStateForUnknown(),
@@ -6120,7 +6287,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 var VirtualNetwork = services.Descriptor{
 	Name:           "azapi_virtual_network",
 	ARMType:        "Microsoft.Network/virtualNetworks",
-	APIVersion:     "2025-05-01",
+	APIVersion:     "2025-07-01",
 	Schema:         AzapiVirtualNetworkSchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",

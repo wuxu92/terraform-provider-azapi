@@ -63,7 +63,7 @@ func synthesizeDiscriminatorConstraints(def *ResourceDefinition) {
 	if def == nil || def.Body == nil {
 		return
 	}
-	walkDiscriminated(def.Body, nil, func(disc *Type, required bool, prefix []string) {
+	emit := func(disc *Type, required bool, prefix []string) {
 		if len(disc.Variants) < 2 {
 			return // one (or zero) variant: nothing is mutually exclusive
 		}
@@ -85,7 +85,15 @@ func synthesizeDiscriminatorConstraints(def *ResourceDefinition) {
 			msg = "exactly one variant of the discriminated block must be set"
 		}
 		def.Relational = append(def.Relational, RelationalConstraintDef{Kind: kind, Paths: paths, Message: msg})
-	})
+	}
+	// A discriminated root body is the resource itself: creating it requires
+	// selecting exactly one variant, so emit an ExactlyOneOf over the top-level
+	// variant blocks. walkDiscriminated only reaches discriminated *properties*,
+	// never the body node, so the root is handled here explicitly.
+	if def.Body.Kind == KindDiscriminated {
+		emit(def.Body, true, nil)
+	}
+	walkDiscriminated(def.Body, nil, emit)
 }
 
 // walkDiscriminated visits every discriminated type reachable from typ by an
