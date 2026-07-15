@@ -66,4 +66,16 @@ const (
 	// resource-group-scoped resource whose body is itself a discriminated type
 	// (root discriminated by kind: AzureCLI / AzurePowerShell).
 	DeploymentScript = "Microsoft.Resources/deploymentScripts"
+
+	// KustoClusterDatabase is Microsoft.Kusto/clusters/databases, a child of an
+	// Azure Data Explorer cluster (envelope parent: cluster_id) whose body is a
+	// discriminated type (root discriminated by kind: ReadWrite /
+	// ReadOnlyFollowing).
+	KustoClusterDatabase = "Microsoft.Kusto/clusters/databases"
+
+	// DocumentDBDatabaseAccount is Microsoft.DocumentDB/databaseAccounts, a
+	// resource-group-scoped Cosmos DB account. Its body carries a nested
+	// discriminated property (backupPolicy, discriminated by type: Periodic /
+	// Continuous).
+	DocumentDBDatabaseAccount = "Microsoft.DocumentDB/databaseAccounts"
 )

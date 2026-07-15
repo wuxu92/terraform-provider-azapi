@@ -38,6 +38,8 @@ var targets = []string{
 	armtype.VirtualNetwork,
 	armtype.DataFactory,
 	armtype.DeploymentScript,
+	armtype.KustoClusterDatabase,
+	armtype.DocumentDBDatabaseAccount,
 }
 
 func main() {

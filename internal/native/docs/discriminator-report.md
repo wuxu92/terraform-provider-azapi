@@ -212,7 +212,16 @@ surface is items #8–#9 (mapper round-trip) plus emitter output.
 
 Adopt **Option B (nested per-variant blocks)**. **Shipped**: the generator +
 mapper change is implemented with a variant-count fallback (wide unions past the
-cap degrade to `KindAny`). Validated on two real pilots — a nested discriminated
-property (`azapi_datafactory_factory`, `repoConfiguration`) and a discriminated
-root (`azapi_resources_deployment_script`, `kind`). The remaining root-body
-discriminated resources can now be enabled by adding generation targets.
+cap degrade to `KindAny`). Validated on four real resources spanning both shapes:
+
+| Shape | Resource | ARM type | Discriminator |
+|---|---|---|---|
+| Nested property | `azapi_datafactory_factory` | `Microsoft.DataFactory/factories` | `repoConfiguration` by `type` |
+| Nested property | `azapi_documentdb_database_account` | `Microsoft.DocumentDB/databaseAccounts` | `.properties.backupPolicy` by `type` (Periodic / Continuous) |
+| Discriminated root | `azapi_resources_deployment_script` | `Microsoft.Resources/deploymentScripts` | root by `kind` |
+| Discriminated root | `azapi_kusto_cluster_database` | `Microsoft.Kusto/clusters/databases` | root by `kind` (ReadWrite / ReadOnlyFollowing) |
+
+A required nested discriminated block synthesizes `ExactlyOneOf` over its
+variant blocks; an optional one synthesizes `AtMostOneOf`. The remaining
+root-body discriminated resources can now be enabled by adding generation
+targets.
