@@ -117,16 +117,21 @@ func validateType(tfAttr schema.Attribute, bicepProp *typegraph.Property, path s
 			mismatches = append(mismatches, typeMismatch(path, bicepProp, "Int64Attribute", bt))
 		}
 	case schema.SingleNestedAttribute:
-		if bt.Kind != typegraph.KindObject {
-			mismatches = append(mismatches, typeMismatch(path, bicepProp, "SingleNestedAttribute", bt))
-		} else {
+		switch bt.Kind {
+		case typegraph.KindObject:
 			mismatches = append(mismatches, validateObject(attr.Attributes, bt, path)...)
+		case typegraph.KindDiscriminated:
+			mismatches = append(mismatches, validateObject(attr.Attributes, discriminatedAsObject(bt), path)...)
+		default:
+			mismatches = append(mismatches, typeMismatch(path, bicepProp, "SingleNestedAttribute", bt))
 		}
 	case schema.ListNestedAttribute:
 		if bt.Kind != typegraph.KindArray {
 			mismatches = append(mismatches, typeMismatch(path, bicepProp, "ListNestedAttribute", bt))
 		} else if bt.ElementType != nil && bt.ElementType.Kind == typegraph.KindObject {
 			mismatches = append(mismatches, validateObject(attr.NestedObject.Attributes, bt.ElementType, path+"[*]")...)
+		} else if bt.ElementType != nil && bt.ElementType.Kind == typegraph.KindDiscriminated {
+			mismatches = append(mismatches, validateObject(attr.NestedObject.Attributes, discriminatedAsObject(bt.ElementType), path+"[*]")...)
 		}
 	case schema.ListAttribute:
 		if bt.Kind != typegraph.KindArray {
@@ -197,9 +202,27 @@ func bicepDesc(t *typegraph.Type) string {
 		return "Any"
 	case typegraph.KindMap:
 		return "Map"
+	case typegraph.KindDiscriminated:
+		return "Discriminated"
 	default:
 		return fmt.Sprintf("Unknown(%d)", t.Kind)
 	}
+}
+
+// discriminatedAsObject projects a KindDiscriminated type onto the KindObject
+// shape the emitter produces: the base properties plus one nested object property
+// per variant (keyed by the discriminator value). This lets validateObject check a
+// discriminated block's emitted SingleNestedAttribute against the same attribute
+// set the emitter wrote, so parity holds without a discriminated-specific walker.
+func discriminatedAsObject(t *typegraph.Type) *typegraph.Type {
+	obj := &typegraph.Type{Kind: typegraph.KindObject, Name: t.Name, Properties: make(map[string]*typegraph.Property, len(t.Properties)+len(t.Variants))}
+	for name, prop := range t.Properties {
+		obj.Properties[name] = prop
+	}
+	for value, variant := range t.Variants {
+		obj.Properties[value] = &typegraph.Property{Name: value, Type: variant}
+	}
+	return obj
 }
 
 func sortedAttrKeys(m map[string]schema.Attribute) []string {

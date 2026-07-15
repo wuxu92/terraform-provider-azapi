@@ -242,7 +242,7 @@ func scanImportNeeds(typ *typegraph.Type) importNeeds {
 }
 
 func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
-	if typ == nil || typ.Kind != typegraph.KindObject {
+	if typ == nil || (typ.Kind != typegraph.KindObject && typ.Kind != typegraph.KindDiscriminated) {
 		return
 	}
 	for _, prop := range typ.Properties {
@@ -342,6 +342,14 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 		if prop.Type.Kind == typegraph.KindArray && prop.Type.ElementType != nil && prop.Type.ElementType.Kind == typegraph.KindObject {
 			scanImportNeedsRecurse(prop.Type.ElementType, needs)
 		}
+		if prop.Type.Kind == typegraph.KindDiscriminated {
+			scanImportNeedsRecurse(prop.Type, needs)
+		}
+	}
+	// A discriminated type's variants are emitted as nested object blocks; scan
+	// each so their inner attributes contribute their framework imports.
+	for _, variant := range typ.Variants {
+		scanImportNeedsRecurse(variant, needs)
 	}
 }
 
@@ -361,6 +369,57 @@ func emitAttributes(b *strings.Builder, objType *typegraph.Type, indent int, inC
 		}
 		emitAttribute(b, naming.CamelToSnake(armName), prop, tabs, indent, inCollection)
 	}
+}
+
+// emitDiscriminatedAttributes writes a discriminated block's attributes: the
+// shared base properties, then one Optional SingleNestedAttribute per variant
+// (keyed by the snake_cased discriminator value). Variant blocks are mutually
+// exclusive and carry SuppressStateReuse so an omitted variant plans as unknown
+// and clears on a switch (see the ExactlyOneOf/AtMostOneOf member rationale on
+// Property.SuppressStateReuse).
+func emitDiscriminatedAttributes(b *strings.Builder, discType *typegraph.Type, indent int, inCollection bool) {
+	tabs := strings.Repeat("\t", indent)
+
+	baseNames := make([]string, 0, len(discType.Properties))
+	for name := range discType.Properties {
+		baseNames = append(baseNames, name)
+	}
+	sort.Strings(baseNames)
+	for _, armName := range baseNames {
+		prop := discType.Properties[armName]
+		if prop.Flags.IsSystemManaged() {
+			continue
+		}
+		emitAttribute(b, naming.CamelToSnake(armName), prop, tabs, indent, inCollection)
+	}
+
+	for _, value := range sortedVariantValues(discType) {
+		emitAttribute(b, naming.CamelToSnake(value), variantProperty(value, discType.Variants[value]), tabs, indent, inCollection)
+	}
+}
+
+// variantProperty wraps a discriminated variant object as an Optional block
+// property. It is the mutually-exclusive selector for one discriminator value, so
+// it opts out of state reuse (SuppressStateReuse) exactly like a generated
+// ExactlyOneOf member.
+func variantProperty(value string, variant *typegraph.Type) *typegraph.Property {
+	return &typegraph.Property{
+		Name:               value,
+		Type:               variant,
+		Description:        fmt.Sprintf("Variant %q of the discriminated type.", value),
+		SuppressStateReuse: true,
+	}
+}
+
+// sortedVariantValues returns a discriminated type's variant values in a stable
+// order so emission is reproducible.
+func sortedVariantValues(discType *typegraph.Type) []string {
+	values := make([]string, 0, len(discType.Variants))
+	for value := range discType.Variants {
+		values = append(values, value)
+	}
+	sort.Strings(values)
+	return values
 }
 
 func orderedPropertyNames(objType *typegraph.Type, indent int, inCollection bool) []string {
@@ -541,6 +600,20 @@ func emitAttribute(b *strings.Builder, tfName string, prop *typegraph.Property, 
 		emitPlanModifiers(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
+	case typ.Kind == typegraph.KindDiscriminated:
+		// A polymorphic body: emit one SingleNestedAttribute holding the shared base
+		// properties plus one Optional SingleNestedAttribute per variant. The active
+		// variant selects the ARM discriminator value (synthesized by the mapper);
+		// exactly-one-of exclusivity is enforced by a generated resource-level
+		// ConfigValidator (see synthesizeDiscriminatorConstraints).
+		b.WriteString(fmt.Sprintf("%s%q: schema.SingleNestedAttribute{\n", tabs, tfName))
+		writeAttributeFlags(b, prop, computed, tabs)
+		emitPlanModifiers(b, prop, computed, tabs)
+		b.WriteString(fmt.Sprintf("%s\tAttributes: map[string]schema.Attribute{\n", tabs))
+		emitDiscriminatedAttributes(b, typ, indent+2, inCollection)
+		b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+		b.WriteString(fmt.Sprintf("%s},\n", tabs))
+
 	default:
 		// Dynamic values cannot live inside collection elements, so fall back to a
 		// string there; use DynamicAttribute elsewhere.
@@ -602,7 +675,7 @@ func planModifierFor(prop *typegraph.Property) (pkg, typ string) {
 		return "boolplanmodifier", "Bool"
 	case prop.Type.Kind == typegraph.KindInt:
 		return "int64planmodifier", "Int64"
-	case prop.Type.Kind == typegraph.KindObject:
+	case prop.Type.Kind == typegraph.KindObject, prop.Type.Kind == typegraph.KindDiscriminated:
 		return "objectplanmodifier", "Object"
 	case prop.Type.Kind == typegraph.KindArray:
 		return "listplanmodifier", "List"
@@ -706,6 +779,35 @@ func attrTypeLiteral(typ *typegraph.Type) string {
 				b.WriteString(", ")
 			}
 			b.WriteString(fmt.Sprintf("%q: %s", naming.CamelToSnake(armName), propAttrTypeLiteral(typ.Properties[armName])))
+		}
+		b.WriteString("}}")
+		return b.String()
+	case typ.Kind == typegraph.KindDiscriminated:
+		// Object shape: base properties plus one nested object per variant, matching
+		// the emitted SingleNestedAttribute layout.
+		var b strings.Builder
+		b.WriteString("types.ObjectType{AttrTypes: map[string]attr.Type{")
+		first := true
+		writeEntry := func(snake, lit string) {
+			if !first {
+				b.WriteString(", ")
+			}
+			first = false
+			b.WriteString(fmt.Sprintf("%q: %s", snake, lit))
+		}
+		baseNames := make([]string, 0, len(typ.Properties))
+		for armName, prop := range typ.Properties {
+			if prop.Flags.IsSystemManaged() {
+				continue
+			}
+			baseNames = append(baseNames, armName)
+		}
+		sort.Strings(baseNames)
+		for _, armName := range baseNames {
+			writeEntry(naming.CamelToSnake(armName), propAttrTypeLiteral(typ.Properties[armName]))
+		}
+		for _, value := range sortedVariantValues(typ) {
+			writeEntry(naming.CamelToSnake(value), attrTypeLiteral(typ.Variants[value]))
 		}
 		b.WriteString("}}")
 		return b.String()

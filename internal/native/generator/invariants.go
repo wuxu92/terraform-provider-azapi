@@ -49,7 +49,7 @@ func CheckFlagInvariants(def *typegraph.ResourceDefinition) []FlagViolation {
 // checkObjectInvariants recurses through an object's settable properties and
 // object-array element schemas, checking each.
 func checkObjectInvariants(obj *typegraph.Type, prefix string, out *[]FlagViolation) {
-	if obj == nil || obj.Kind != typegraph.KindObject {
+	if obj == nil || (obj.Kind != typegraph.KindObject && obj.Kind != typegraph.KindDiscriminated) {
 		return
 	}
 	for name, prop := range obj.Properties {
@@ -63,12 +63,21 @@ func checkObjectInvariants(obj *typegraph.Type, prefix string, out *[]FlagViolat
 		checkPropInvariants(prop, path, out)
 
 		switch {
-		case prop.Type != nil && prop.Type.Kind == typegraph.KindObject:
+		case prop.Type != nil && (prop.Type.Kind == typegraph.KindObject || prop.Type.Kind == typegraph.KindDiscriminated):
 			checkObjectInvariants(prop.Type, path, out)
 		case prop.Type != nil && prop.Type.Kind == typegraph.KindArray &&
 			prop.Type.ElementType != nil && prop.Type.ElementType.Kind == typegraph.KindObject:
 			checkObjectInvariants(prop.Type.ElementType, path+"[]", out)
 		}
+	}
+	// A discriminated block's variants are emitted as nested object blocks; check
+	// each so a variant property with a bad Default/validator is still caught.
+	for value, variant := range obj.Variants {
+		vpath := value
+		if prefix != "" {
+			vpath = prefix + "." + value
+		}
+		checkObjectInvariants(variant, vpath, out)
 	}
 }
 

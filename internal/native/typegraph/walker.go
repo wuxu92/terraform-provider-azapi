@@ -43,6 +43,15 @@ const (
 	// properties but an additionalProperties schema (e.g. ARM "tags"). The keys
 	// are arbitrary strings; ElementType is the resolved value type.
 	KindMap
+	// KindDiscriminated is a lowered bicep DiscriminatedObjectType (polymorphic
+	// body): a single flat ARM object tagged by a discriminator property whose
+	// value selects one of several variant shapes. Properties holds the shared
+	// base properties (discriminator excluded); Variants maps each discriminator
+	// value to its variant object (discriminator excluded); Discriminator is the
+	// ARM discriminator property name. In Terraform it is modelled as a nested
+	// block per variant (one SingleNestedAttribute each, mutually exclusive); the
+	// mapper flattens the chosen variant back into the tagged ARM object.
+	KindDiscriminated
 )
 
 // Type represents a resolved node in the bicep type graph.
@@ -52,6 +61,14 @@ type Type struct {
 	Properties  map[string]*Property
 	ElementType *Type   // For ArrayType: the item type
 	Elements    []*Type // For UnionType: the member types
+	// Discriminator is the ARM discriminator property name (camelCase, e.g.
+	// "kind") of a KindDiscriminated type; empty for every other kind.
+	Discriminator string
+	// Variants maps a KindDiscriminated type's discriminator value (e.g.
+	// "EventHub") to its variant object (a KindObject with the variant's own
+	// properties, the redundant discriminator literal excluded). Nil for every
+	// other kind. Properties holds the shared base properties.
+	Variants map[string]*Type
 }
 
 // Property represents one property within an ObjectType.
@@ -190,9 +207,9 @@ type Timeouts struct {
 
 // RelationalConstraintDef is a lowered cross-property constraint ready for
 // emission. Kind is the services.RelationalKind constant name ("ConflictsWith",
-// "RequiredWith", "ExactlyOneOf", "AtLeastOneOf"). Paths are snake_case schema
-// segments, absolute from the schema root; Paths[0] is the subject for
-// ConflictsWith/RequiredWith.
+// "RequiredWith", "ExactlyOneOf", "AtLeastOneOf", "AtMostOneOf"). Paths are
+// snake_case schema segments, absolute from the schema root; Paths[0] is the
+// subject for ConflictsWith/RequiredWith.
 type RelationalConstraintDef struct {
 	Kind    string
 	Paths   [][]string
@@ -284,6 +301,13 @@ type walker struct {
 
 const maxDepth = 50
 
+// maxDiscriminatedVariants caps how many variants a discriminated body may carry
+// before it degrades to a dynamic (KindAny) attribute. One SingleNestedAttribute
+// is emitted per variant, so a wide union (the ARM tail reaches 121 variants)
+// would produce an unusably large schema. The common case is 1-12 variants; a
+// per-resource customizer can still force typing when a wide union is worth it.
+const maxDiscriminatedVariants = 25
+
 func (w *walker) resolve(idx int, depth int) *Type {
 	if idx < 0 || idx >= len(w.entries) {
 		return nil
@@ -316,35 +340,9 @@ func (w *walker) resolve(idx int, depth int) *Type {
 		t = &Type{Kind: KindAny}
 	case "ObjectType":
 		obj := &Type{Kind: KindObject, Name: entry.Name, Properties: make(map[string]*Property)}
-		// Resolve properties in a stable (sorted) order. entry.Properties is a Go
-		// map, whose iteration order is randomized per run; for mutually-recursive
-		// ARM types (e.g. the Microsoft.Network virtualNetwork -> subnet -> ...
-		// -> virtualNetworkTap cycle) that randomness decides which reference
-		// realizes the full ObjectType and which becomes the KindAny cycle-break
-		// sentinel. A stable order makes generation reproducible and keeps the
-		// emitter and the compiled-schema validator (both call BuildForGeneration
-		// independently) in agreement.
-		propNames := make([]string, 0, len(entry.Properties))
-		for name := range entry.Properties {
-			propNames = append(propNames, name)
-		}
-		sort.Strings(propNames)
-		for _, name := range propNames {
-			prop := entry.Properties[name]
-			propIdx, err := parseRef(&prop.Type)
-			if err != nil {
-				continue
-			}
-			resolved := w.resolve(propIdx, depth+1)
-			if resolved == nil {
-				resolved = &Type{Kind: KindAny}
-			}
-			obj.Properties[name] = &Property{
-				Name:        name,
-				Type:        resolved,
-				Flags:       PropertyFlag(prop.Flags),
-				Description: prop.Description,
-			}
+		// Properties resolve in a stable order (see resolveProps).
+		for name, prop := range w.resolveProps(entry.Properties, depth) {
+			obj.Properties[name] = prop
 		}
 		// An ObjectType with no declared properties but an additionalProperties
 		// schema is an open dictionary (map[string]T) — e.g. ARM "tags". Model it
@@ -384,13 +382,91 @@ func (w *walker) resolve(idx int, depth int) *Type {
 				t.Elements = append(t.Elements, resolved)
 			}
 		}
+	case "DiscriminatedObjectType":
+		// A polymorphic body: a discriminator property tags one of several variant
+		// shapes. baseProperties is the shared set; elements is a JSON object
+		// (discriminator value -> variant $ref), unlike UnionType's array. Model it
+		// as KindDiscriminated with the discriminator excluded from both the base
+		// properties and each variant (it is synthesized by the mapper from the
+		// selected variant, never surfaced as an attribute).
+		disc := &Type{Kind: KindDiscriminated, Name: entry.Name, Discriminator: entry.Discriminator, Properties: make(map[string]*Property), Variants: make(map[string]*Type)}
+		for name, prop := range w.resolveProps(entry.BaseProperties, depth) {
+			if name == entry.Discriminator {
+				continue
+			}
+			disc.Properties[name] = prop
+		}
+		var variantRefs map[string]rawRef
+		if len(entry.Elements) > 0 {
+			_ = json.Unmarshal(entry.Elements, &variantRefs)
+		}
+		if len(variantRefs) > maxDiscriminatedVariants {
+			// Wide union: fall back to the dynamic representation rather than emit
+			// one nested block per variant (see maxDiscriminatedVariants).
+			t = &Type{Kind: KindAny, Name: entry.Name}
+			break
+		}
+		for value, ref := range variantRefs {
+			vIdx, err := parseRef(&ref)
+			if err != nil {
+				continue
+			}
+			resolved := w.resolve(vIdx, depth+1)
+			if resolved == nil || resolved.Kind != KindObject {
+				continue
+			}
+			// Copy the variant object so stripping the discriminator does not mutate
+			// a shared cached node.
+			variant := &Type{Kind: KindObject, Name: resolved.Name, Properties: make(map[string]*Property, len(resolved.Properties))}
+			for pName, p := range resolved.Properties {
+				if pName == entry.Discriminator {
+					continue
+				}
+				variant.Properties[pName] = p
+			}
+			disc.Variants[value] = variant
+		}
+		t = disc
 	default:
-		// DiscriminatedObjectType, ResourceType, ResourceFunctionType, etc.
-		// Polymorphic/discriminated bodies are emitted as a dynamic attribute.
+		// ResourceType, ResourceFunctionType, etc. — non-body categories that never
+		// appear as a settable property type. Emitted as a dynamic attribute.
 		t = &Type{Kind: KindAny, Name: entry.Name}
 	}
 	w.cache[idx] = t
 	return t
+}
+
+// resolveProps resolves a bicep property map into Property nodes in a stable
+// (sorted) order. entry.Properties/baseProperties is a Go map whose iteration
+// order is randomized per run; for mutually-recursive ARM types that randomness
+// decides which reference realizes the full ObjectType and which becomes the
+// KindAny cycle-break sentinel, so a stable order keeps generation reproducible
+// and keeps the emitter and the compiled-schema validator in agreement.
+func (w *walker) resolveProps(props map[string]*rawProperty, depth int) map[string]*Property {
+	out := make(map[string]*Property, len(props))
+	names := make([]string, 0, len(props))
+	for name := range props {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		prop := props[name]
+		propIdx, err := parseRef(&prop.Type)
+		if err != nil {
+			continue
+		}
+		resolved := w.resolve(propIdx, depth+1)
+		if resolved == nil {
+			resolved = &Type{Kind: KindAny}
+		}
+		out[name] = &Property{
+			Name:        name,
+			Type:        resolved,
+			Flags:       PropertyFlag(prop.Flags),
+			Description: prop.Description,
+		}
+	}
+	return out
 }
 
 func parseRef(ref *rawRef) (int, error) {

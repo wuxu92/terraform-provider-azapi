@@ -7,6 +7,7 @@ package mapper
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -52,6 +53,81 @@ func expandObject(obj types.Object, t *typegraph.Type) map[string]interface{} {
 	return out
 }
 
+// expandDiscriminated flattens a discriminated block object into a single tagged
+// ARM object: the shared base properties, the properties of the one selected
+// variant block, and the synthesized discriminator property set to that variant's
+// value. Variant blocks are mutually exclusive (enforced by a ConfigValidator);
+// the sorted-first non-null variant wins if config somehow carries more than one.
+func expandDiscriminated(obj types.Object, t *typegraph.Type) (map[string]interface{}, bool) {
+	out := make(map[string]interface{})
+	attrs := obj.Attributes()
+
+	for armName, prop := range t.Properties {
+		if prop.Flags.IsSystemManaged() {
+			continue
+		}
+		if v, ok := attrs[naming.CamelToSnake(armName)]; ok {
+			if jv, ok := expandValue(v, prop.Type); ok {
+				out[armName] = jv
+			}
+		}
+	}
+
+	// Emit the selected variant's properties plus the synthesized discriminator.
+	// Variants are sorted so a config that somehow set more than one (the
+	// ConfigValidator normally forbids it) resolves deterministically.
+	//
+	// When NO variant block is set, the block is optional (AtMostOneOf) and
+	// present for its base properties alone: emit just those, with no
+	// discriminator tag. flattenDiscriminatedInto's discriminator-absent guard is
+	// the exact inverse, so the base-only shape round-trips. A required block
+	// (ExactlyOneOf) always has a variant, so an untagged body cannot reach ARM.
+	for _, value := range sortedVariantKeys(t.Variants) {
+		v, ok := attrs[naming.CamelToSnake(value)]
+		if !ok || v == nil || v.IsNull() || v.IsUnknown() {
+			continue
+		}
+		vo, ok := v.(types.Object)
+		if !ok {
+			continue
+		}
+		for k, jv := range expandObject(vo, t.Variants[value]) {
+			out[k] = jv
+		}
+		if t.Discriminator != "" {
+			out[t.Discriminator] = value
+		}
+		break // exactly one variant is active
+	}
+
+	return out, true
+}
+
+// discriminatedBaseIndex maps each settable base property of a discriminated type
+// to its snake_case attribute name (the shared shape read/written on both the
+// expand and flatten paths).
+func discriminatedBaseIndex(t *typegraph.Type) map[string]*typegraph.Property {
+	index := make(map[string]*typegraph.Property, len(t.Properties))
+	for armName, prop := range t.Properties {
+		if prop.Flags.IsSystemManaged() {
+			continue
+		}
+		index[naming.CamelToSnake(armName)] = prop
+	}
+	return index
+}
+
+// sortedVariantKeys returns a discriminated type's variant values in a stable
+// order so expansion is deterministic when config carries more than one block.
+func sortedVariantKeys(variants map[string]*typegraph.Type) []string {
+	keys := make([]string, 0, len(variants))
+	for value := range variants {
+		keys = append(keys, value)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func expandValue(v attr.Value, t *typegraph.Type) (interface{}, bool) {
 	if v == nil || v.IsNull() || v.IsUnknown() {
 		return nil, false
@@ -77,6 +153,10 @@ func expandValue(v attr.Value, t *typegraph.Type) (interface{}, bool) {
 	case typegraph.KindObject:
 		if o, ok := v.(types.Object); ok {
 			return expandObject(o, t), true
+		}
+	case typegraph.KindDiscriminated:
+		if o, ok := v.(types.Object); ok {
+			return expandDiscriminated(o, t)
 		}
 	case typegraph.KindArray:
 		var elems []attr.Value
@@ -166,9 +246,67 @@ func Flatten(ctx context.Context, arm map[string]interface{}, objType basetypes.
 	return obj, diags
 }
 
+// flattenDiscriminated builds a discriminated block state object from a flat
+// tagged ARM object. The discriminator property selects the active variant: the
+// base properties and the active variant's properties are read from the same flat
+// ARM object; every inactive variant block is null. When the discriminator is
+// absent from the response, no variant is populated (all variant blocks null).
+func flattenDiscriminated(ctx context.Context, arm map[string]interface{}, objType basetypes.ObjectType, disc *typegraph.Type) (types.Object, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	baseIndex := discriminatedBaseIndex(disc)
+	variantIndex := map[string]string{} // snake attr name -> discriminator value
+	for value := range disc.Variants {
+		variantIndex[naming.CamelToSnake(value)] = value
+	}
+	kind, _ := arm[disc.Discriminator].(string)
+
+	attrTypes := objType.AttributeTypes()
+	values := make(map[string]attr.Value, len(attrTypes))
+	for name, at := range attrTypes {
+		if value, ok := variantIndex[name]; ok {
+			// The active variant reads its properties from the same flat ARM object;
+			// inactive variants are null.
+			if value == kind {
+				if vt, ok := at.(basetypes.ObjectType); ok {
+					v, d := Flatten(ctx, arm, vt, disc.Variants[value], nil)
+					diags.Append(d...)
+					values[name] = v
+					continue
+				}
+			}
+			values[name] = nullOf(ctx, at)
+			continue
+		}
+		prop, ok := baseIndex[name]
+		if !ok {
+			values[name] = nullOf(ctx, at)
+			continue
+		}
+		armVal, present := arm[prop.Name]
+		if !present || armVal == nil {
+			values[name] = nullOf(ctx, at)
+			continue
+		}
+		v, d := flattenValue(ctx, armVal, at, prop.Type)
+		diags.Append(d...)
+		values[name] = v
+	}
+
+	obj, d := types.ObjectValue(attrTypes, values)
+	diags.Append(d...)
+	return obj, diags
+}
+
 func flattenValue(ctx context.Context, armVal interface{}, at attr.Type, bicep *typegraph.Type) (attr.Value, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
+	if ot, ok := at.(basetypes.ObjectType); ok && bicep != nil && bicep.Kind == typegraph.KindDiscriminated {
+		if m, ok := armVal.(map[string]interface{}); ok {
+			return flattenDiscriminated(ctx, m, ot, bicep)
+		}
+		return nullOf(ctx, at), diags
+	}
 	switch t := at.(type) {
 	case basetypes.StringType:
 		if s, ok := armVal.(string); ok {
@@ -388,6 +526,13 @@ func flattenInto(ctx context.Context, arm map[string]interface{}, base types.Obj
 // so fields the response omits are preserved at every depth. Non-object kinds have
 // no per-element base to thread and delegate to flattenValue unchanged.
 func flattenValueInto(ctx context.Context, armVal interface{}, base attr.Value, at attr.Type, bicep *typegraph.Type, preserveKnown bool) (attr.Value, diag.Diagnostics) {
+	if _, ok := at.(basetypes.ObjectType); ok && bicep != nil && bicep.Kind == typegraph.KindDiscriminated {
+		if m, ok := armVal.(map[string]interface{}); ok {
+			if baseObj, ok := base.(types.Object); ok && !baseObj.IsNull() && !baseObj.IsUnknown() {
+				return flattenDiscriminatedInto(ctx, m, baseObj, bicep, preserveKnown)
+			}
+		}
+	}
 	if _, ok := at.(basetypes.ObjectType); ok {
 		if m, ok := armVal.(map[string]interface{}); ok {
 			if baseObj, ok := base.(types.Object); ok && !baseObj.IsNull() && !baseObj.IsUnknown() {
@@ -407,6 +552,79 @@ func flattenValueInto(ctx context.Context, armVal interface{}, base attr.Value, 
 		}
 	}
 	return flattenValue(ctx, armVal, at, bicep)
+}
+
+// flattenDiscriminatedInto is the base-aware refresh of a discriminated block: it
+// refreshes the base properties and the active variant (threading the prior state
+// so omitted/sensitive fields are preserved), and clears every inactive variant
+// block whenever the discriminator selects a different (or no longer matching)
+// variant. When the response omits the discriminator, the prior block is returned
+// unchanged so a discriminator-less GET does not wipe a configured variant.
+func flattenDiscriminatedInto(ctx context.Context, arm map[string]interface{}, base types.Object, disc *typegraph.Type, preserveKnown bool) (attr.Value, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	kind, hasKind := arm[disc.Discriminator].(string)
+	if !hasKind || kind == "" {
+		return base, diags // no discriminator in response: keep prior block intact
+	}
+
+	attrTypes := base.AttributeTypes(ctx)
+	baseAttrs := base.Attributes()
+	values := make(map[string]attr.Value, len(attrTypes))
+	for k, v := range baseAttrs {
+		values[k] = v
+	}
+
+	baseIndex := discriminatedBaseIndex(disc)
+
+	for value := range disc.Variants {
+		name := naming.CamelToSnake(value)
+		at, ok := attrTypes[name]
+		if !ok {
+			continue
+		}
+		if value != kind {
+			values[name] = nullOf(ctx, at) // inactive variant clears
+			continue
+		}
+		vt, ok := at.(basetypes.ObjectType)
+		if !ok {
+			continue
+		}
+		if priorObj, ok := baseAttrs[name].(types.Object); ok && !priorObj.IsNull() && !priorObj.IsUnknown() {
+			v, d := flattenInto(ctx, arm, priorObj, disc.Variants[value], preserveKnown)
+			diags.Append(d...)
+			values[name] = v
+		} else {
+			v, d := Flatten(ctx, arm, vt, disc.Variants[value], nil)
+			diags.Append(d...)
+			values[name] = v
+		}
+	}
+
+	for name, prop := range baseIndex {
+		at, ok := attrTypes[name]
+		if !ok {
+			continue
+		}
+		armVal, present := arm[prop.Name]
+		if !present || armVal == nil {
+			continue // keep base value
+		}
+		if preserveKnown && shouldPreserveKnownApplyValue(values[name]) {
+			continue
+		}
+		if shouldPreserveSensitiveValue(prop) {
+			continue
+		}
+		v, d := flattenValueInto(ctx, armVal, values[name], at, prop.Type, preserveKnown)
+		diags.Append(d...)
+		values[name] = v
+	}
+
+	obj, d := types.ObjectValue(attrTypes, values)
+	diags.Append(d...)
+	return obj, diags
 }
 
 // flattenMapInto rebuilds an open map (e.g. identity.user_assigned_identities,

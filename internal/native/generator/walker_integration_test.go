@@ -158,35 +158,81 @@ func TestParseSelfReferentialType(t *testing.T) {
 }
 
 // TestParseDiscriminatedObjectType ensures a DiscriminatedObjectType (whose
-// `elements` is a JSON object, not an array) does not fail the whole document's
-// unmarshal. Previously this errored: "cannot unmarshal object into Go struct
-// field rawEntry.elements of type []generator.rawRef".
+// `elements` is a JSON object, not an array) parses into a typed KindDiscriminated
+// node and emits one nested block per variant instead of a dynamic blob.
 func TestParseDiscriminatedObjectType(t *testing.T) {
 	raw := `[
 		{"$type":"StringType"},
-		{"$type":"ObjectType","name":"VariantA","properties":{"a":{"type":{"$ref":"#/0"},"flags":0}}},
+		{"$type":"ObjectType","name":"VariantA","properties":{"a":{"type":{"$ref":"#/0"},"flags":0},"kind":{"type":{"$ref":"#/0"},"flags":1}}},
+		{"$type":"ObjectType","name":"VariantB","properties":{"b":{"type":{"$ref":"#/0"},"flags":0},"kind":{"type":{"$ref":"#/0"},"flags":1}}},
 		{"$type":"DiscriminatedObjectType","name":"Poly","discriminator":"kind","baseProperties":{
-			"kind":{"type":{"$ref":"#/0"},"flags":1}
-		},"elements":{"A":{"$ref":"#/1"}}},
+			"shared":{"type":{"$ref":"#/0"},"flags":0}
+		},"elements":{"A":{"$ref":"#/1"},"B":{"$ref":"#/2"}}},
 		{"$type":"ObjectType","name":"props","properties":{
-			"variant":{"type":{"$ref":"#/2"},"flags":0}
+			"variant":{"type":{"$ref":"#/3"},"flags":0},
+			"sibling":{"type":{"$ref":"#/0"},"flags":0}
 		}},
-		{"$type":"ResourceType","name":"Microsoft.Test/poly@2024-01-01","body":{"$ref":"#/3"}}
+		{"$type":"ResourceType","name":"Microsoft.Test/poly@2024-01-01","body":{"$ref":"#/4"}}
 	]`
 
-	defs, err := typegraph.ParseTypesJSON([]byte(raw))
+	defs, err := typegraph.BuildRuntimeGraph([]byte(raw))
 	if err != nil {
-		t.Fatalf("ParseTypesJSON failed on DiscriminatedObjectType: %v", err)
+		t.Fatalf("BuildRuntimeGraph failed on DiscriminatedObjectType: %v", err)
 	}
 	if len(defs) != 1 {
 		t.Fatalf("expected 1 resource def, got %d", len(defs))
 	}
-	// The discriminated `variant` property degrades to KindAny → DynamicAttribute.
+
+	// The `variant` property must resolve to a discriminated type carrying the
+	// discriminator name, the base properties (discriminator excluded), and both
+	// variants (each with its own discriminator literal excluded).
+	variant := defs[0].Body.Properties["variant"]
+	if variant == nil || variant.Type.Kind != typegraph.KindDiscriminated {
+		t.Fatalf("expected `variant` to be KindDiscriminated, got %+v", variant)
+	}
+	dt := variant.Type
+	if dt.Discriminator != "kind" {
+		t.Errorf("expected discriminator %q, got %q", "kind", dt.Discriminator)
+	}
+	if _, ok := dt.Properties["shared"]; !ok {
+		t.Error("expected base property `shared` on the discriminated type")
+	}
+	if _, ok := dt.Properties["kind"]; ok {
+		t.Error("discriminator property should be excluded from base properties")
+	}
+	if len(dt.Variants) != 2 {
+		t.Fatalf("expected 2 variants, got %d", len(dt.Variants))
+	}
+	if va := dt.Variants["A"]; va == nil || va.Properties["a"] == nil {
+		t.Error("expected variant A with property `a`")
+	} else if _, ok := va.Properties["kind"]; ok {
+		t.Error("variant A should not carry the redundant discriminator literal")
+	}
+
+	// Emission: base property plus one SingleNestedAttribute per variant, no
+	// DynamicAttribute anywhere.
 	src, err := EmitSchema(defs[0])
 	if err != nil {
 		t.Fatalf("EmitSchema: %v", err)
 	}
-	if !strings.Contains(src, `"variant": schema.DynamicAttribute`) {
-		t.Error("expected discriminated property to emit a DynamicAttribute")
+	if strings.Contains(src, "schema.DynamicAttribute") {
+		t.Error("discriminated property should not emit a DynamicAttribute")
+	}
+	for _, want := range []string{`"variant": schema.SingleNestedAttribute`, `"shared":`, `"a": schema.SingleNestedAttribute`, `"b": schema.SingleNestedAttribute`} {
+		if !strings.Contains(src, want) {
+			t.Errorf("expected emitted schema to contain %q", want)
+		}
+	}
+
+	// A mutual-exclusion constraint over the two variant blocks is synthesized.
+	if len(defs[0].Relational) != 1 {
+		t.Fatalf("expected 1 synthesized relational constraint, got %d", len(defs[0].Relational))
+	}
+	rc := defs[0].Relational[0]
+	if rc.Kind != "AtMostOneOf" {
+		t.Errorf("expected AtMostOneOf for an optional discriminated block, got %q", rc.Kind)
+	}
+	if len(rc.Paths) != 2 {
+		t.Errorf("expected 2 variant paths, got %d", len(rc.Paths))
 	}
 }

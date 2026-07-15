@@ -50,6 +50,7 @@ func (v relationalValidator) MarkdownDescription(context.Context) string {
 		services.RequiredWith:  "attributes required together",
 		services.ExactlyOneOf:  "exactly one of the attributes",
 		services.AtLeastOneOf:  "at least one of the attributes",
+		services.AtMostOneOf:   "at most one of the attributes",
 	}[v.constraint.Kind]
 	return fmt.Sprintf("Cross-property constraint (%s): %s", label, joinPaths(v.constraint.Paths))
 }
@@ -111,6 +112,13 @@ func (v relationalValidator) ValidateResource(ctx context.Context, req resource.
 				"Invalid Attribute Combination",
 				relationalDetail(v.constraint.Message,
 					fmt.Sprintf("At least one of [%s] must be set.", joinPaths(v.constraint.Paths)))))
+		}
+	case services.AtMostOneOf:
+		if count := countSet(set); count > 1 {
+			resp.Diagnostics.Append(diag.NewAttributeErrorDiagnostic(subject,
+				"Invalid Attribute Combination",
+				relationalDetail(v.constraint.Message,
+					fmt.Sprintf("At most one of [%s] may be set, but %d are set.", joinPaths(v.constraint.Paths), count))))
 		}
 	}
 }

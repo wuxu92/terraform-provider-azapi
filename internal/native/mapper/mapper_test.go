@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/all"
 	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -786,5 +787,281 @@ func assertStringElements(t *testing.T, got interface{}, want ...string) {
 		if !seen[w] {
 			t.Fatalf("elements = %v, missing %q", items, w)
 		}
+	}
+}
+
+// --- Discriminated (polymorphic) block round-trip -------------------------
+//
+// No curated resource carries a DiscriminatedObjectType yet, so these tests
+// hand-build a minimal discriminated body: a block `auth` with a shared base
+// property `shared`, discriminator `type`, and two variants Basic{username} and
+// Certificate{thumbprint}. The Terraform shape nests each variant in its own
+// SingleNestedAttribute; the ARM shape is one flat object tagged by `type`.
+
+func discriminatedBody() (*typegraph.Type, basetypes.ObjectType) {
+	strT := &typegraph.Type{Kind: typegraph.KindString}
+	basicVar := &typegraph.Type{Kind: typegraph.KindObject, Name: "Basic", Properties: map[string]*typegraph.Property{
+		"username": {Name: "username", Type: strT},
+	}}
+	certVar := &typegraph.Type{Kind: typegraph.KindObject, Name: "Certificate", Properties: map[string]*typegraph.Property{
+		"thumbprint": {Name: "thumbprint", Type: strT},
+	}}
+	disc := &typegraph.Type{
+		Kind:          typegraph.KindDiscriminated,
+		Name:          "Auth",
+		Discriminator: "type",
+		Properties:    map[string]*typegraph.Property{"shared": {Name: "shared", Type: strT}},
+		Variants:      map[string]*typegraph.Type{"Basic": basicVar, "Certificate": certVar},
+	}
+	body := &typegraph.Type{Kind: typegraph.KindObject, Name: "props", Properties: map[string]*typegraph.Property{
+		"auth": {Name: "auth", Type: disc},
+	}}
+
+	authType := basetypes.ObjectType{AttrTypes: map[string]attr.Type{
+		"shared":      types.StringType,
+		"basic":       basetypes.ObjectType{AttrTypes: map[string]attr.Type{"username": types.StringType}},
+		"certificate": basetypes.ObjectType{AttrTypes: map[string]attr.Type{"thumbprint": types.StringType}},
+	}}
+	bodyType := basetypes.ObjectType{AttrTypes: map[string]attr.Type{"auth": authType}}
+	return body, bodyType
+}
+
+// authState builds a body state object whose `auth` block selects one variant.
+func authState(t *testing.T, bodyType basetypes.ObjectType, shared, activeVariant string, variantAttr, variantVal string) types.Object {
+	t.Helper()
+	authType := bodyType.AttrTypes["auth"].(basetypes.ObjectType)
+	basicType := authType.AttrTypes["basic"].(basetypes.ObjectType)
+	certType := authType.AttrTypes["certificate"].(basetypes.ObjectType)
+
+	basic := types.ObjectNull(basicType.AttrTypes)
+	cert := types.ObjectNull(certType.AttrTypes)
+	switch activeVariant {
+	case "basic":
+		o, d := types.ObjectValue(basicType.AttrTypes, map[string]attr.Value{variantAttr: types.StringValue(variantVal)})
+		if d.HasError() {
+			t.Fatalf("build basic: %v", d)
+		}
+		basic = o
+	case "certificate":
+		o, d := types.ObjectValue(certType.AttrTypes, map[string]attr.Value{variantAttr: types.StringValue(variantVal)})
+		if d.HasError() {
+			t.Fatalf("build certificate: %v", d)
+		}
+		cert = o
+	}
+	auth, d := types.ObjectValue(authType.AttrTypes, map[string]attr.Value{
+		"shared":      types.StringValue(shared),
+		"basic":       basic,
+		"certificate": cert,
+	})
+	if d.HasError() {
+		t.Fatalf("build auth: %v", d)
+	}
+	bodyObj, d := types.ObjectValue(bodyType.AttrTypes, map[string]attr.Value{"auth": auth})
+	if d.HasError() {
+		t.Fatalf("build body: %v", d)
+	}
+	return bodyObj
+}
+
+// authBlock returns the nested `auth` object from a flattened body state.
+func authBlock(t *testing.T, state types.Object) types.Object {
+	t.Helper()
+	auth, ok := state.Attributes()["auth"].(types.Object)
+	if !ok {
+		t.Fatalf("auth attr = %T, want types.Object", state.Attributes()["auth"])
+	}
+	return auth
+}
+
+// TestExpandDiscriminatedFlattensToTaggedObject locks the config→ARM direction:
+// the selected variant's nested block collapses into the flat ARM object, the
+// discriminator property is synthesized from the variant name, and the inactive
+// variant contributes nothing.
+func TestExpandDiscriminatedFlattensToTaggedObject(t *testing.T) {
+	body, bodyType := discriminatedBody()
+	state := authState(t, bodyType, "s1", "basic", "username", "admin")
+
+	out := mapper.Expand(state, body)
+	auth, ok := out["auth"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("auth = %T (%v), want flat map", out["auth"], out["auth"])
+	}
+	if auth["type"] != "Basic" {
+		t.Errorf("discriminator: got %v, want Basic", auth["type"])
+	}
+	if auth["shared"] != "s1" {
+		t.Errorf("base property shared: got %v", auth["shared"])
+	}
+	if auth["username"] != "admin" {
+		t.Errorf("variant property username: got %v", auth["username"])
+	}
+	if _, leaked := auth["thumbprint"]; leaked {
+		t.Errorf("inactive variant leaked: %v", auth)
+	}
+}
+
+// TestFlattenDiscriminatedNestsActiveVariant locks the ARM→state direction: the
+// flat tagged object populates the base property and the block named by the
+// discriminator, leaving every other variant block null.
+func TestFlattenDiscriminatedNestsActiveVariant(t *testing.T) {
+	ctx := context.Background()
+	body, bodyType := discriminatedBody()
+	arm := map[string]interface{}{"auth": map[string]interface{}{
+		"type": "Certificate", "shared": "s2", "thumbprint": "AB12",
+	}}
+
+	state, diags := mapper.Flatten(ctx, arm, bodyType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten diags: %v", diags)
+	}
+	auth := authBlock(t, state)
+	if s, _ := auth.Attributes()["shared"].(types.String); s.ValueString() != "s2" {
+		t.Errorf("shared: got %v", auth.Attributes()["shared"])
+	}
+	if !auth.Attributes()["basic"].IsNull() {
+		t.Errorf("inactive basic variant should be null, got %v", auth.Attributes()["basic"])
+	}
+	cert, ok := auth.Attributes()["certificate"].(types.Object)
+	if !ok || cert.IsNull() {
+		t.Fatalf("active certificate variant missing: %v", auth.Attributes()["certificate"])
+	}
+	if tp, _ := cert.Attributes()["thumbprint"].(types.String); tp.ValueString() != "AB12" {
+		t.Errorf("thumbprint: got %v", cert.Attributes()["thumbprint"])
+	}
+
+	// Full round-trip: state re-expands to the original flat tagged object.
+	out := mapper.Expand(state, body)
+	got := out["auth"].(map[string]interface{})
+	if got["type"] != "Certificate" || got["thumbprint"] != "AB12" || got["shared"] != "s2" {
+		t.Errorf("round-trip mismatch: %v", got)
+	}
+}
+
+// TestFlattenIntoDiscriminatedClearsSwitchedVariant locks the base-aware refresh:
+// when the response's discriminator selects a different variant than prior state,
+// the old variant block is cleared and the new one populated.
+func TestFlattenIntoDiscriminatedClearsSwitchedVariant(t *testing.T) {
+	ctx := context.Background()
+	body, bodyType := discriminatedBody()
+	prior := authState(t, bodyType, "s1", "basic", "username", "admin")
+
+	// Server now reports the Certificate variant.
+	arm := map[string]interface{}{"auth": map[string]interface{}{
+		"type": "Certificate", "shared": "s1", "thumbprint": "CC99",
+	}}
+	state, diags := mapper.FlattenInto(ctx, arm, prior, body)
+	if diags.HasError() {
+		t.Fatalf("FlattenInto diags: %v", diags)
+	}
+	auth := authBlock(t, state)
+	if !auth.Attributes()["basic"].IsNull() {
+		t.Errorf("switched-away basic variant should be cleared, got %v", auth.Attributes()["basic"])
+	}
+	cert, ok := auth.Attributes()["certificate"].(types.Object)
+	if !ok || cert.IsNull() {
+		t.Fatalf("newly-active certificate variant missing: %v", auth.Attributes()["certificate"])
+	}
+	if tp, _ := cert.Attributes()["thumbprint"].(types.String); tp.ValueString() != "CC99" {
+		t.Errorf("thumbprint: got %v", cert.Attributes()["thumbprint"])
+	}
+}
+
+// TestFlattenIntoDiscriminatedKeepsBlockWhenDiscriminatorAbsent locks the guard
+// against a discriminator-less GET: when the response omits the discriminator, the
+// prior block is returned intact rather than wiping the configured variant.
+func TestFlattenIntoDiscriminatedKeepsBlockWhenDiscriminatorAbsent(t *testing.T) {
+	ctx := context.Background()
+	body, bodyType := discriminatedBody()
+	prior := authState(t, bodyType, "s1", "basic", "username", "admin")
+
+	arm := map[string]interface{}{"auth": map[string]interface{}{"shared": "s1"}} // no `type`
+	state, diags := mapper.FlattenInto(ctx, arm, prior, body)
+	if diags.HasError() {
+		t.Fatalf("FlattenInto diags: %v", diags)
+	}
+	auth := authBlock(t, state)
+	basic, ok := auth.Attributes()["basic"].(types.Object)
+	if !ok || basic.IsNull() {
+		t.Fatalf("prior basic variant wiped by discriminator-less response: %v", auth.Attributes()["basic"])
+	}
+	if u, _ := basic.Attributes()["username"].(types.String); u.ValueString() != "admin" {
+		t.Errorf("username: got %v", basic.Attributes()["username"])
+	}
+}
+
+// TestNestedDiscriminatedRoundTrip covers risk #4 from discriminator-report.md:
+// a variant that itself holds a discriminated property. The type graph handles it
+// by recursion (each variant is a KindObject), so the mapper must flatten/expand
+// the inner discriminated block through the outer one. Shape: outer block `conn`
+// (discriminator `kind`) with variant `managed` whose body carries an inner block
+// `auth` (discriminator `mode`) with variant `token{secret}`.
+func TestNestedDiscriminatedRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	strT := &typegraph.Type{Kind: typegraph.KindString}
+
+	tokenVar := &typegraph.Type{Kind: typegraph.KindObject, Name: "Token", Properties: map[string]*typegraph.Property{
+		"secret": {Name: "secret", Type: strT},
+	}}
+	innerDisc := &typegraph.Type{
+		Kind: typegraph.KindDiscriminated, Name: "Auth", Discriminator: "mode",
+		Properties: map[string]*typegraph.Property{},
+		Variants:   map[string]*typegraph.Type{"Token": tokenVar},
+	}
+	managedVar := &typegraph.Type{Kind: typegraph.KindObject, Name: "Managed", Properties: map[string]*typegraph.Property{
+		"auth": {Name: "auth", Type: innerDisc},
+	}}
+	outerDisc := &typegraph.Type{
+		Kind: typegraph.KindDiscriminated, Name: "Conn", Discriminator: "kind",
+		Properties: map[string]*typegraph.Property{},
+		Variants:   map[string]*typegraph.Type{"Managed": managedVar},
+	}
+	body := &typegraph.Type{Kind: typegraph.KindObject, Name: "props", Properties: map[string]*typegraph.Property{
+		"conn": {Name: "conn", Type: outerDisc},
+	}}
+
+	tokenType := basetypes.ObjectType{AttrTypes: map[string]attr.Type{"secret": types.StringType}}
+	authType := basetypes.ObjectType{AttrTypes: map[string]attr.Type{"token": tokenType}}
+	managedType := basetypes.ObjectType{AttrTypes: map[string]attr.Type{"auth": authType}}
+	connType := basetypes.ObjectType{AttrTypes: map[string]attr.Type{"managed": managedType}}
+	bodyType := basetypes.ObjectType{AttrTypes: map[string]attr.Type{"conn": connType}}
+
+	// ARM: fully flat at every discriminated level — inner `auth` object is itself
+	// a flat tagged object nested in the outer variant's ARM body.
+	arm := map[string]interface{}{"conn": map[string]interface{}{
+		"kind": "Managed",
+		"auth": map[string]interface{}{"mode": "Token", "secret": "sh"},
+	}}
+
+	state, diags := mapper.Flatten(ctx, arm, bodyType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten diags: %v", diags)
+	}
+	conn := state.Attributes()["conn"].(types.Object)
+	managed, ok := conn.Attributes()["managed"].(types.Object)
+	if !ok || managed.IsNull() {
+		t.Fatalf("outer variant managed missing: %v", conn.Attributes()["managed"])
+	}
+	innerAuth, ok := managed.Attributes()["auth"].(types.Object)
+	if !ok || innerAuth.IsNull() {
+		t.Fatalf("inner discriminated auth missing: %v", managed.Attributes()["auth"])
+	}
+	token, ok := innerAuth.Attributes()["token"].(types.Object)
+	if !ok || token.IsNull() {
+		t.Fatalf("inner variant token missing: %v", innerAuth.Attributes()["token"])
+	}
+	if s, _ := token.Attributes()["secret"].(types.String); s.ValueString() != "sh" {
+		t.Errorf("nested secret: got %v", token.Attributes()["secret"])
+	}
+
+	// Round-trip: re-expand reproduces the doubly-nested flat tagged shape.
+	out := mapper.Expand(state, body)
+	connOut, ok := out["conn"].(map[string]interface{})
+	if !ok || connOut["kind"] != "Managed" {
+		t.Fatalf("outer round-trip: %v", out["conn"])
+	}
+	authOut, ok := connOut["auth"].(map[string]interface{})
+	if !ok || authOut["mode"] != "Token" || authOut["secret"] != "sh" {
+		t.Errorf("inner round-trip: %v", connOut["auth"])
 	}
 }

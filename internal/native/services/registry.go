@@ -59,6 +59,9 @@ const (
 	ExactlyOneOf
 	// AtLeastOneOf: at least one of Paths must be set.
 	AtLeastOneOf
+	// AtMostOneOf: no more than one of Paths may be set (mutual exclusion without
+	// requiring any). Used for the variant blocks of an optional discriminated body.
+	AtMostOneOf
 )
 
 // RelationalConstraint is a cross-property constraint over Terraform attribute
