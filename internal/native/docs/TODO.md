@@ -52,10 +52,11 @@ Developer guide has a manual upgrade checklist. Automate version selection, rege
 Build migration tooling that reads `type`, `name`, `parent_id`, `body`, and `response_export_values`, maps body JSON paths to native attributes, and emits new HCL. Need fallback for polymorphic/dynamic fields and API version mismatches. State migration remains hardest.  
 **Workload:** [INFERENCE] 3-6 weeks for MVP; broad reliability needs real-world corpus testing.
 
-## 10. Cross-property/block constraints and custom diff management
+## 10. Cross-property/block constraints and custom diff management — PARTIALLY DONE
 
-Hooks already expose `ValidateConfig` and `ModifyPlan`, which can express conflicts, exactly-one-of, required-with, and conditional ForceNew. Missing piece: declarative azwise/generator representation and reusable validators over nested paths. Also need diff suppress/normalization policy for server-mutated fields.  
-**Workload:** [INFERENCE] 2-3 weeks for generic constraint engine; per-resource rules ongoing.
+The declarative constraint engine **shipped**. Azwise `ConflictsWith / RequiredWith / ExactlyOneOf / AtLeastOneOf` rules are lowered at generation time (`typegraph/azwise_overlay.go`) into `services.RelationalConstraint` on the descriptor (`services/registry.go`), emitted by the generator (`generator/emitter.go`), and enforced at runtime as reusable framework `ConfigValidators` over nested snake_case paths (`resource/configvalidators.go`). Mutual-exclusion members also drop `UseStateForUnknown` via `SuppressStateReuse` so an omitted side clears instead of pinning stale state. Live examples: `azapi_virtual_network` `address_space` ↔ `ipam_pool_prefix_allocations` ExactlyOneOf; `azapi_storage_account` CMK RequiredWith.
+Remaining: a **declarative diff suppress/normalization policy for server-mutated fields** — today handled ad hoc via per-property customizer flags (`NonNullStateForUnknown`, `DefaultEmptyList`, `UseSet`) and runtime hooks, not a general rule surface.  
+**Workload:** [INFERENCE] constraint engine done; ~1-2 weeks for a declarative normalization policy; per-resource rules ongoing.
 
 ## 11. Deprecation, breaking changes, and state migration
 
