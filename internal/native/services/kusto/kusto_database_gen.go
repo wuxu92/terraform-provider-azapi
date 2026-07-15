@@ -17,8 +17,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiKustoClusterDatabaseSchema returns the Terraform resource schema for Microsoft.Kusto/clusters/databases@2025-02-14.
-func AzapiKustoClusterDatabaseSchema() schema.Schema {
+// AzapiKustoDatabaseSchema returns the Terraform resource schema for Microsoft.Kusto/clusters/databases@2025-02-14.
+func AzapiKustoDatabaseSchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.Kusto/clusters/databases resource. [azapin:Microsoft.Kusto/clusters/databases@2025-02-14]",
 		Attributes: map[string]schema.Attribute{
@@ -421,12 +421,12 @@ func AzapiKustoClusterDatabaseSchema() schema.Schema {
 	}
 }
 
-// KustoClusterDatabase describes azapi_kusto_cluster_database for registration and config builders.
-var KustoClusterDatabase = services.Descriptor{
-	Name:           "azapi_kusto_cluster_database",
+// KustoDatabase describes azapi_kusto_database for registration and config builders.
+var KustoDatabase = services.Descriptor{
+	Name:           "azapi_kusto_database",
 	ARMType:        "Microsoft.Kusto/clusters/databases",
 	APIVersion:     "2025-02-14",
-	Schema:         AzapiKustoClusterDatabaseSchema,
+	Schema:         AzapiKustoDatabaseSchema,
 	WritableScopes: 8,
 	ParentAttr:     "cluster_id",
 	Relational: []services.RelationalConstraint{
@@ -434,4 +434,4 @@ var KustoClusterDatabase = services.Descriptor{
 	},
 }
 
-func init() { services.Register(KustoClusterDatabase) }
+func init() { services.Register(KustoDatabase) }

@@ -252,3 +252,46 @@ func TestEmitDiscriminatedRootBody(t *testing.T) {
 		t.Errorf("discriminator `kind` must not surface as a schema attribute:\n%s", source)
 	}
 }
+
+// TestEmitStringLiteralAsValidatedString locks the fix for a dropped required
+// constant: a standalone bicep StringLiteralType property (e.g. Cosmos DB's
+// databaseAccountOfferType = "Standard") must emit a StringAttribute with a OneOf
+// validator on the literal, NOT a DynamicAttribute. The mapper routes
+// KindStringLiteral to a types.String; emitting a Dynamic would make expand's type
+// assertion fail and silently omit the required field from the ARM payload.
+func TestEmitStringLiteralAsValidatedString(t *testing.T) {
+	body := &typegraph.Type{
+		Kind: typegraph.KindObject, Name: "Account",
+		Properties: map[string]*typegraph.Property{
+			"properties": {Name: "properties", Type: &typegraph.Type{
+				Kind: typegraph.KindObject, Name: "AccountProperties",
+				Properties: map[string]*typegraph.Property{
+					"databaseAccountOfferType": {
+						Name:  "databaseAccountOfferType",
+						Type:  &typegraph.Type{Kind: typegraph.KindStringLiteral, Name: "Standard"},
+						Flags: typegraph.FlagRequired,
+					},
+				},
+			}},
+		},
+	}
+	def := &typegraph.ResourceDefinition{Name: "Microsoft.DocumentDB/databaseAccounts@2025-04-15", Body: body}
+	typegraph.PostProcess([]*typegraph.ResourceDefinition{def})
+
+	source, err := EmitSchema(def)
+	if err != nil {
+		t.Fatalf("EmitSchema: %v", err)
+	}
+	if strings.Contains(source, `"database_account_offer_type": schema.DynamicAttribute{`) {
+		t.Errorf("standalone string literal must not emit a DynamicAttribute:\n%s", source)
+	}
+	for _, needle := range []string{
+		`"database_account_offer_type": schema.StringAttribute{`,
+		`stringvalidator.OneOf(`,
+		`"Standard",`,
+	} {
+		if !strings.Contains(source, needle) {
+			t.Errorf("emitted source missing %q:\n%s", needle, source)
+		}
+	}
+}

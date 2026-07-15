@@ -109,10 +109,10 @@ func (r RoleDefinitionCfg_Complete_update) Config() string {
 }
 
 func (r RoleDefinitionCfg) config(body string, scopes ...string) string {
-  scope := "/subscriptions/{{.SubscriptionID}}"
-  if len(scopes) > 0 {
-    scope = scopes[0]
-  }
+	scope := "/subscriptions/{{.SubscriptionID}}"
+	if len(scopes) > 0 {
+		scope = scopes[0]
+	}
 
 	return r.RenderConfig(config.ConfigEnvelope{
 		Name:       r.name,

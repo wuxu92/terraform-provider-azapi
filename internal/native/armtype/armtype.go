@@ -67,6 +67,10 @@ const (
 	// (root discriminated by kind: AzureCLI / AzurePowerShell).
 	DeploymentScript = "Microsoft.Resources/deploymentScripts"
 
+	// KustoCluster is Microsoft.Kusto/clusters, a resource-group-scoped Azure Data
+	// Explorer cluster. It is the native parent of KustoClusterDatabase.
+	KustoCluster = "Microsoft.Kusto/clusters"
+
 	// KustoClusterDatabase is Microsoft.Kusto/clusters/databases, a child of an
 	// Azure Data Explorer cluster (envelope parent: cluster_id) whose body is a
 	// discriminated type (root discriminated by kind: ReadWrite /

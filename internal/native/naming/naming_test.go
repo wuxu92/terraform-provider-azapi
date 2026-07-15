@@ -62,30 +62,43 @@ func TestResourceName(t *testing.T) {
 		armType string
 		want    string
 	}{
-		{"Microsoft.Storage/storageAccounts", "azapi_storage_account"},
-		{"Microsoft.Storage/storageAccounts/blobServices", "azapi_storage_account_blob_service"},
-		{"Microsoft.Resources/resourceGroups", "azapi_resource_group"},
+		// --- AzureRM-authority names (from the generated reference table /
+		// overrides): the ARM type maps to a single AzureRM resource, whose noun
+		// wins over the mechanical derivation. ---
 		{"Microsoft.KeyVault/vaults", "azapi_key_vault"},
-		{"Microsoft.KeyVault/vaults/keys", "azapi_key_vault_key"},
-		{"Microsoft.KeyVault/vaults/secrets", "azapi_keyvault_vault_secret"},
+		{"Microsoft.DataFactory/factories", "azapi_data_factory"},
 		{"Microsoft.Network/virtualNetworks", "azapi_virtual_network"},
-		{"Microsoft.Network/virtualNetworks/subnets", "azapi_virtual_network_subnet"},
+		{"Microsoft.Network/virtualNetworks/subnets", "azapi_subnet"},
 		{"Microsoft.Network/networkSecurityGroups", "azapi_network_security_group"},
-		{"Microsoft.Compute/virtualMachines", "azapi_compute_virtual_machine"},
-		{"Microsoft.Compute/virtualMachines/extensions", "azapi_compute_virtual_machine_extension"},
-		{"Microsoft.ContainerService/managedClusters", "azapi_containerservice_managed_cluster"},
-		{"Microsoft.Web/sites", "azapi_web_site"},
-		{"Microsoft.Web/serverfarms", "azapi_web_server_farm"},
-		{"Microsoft.Sql/servers", "azapi_sql_server"},
-		{"Microsoft.Sql/servers/databases", "azapi_sql_server_database"},
-		{"Microsoft.Cache/redis", "azapi_cache_redis"},
+		{"Microsoft.ContainerService/managedClusters", "azapi_kubernetes_cluster"},
+		{"Microsoft.Web/serverfarms", "azapi_service_plan"},
+		{"Microsoft.Sql/servers", "azapi_mssql_server"},
+		{"Microsoft.Sql/servers/databases", "azapi_mssql_database"},
+		{"Microsoft.Cache/redis", "azapi_redis_cache"},
 		{"Microsoft.EventHub/namespaces", "azapi_eventhub_namespace"},
-		{"Microsoft.DBforPostgreSQL/flexibleServers", "azapi_dbforpostgresql_flexible_server"},
+		{"Microsoft.DBforPostgreSQL/flexibleServers", "azapi_postgresql_flexible_server"},
 		{"Microsoft.ManagedIdentity/userAssignedIdentities", "azapi_user_assigned_identity"},
+		{"Microsoft.Kusto/clusters", "azapi_kusto_cluster"},
+		{"Microsoft.Kusto/clusters/databases", "azapi_kusto_database"},
+		{"Microsoft.DocumentDB/databaseAccounts", "azapi_cosmosdb_account"},
+		// Overrides pin scope-based ARM types the extractor cannot resolve.
 		{"Microsoft.Authorization/roleAssignments", "azapi_role_assignment"},
-		// Third-party providers
+		{"Microsoft.Authorization/roleDefinitions", "azapi_role_definition"},
+		// Third-party providers resolved through the reference table.
 		{"Dynatrace.Observability/monitors", "azapi_dynatrace_monitor"},
-		{"NewRelic.Observability/monitors", "azapi_newrelic_monitor"},
+		{"NewRelic.Observability/monitors", "azapi_new_relic_monitor"},
+
+		// --- Mechanical fallback: ARM types absent from AzureRM or mapping to
+		// several AzureRM resources (ambiguous) fall back to service+segment
+		// derivation with stutter/dup collapse. ---
+		{"Microsoft.Storage/storageAccounts", "azapi_storage_account"},                           // ambiguous in AzureRM
+		{"Microsoft.Storage/storageAccounts/blobServices", "azapi_storage_account_blob_service"}, // no standalone AzureRM resource
+		{"Microsoft.Resources/resourceGroups", "azapi_resource_group"},                           // provider-less ID, not extracted
+		{"Microsoft.KeyVault/vaults/keys", "azapi_key_vault_key"},                                // data-plane ID, not extracted
+		{"Microsoft.KeyVault/vaults/secrets", "azapi_key_vault_secret"},                          // data-plane ID, not extracted
+		{"Microsoft.Compute/virtualMachines", "azapi_compute_virtual_machine"},                   // ambiguous (linux/windows)
+		{"Microsoft.Compute/virtualMachines/extensions", "azapi_compute_virtual_machine_extension"},
+		{"Microsoft.Web/sites", "azapi_web_site"}, // ambiguous (web/function apps)
 	}
 
 	for _, tt := range tests {

@@ -727,8 +727,16 @@ func shouldPreserveKnownApplyValue(v attr.Value) bool {
 	return !isObject
 }
 
+// isLocationFieldName reports whether an ARM property carries an Azure region name
+// (e.g. "eastus2" vs "East US 2"): the top-level "location" and the nested geo
+// "locationName" (Cosmos geo-replication, and similar structs). Both are echoed by
+// Azure in a normalized display form and must be preserved when normalize-equal.
+func isLocationFieldName(name string) bool {
+	return name == "location" || name == "locationName"
+}
+
 func shouldPreserveEquivalentLocation(prop *typegraph.Property, base attr.Value, armVal interface{}) bool {
-	if prop == nil || prop.Name != "location" || prop.Type == nil || prop.Type.Kind != typegraph.KindString {
+	if prop == nil || !isLocationFieldName(prop.Name) || prop.Type == nil || prop.Type.Kind != typegraph.KindString {
 		return false
 	}
 	baseString, ok := base.(types.String)

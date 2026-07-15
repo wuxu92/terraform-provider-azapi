@@ -154,12 +154,12 @@ func TestResourceGroupSchemaComposition(t *testing.T) {
 
 func TestWebServerFarmSchemaComposition(t *testing.T) {
 	ctx := context.Background()
-	r := nativeresource.New("azapi_web_server_farm")
+	r := nativeresource.New("azapi_service_plan")
 
 	mdResp := &resource.MetadataResponse{}
 	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
-	if mdResp.TypeName != "azapi_web_server_farm" {
-		t.Errorf("TypeName = %q, want azapi_web_server_farm", mdResp.TypeName)
+	if mdResp.TypeName != "azapi_service_plan" {
+		t.Errorf("TypeName = %q, want azapi_service_plan", mdResp.TypeName)
 	}
 
 	schemaResp := &resource.SchemaResponse{}
@@ -476,5 +476,128 @@ func TestVirtualNetworkSchemaComposition(t *testing.T) {
 		if _, ok := s.Attributes[name]; !ok {
 			t.Errorf("missing body attribute %q", name)
 		}
+	}
+}
+
+func TestKustoClusterSchemaComposition(t *testing.T) {
+	ctx := context.Background()
+	r := nativeresource.New("azapi_kusto_cluster")
+
+	mdResp := &resource.MetadataResponse{}
+	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
+	if mdResp.TypeName != "azapi_kusto_cluster" {
+		t.Errorf("TypeName = %q, want azapi_kusto_cluster", mdResp.TypeName)
+	}
+
+	schemaResp := &resource.SchemaResponse{}
+	r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+	if diags := s.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("schema validation failed: %v", diags)
+	}
+
+	// clusters is resource-group scoped: parent reference resource_group_id.
+	for _, name := range []string{"name", "resource_group_id", "id"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing envelope attribute %q", name)
+		}
+	}
+	if _, ok := s.Attributes["parent_id"]; ok {
+		t.Error("kusto cluster should expose resource_group_id, not the generic parent_id")
+	}
+	if _, ok := s.Blocks["timeouts"]; !ok {
+		t.Error("missing timeouts block")
+	}
+	// A plain (non-discriminated) body: sku + properties present, required sku.
+	for _, name := range []string{"location", "sku", "properties"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing body attribute %q", name)
+		}
+	}
+}
+
+// TestKustoClusterDatabaseSchemaComposition covers a resource whose body is a
+// discriminated ROOT (kind: ReadWrite / ReadOnlyFollowing): the two variant blocks
+// sit at the envelope root beside the cluster_id parent reference, and the
+// discriminator `kind` is synthesized (never a schema attribute).
+func TestKustoClusterDatabaseSchemaComposition(t *testing.T) {
+	ctx := context.Background()
+	r := nativeresource.New("azapi_kusto_database")
+
+	mdResp := &resource.MetadataResponse{}
+	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
+	if mdResp.TypeName != "azapi_kusto_database" {
+		t.Errorf("TypeName = %q, want azapi_kusto_database", mdResp.TypeName)
+	}
+
+	schemaResp := &resource.SchemaResponse{}
+	r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+	if diags := s.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("schema validation failed: %v", diags)
+	}
+
+	// databases is a child of a cluster: parent reference cluster_id.
+	for _, name := range []string{"name", "cluster_id", "id"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing envelope attribute %q", name)
+		}
+	}
+	for _, absent := range []string{"resource_group_id", "parent_id"} {
+		if _, ok := s.Attributes[absent]; ok {
+			t.Errorf("kusto database should expose cluster_id, not %q", absent)
+		}
+	}
+	if _, ok := s.Blocks["timeouts"]; !ok {
+		t.Error("missing timeouts block")
+	}
+	// Discriminated root: one variant block per discriminator value at the top level.
+	for _, name := range []string{"read_write", "read_only_following"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing discriminated variant block %q", name)
+		}
+	}
+	// The discriminator itself is synthesized by the mapper, never surfaced.
+	if _, ok := s.Attributes["kind"]; ok {
+		t.Error("discriminator `kind` must not surface as a schema attribute")
+	}
+}
+
+// TestDocumentDBDatabaseAccountSchemaComposition covers a resource with a nested
+// discriminated property: properties.backup_policy carries per-variant blocks
+// (periodic / continuous) with the discriminator `type` synthesized, not surfaced.
+func TestDocumentDBDatabaseAccountSchemaComposition(t *testing.T) {
+	ctx := context.Background()
+	r := nativeresource.New("azapi_cosmosdb_account")
+
+	mdResp := &resource.MetadataResponse{}
+	r.(resource.Resource).Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "azapi"}, mdResp)
+	if mdResp.TypeName != "azapi_cosmosdb_account" {
+		t.Errorf("TypeName = %q, want azapi_cosmosdb_account", mdResp.TypeName)
+	}
+
+	schemaResp := &resource.SchemaResponse{}
+	r.(resource.Resource).Schema(ctx, resource.SchemaRequest{}, schemaResp)
+	s := schemaResp.Schema
+	if diags := s.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("schema validation failed: %v", diags)
+	}
+
+	// databaseAccounts is resource-group scoped: parent reference resource_group_id.
+	for _, name := range []string{"name", "resource_group_id", "id"} {
+		if _, ok := s.Attributes[name]; !ok {
+			t.Errorf("missing envelope attribute %q", name)
+		}
+	}
+	if _, ok := s.Attributes["parent_id"]; ok {
+		t.Error("cosmos account should expose resource_group_id, not the generic parent_id")
+	}
+	if _, ok := s.Blocks["timeouts"]; !ok {
+		t.Error("missing timeouts block")
+	}
+	// The nested discriminated property lives under properties.backup_policy with
+	// periodic/continuous variant blocks; assert the top-level body attr composes.
+	if _, ok := s.Attributes["properties"]; !ok {
+		t.Error("missing body attribute \"properties\"")
 	}
 }

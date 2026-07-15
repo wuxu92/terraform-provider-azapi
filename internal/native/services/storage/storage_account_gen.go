@@ -1155,6 +1155,11 @@ func AzapiStorageAccountSchema() schema.Schema {
 											Description: "The action of IP ACL rule.",
 											Optional:    true,
 											Computed:    true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(
+													"Allow",
+												),
+											},
 										},
 										"value": schema.StringAttribute{
 											Description: "Specifies the IP or IP range in CIDR format.",
@@ -1179,6 +1184,11 @@ func AzapiStorageAccountSchema() schema.Schema {
 											Description: "The action of IP ACL rule.",
 											Optional:    true,
 											Computed:    true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(
+													"Allow",
+												),
+											},
 										},
 										"value": schema.StringAttribute{
 											Description: "Specifies the IP or IP range in CIDR format.",
@@ -1234,6 +1244,11 @@ func AzapiStorageAccountSchema() schema.Schema {
 											Description: "The action of virtual network rule.",
 											Optional:    true,
 											Computed:    true,
+											Validators: []validator.String{
+												stringvalidator.OneOf(
+													"Allow",
+												),
+											},
 										},
 										"id": schema.StringAttribute{
 											Description: "Resource ID of a subnet, for example: /subscriptions/{subscriptionId}/resourceGroups/{groupName}/providers/Microsoft.Network/virtualNetworks/{vnetName}/subnets/{subnetName}.",

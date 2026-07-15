@@ -8,7 +8,7 @@ import (
 )
 
 // WebServerFarmCfg carries the Terraform address metadata and resource-group
-// dependency for azapi_web_server_farm acceptance-test scenarios. Construct it
+// dependency for azapi_service_plan acceptance-test scenarios. Construct it
 // with NewWebServerFarmCfg, then wrap it in a scenario type when applying.
 type WebServerFarmCfg struct {
 	config.ResourceConfigBase
@@ -19,7 +19,7 @@ type WebServerFarmCfg struct {
 // resource group. The label is optional; omit it for the default single plan.
 func NewWebServerFarmCfg(resourceGroup resources.ResourceGroupCfg, label ...string) WebServerFarmCfg {
 	return WebServerFarmCfg{
-		ResourceConfigBase: config.NewResourceConfigBase(WebServerFarm.Name, label...),
+		ResourceConfigBase: config.NewResourceConfigBase(ServicePlan.Name, label...),
 		resourceGroup:      resourceGroup,
 	}
 }

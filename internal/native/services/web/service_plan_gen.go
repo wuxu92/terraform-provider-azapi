@@ -23,8 +23,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiWebServerFarmSchema returns the Terraform resource schema for Microsoft.Web/serverfarms@2025-03-01.
-func AzapiWebServerFarmSchema() schema.Schema {
+// AzapiServicePlanSchema returns the Terraform resource schema for Microsoft.Web/serverfarms@2025-03-01.
+func AzapiServicePlanSchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.Web/serverfarms resource. [azapin:Microsoft.Web/serverfarms@2025-03-01]",
 		Attributes: map[string]schema.Attribute{
@@ -804,12 +804,12 @@ func AzapiWebServerFarmSchema() schema.Schema {
 	}
 }
 
-// WebServerFarm describes azapi_web_server_farm for registration and config builders.
-var WebServerFarm = services.Descriptor{
-	Name:           "azapi_web_server_farm",
+// ServicePlan describes azapi_service_plan for registration and config builders.
+var ServicePlan = services.Descriptor{
+	Name:           "azapi_service_plan",
 	ARMType:        "Microsoft.Web/serverfarms",
 	APIVersion:     "2025-03-01",
-	Schema:         AzapiWebServerFarmSchema,
+	Schema:         AzapiServicePlanSchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",
 	Timeouts: services.Timeouts{
@@ -820,4 +820,4 @@ var WebServerFarm = services.Descriptor{
 	},
 }
 
-func init() { services.Register(WebServerFarm) }
+func init() { services.Register(ServicePlan) }

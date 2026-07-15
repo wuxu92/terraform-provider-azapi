@@ -38,6 +38,7 @@ var targets = []string{
 	armtype.VirtualNetwork,
 	armtype.DataFactory,
 	armtype.DeploymentScript,
+	armtype.KustoCluster,
 	armtype.KustoClusterDatabase,
 	armtype.DocumentDBDatabaseAccount,
 }

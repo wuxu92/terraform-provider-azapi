@@ -1,0 +1,435 @@
+# AzureRM ARM-type reference: extraction report
+
+Generated table: 537 ARM types with a unique AzureRM resource.
+
+## Ambiguous ARM types (61) — one ARM type, several AzureRM resources; skipped
+
+- Microsoft.AlertsManagement/actionRules -> azurerm_monitor_alert_processing_rule_action_group, azurerm_monitor_alert_processing_rule_suppression
+- Microsoft.ApiManagement/service -> azurerm_api_management, azurerm_api_management_policy
+- Microsoft.ApiManagement/service/identityProviders -> azurerm_api_management_identity_provider_aad, azurerm_api_management_identity_provider_aadb2c, azurerm_api_management_identity_provider_facebook, azurerm_api_management_identity_provider_google, azurerm_api_management_identity_provider_microsoft, azurerm_api_management_identity_provider_twitter
+- Microsoft.ApiManagement/service/products -> azurerm_api_management_product, azurerm_api_management_product_policy
+- Microsoft.AppPlatform/spring/apms -> azurerm_spring_cloud_app_dynamics_application_performance_monitoring, azurerm_spring_cloud_application_insights_application_performance_monitoring, azurerm_spring_cloud_dynatrace_application_performance_monitoring, azurerm_spring_cloud_elastic_application_performance_monitoring, azurerm_spring_cloud_new_relic_application_performance_monitoring
+- Microsoft.Automation/automationAccounts/connections -> azurerm_automation_connection, azurerm_automation_connection_certificate, azurerm_automation_connection_classic_certificate, azurerm_automation_connection_service_principal
+- Microsoft.Compute/restorePointCollections -> azurerm_restore_point_collection, azurerm_virtual_machine_restore_point_collection
+- Microsoft.Compute/virtualMachineScaleSets -> azurerm_linux_virtual_machine_scale_set, azurerm_orchestrated_virtual_machine_scale_set, azurerm_virtual_machine_scale_set, azurerm_windows_virtual_machine_scale_set
+- Microsoft.Compute/virtualMachines -> azurerm_linux_virtual_machine, azurerm_virtual_machine, azurerm_windows_virtual_machine
+- Microsoft.DataFactory/factories/credentials -> azurerm_data_factory_credential_service_principal, azurerm_data_factory_credential_user_managed_identity
+- Microsoft.DataFactory/factories/dataflows -> azurerm_data_factory_data_flow, azurerm_data_factory_flowlet_data_flow
+- Microsoft.DataFactory/factories/integrationRuntimes -> azurerm_data_factory_integration_runtime_azure, azurerm_data_factory_integration_runtime_azure_ssis, azurerm_data_factory_integration_runtime_self_hosted
+- Microsoft.DataProtection/backupVaults/backupInstances -> azurerm_data_protection_backup_instance_blob_storage, azurerm_data_protection_backup_instance_data_lake_storage, azurerm_data_protection_backup_instance_disk, azurerm_data_protection_backup_instance_kubernetes_cluster, azurerm_data_protection_backup_instance_mysql_flexible_server, azurerm_data_protection_backup_instance_postgresql_flexible_server
+- Microsoft.DataProtection/backupVaults/backupPolicies -> azurerm_data_protection_backup_policy_blob_storage, azurerm_data_protection_backup_policy_data_lake_storage, azurerm_data_protection_backup_policy_disk, azurerm_data_protection_backup_policy_kubernetes_cluster, azurerm_data_protection_backup_policy_mysql_flexible_server, azurerm_data_protection_backup_policy_postgresql_flexible_server
+- Microsoft.DataShare/accounts/shares/dataSets -> azurerm_data_share_dataset_blob_storage, azurerm_data_share_dataset_data_lake_gen2, azurerm_data_share_dataset_kusto_cluster, azurerm_data_share_dataset_kusto_database
+- Microsoft.DevTestLab/labs/virtualMachines -> azurerm_dev_test_linux_virtual_machine, azurerm_dev_test_windows_virtual_machine
+- Microsoft.DigitalTwins/digitalTwinsInstances/endpoints -> azurerm_digital_twins_endpoint_eventgrid, azurerm_digital_twins_endpoint_eventhub, azurerm_digital_twins_endpoint_servicebus
+- Microsoft.ExtendedLocation/customLocations -> azurerm_extended_custom_location, azurerm_extended_location_custom_location
+- Microsoft.HDInsight/clusters -> azurerm_hdinsight_hadoop_cluster, azurerm_hdinsight_hbase_cluster, azurerm_hdinsight_interactive_query_cluster, azurerm_hdinsight_kafka_cluster, azurerm_hdinsight_spark_cluster
+- Microsoft.Insights/components -> azurerm_application_insights, azurerm_application_insights_analytics_item
+- Microsoft.Insights/scheduledQueryRules -> azurerm_monitor_scheduled_query_rules_alert, azurerm_monitor_scheduled_query_rules_alert_v2, azurerm_monitor_scheduled_query_rules_log
+- Microsoft.Insights/webTests -> azurerm_application_insights_standard_web_test, azurerm_application_insights_web_test
+- Microsoft.Kubernetes/connectedClusters -> azurerm_arc_kubernetes_cluster, azurerm_arc_kubernetes_provisioned_cluster
+- Microsoft.Kusto/clusters/databases/dataConnections -> azurerm_kusto_cosmosdb_data_connection, azurerm_kusto_eventgrid_data_connection, azurerm_kusto_eventhub_data_connection, azurerm_kusto_iothub_data_connection
+- Microsoft.Logic/workflows/triggers -> azurerm_logic_app_trigger_custom, azurerm_logic_app_trigger_http_request, azurerm_logic_app_trigger_recurrence
+- Microsoft.MachineLearningServices/workspaces -> azurerm_ai_foundry, azurerm_ai_foundry_project, azurerm_machine_learning_workspace
+- Microsoft.MachineLearningServices/workspaces/computes -> azurerm_machine_learning_compute_cluster, azurerm_machine_learning_compute_instance, azurerm_machine_learning_inference_cluster, azurerm_machine_learning_synapse_spark
+- Microsoft.MachineLearningServices/workspaces/dataStores -> azurerm_machine_learning_datastore_blobstorage, azurerm_machine_learning_datastore_datalake_gen2, azurerm_machine_learning_datastore_fileshare
+- Microsoft.MachineLearningServices/workspaces/outboundRules -> azurerm_machine_learning_workspace_network_outbound_rule_fqdn, azurerm_machine_learning_workspace_network_outbound_rule_private_endpoint, azurerm_machine_learning_workspace_network_outbound_rule_service_tag
+- Microsoft.NetApp/netAppAccounts/volumeGroups -> azurerm_netapp_volume_group_oracle, azurerm_netapp_volume_group_sap_hana
+- Microsoft.Network/dnsZones -> azurerm_dns_a_record, azurerm_dns_caa_record, azurerm_dns_cname_record, azurerm_dns_mx_record, azurerm_dns_ns_record, azurerm_dns_ptr_record, azurerm_dns_srv_record, azurerm_dns_txt_record, azurerm_dns_zone
+- Microsoft.Network/frontDoorWebApplicationFirewallPolicies -> azurerm_cdn_frontdoor_firewall_policy, azurerm_frontdoor_firewall_policy
+- Microsoft.Network/networkWatchers/packetCaptures -> azurerm_virtual_machine_packet_capture, azurerm_virtual_machine_scale_set_packet_capture
+- Microsoft.Network/privateDnsZones -> azurerm_private_dns_a_record, azurerm_private_dns_aaaa_record, azurerm_private_dns_cname_record, azurerm_private_dns_mx_record, azurerm_private_dns_ptr_record, azurerm_private_dns_srv_record, azurerm_private_dns_txt_record, azurerm_private_dns_zone
+- Microsoft.Network/trafficManagerProfiles -> azurerm_traffic_manager_azure_endpoint, azurerm_traffic_manager_external_endpoint, azurerm_traffic_manager_nested_endpoint, azurerm_traffic_manager_profile
+- Microsoft.Network/virtualHubs -> azurerm_route_server, azurerm_virtual_hub
+- Microsoft.Network/virtualHubs/bgpConnections -> azurerm_route_server_bgp_connection, azurerm_virtual_hub_bgp_connection
+- Microsoft.OperationalInsights/workspaces/dataSources -> azurerm_log_analytics_datasource_windows_event, azurerm_log_analytics_datasource_windows_performance_counter
+- Microsoft.OperationalInsights/workspaces/providers/Microsoft.SecurityInsights/alertRules -> azurerm_sentinel_alert_rule_fusion, azurerm_sentinel_alert_rule_machine_learning_behavior_analytics, azurerm_sentinel_alert_rule_ms_security_incident, azurerm_sentinel_alert_rule_nrt, azurerm_sentinel_alert_rule_scheduled, azurerm_sentinel_alert_rule_threat_intelligence
+- Microsoft.OperationalInsights/workspaces/tables -> azurerm_log_analytics_workspace_table, azurerm_log_analytics_workspace_table_custom_log
+- Microsoft.PolicyInsights/remediations -> azurerm_resource_group_policy_remediation, azurerm_subscription_policy_remediation
+- Microsoft.RecoveryServices/vaults/backupFabrics/protectionContainers/protectedItems -> azurerm_backup_protected_file_share, azurerm_backup_protected_vm
+- Microsoft.RecoveryServices/vaults/backupPolicies -> azurerm_backup_policy_file_share, azurerm_backup_policy_vm, azurerm_backup_policy_vm_workload
+- Microsoft.RecoveryServices/vaults/replicationFabrics -> azurerm_site_recovery_fabric, azurerm_site_recovery_services_vault_hyperv_site
+- Microsoft.RecoveryServices/vaults/replicationFabrics/replicationNetworks/replicationNetworkMappings -> azurerm_site_recovery_hyperv_network_mapping, azurerm_site_recovery_network_mapping
+- Microsoft.RecoveryServices/vaults/replicationFabrics/replicationProtectionContainers/replicationProtectionContainerMappings -> azurerm_site_recovery_hyperv_replication_policy_association, azurerm_site_recovery_vmware_replication_policy_association
+- Microsoft.RecoveryServices/vaults/replicationPolicies -> azurerm_site_recovery_hyperv_replication_policy, azurerm_site_recovery_replication_policy, azurerm_site_recovery_vmware_replication_policy
+- Microsoft.Resources/deploymentScripts -> azurerm_resource_deployment_script_azure_cli, azurerm_resource_deployment_script_azure_power_shell
+- Microsoft.SignalRService/webPubSub -> azurerm_web_pubsub, azurerm_web_pubsub_socketio
+- Microsoft.Storage/storageAccounts -> azurerm_storage_account, azurerm_storage_blob_inventory_policy
+- Microsoft.StorageMover/storageMovers/endpoints -> azurerm_storage_mover_source_endpoint, azurerm_storage_mover_target_endpoint
+- Microsoft.StreamAnalytics/streamingJobs/functions -> azurerm_stream_analytics_function_javascript_uda, azurerm_stream_analytics_function_javascript_udf
+- Microsoft.StreamAnalytics/streamingJobs/inputs -> azurerm_stream_analytics_reference_input_blob, azurerm_stream_analytics_stream_input_blob, azurerm_stream_analytics_stream_input_eventhub, azurerm_stream_analytics_stream_input_eventhub_v2, azurerm_stream_analytics_stream_input_iothub
+- Microsoft.StreamAnalytics/streamingJobs/outputs -> azurerm_stream_analytics_output_blob, azurerm_stream_analytics_output_cosmosdb, azurerm_stream_analytics_output_eventhub, azurerm_stream_analytics_output_function, azurerm_stream_analytics_output_mssql, azurerm_stream_analytics_output_powerbi, azurerm_stream_analytics_output_servicebus_queue, azurerm_stream_analytics_output_servicebus_topic, azurerm_stream_analytics_output_synapse, azurerm_stream_analytics_output_table
+- Microsoft.Web/certificates -> azurerm_app_service_certificate, azurerm_app_service_managed_certificate
+- Microsoft.Web/sites -> azurerm_function_app_flex_consumption, azurerm_linux_function_app, azurerm_linux_web_app, azurerm_logic_app_standard
+- Microsoft.Web/sites/hybridConnectionNamespaces/relays -> azurerm_function_app_hybrid_connection, azurerm_web_app_hybrid_connection
+- Microsoft.Web/sites/slots -> azurerm_linux_function_app_slot, azurerm_linux_web_app_slot, azurerm_windows_function_app_slot, azurerm_windows_web_app_slot
+- Microsoft.Workloads/sapVirtualInstances -> azurerm_workloads_sap_discovery_virtual_instance, azurerm_workloads_sap_single_node_virtual_instance, azurerm_workloads_sap_three_tier_virtual_instance
+- Oracle.Database/autonomousDatabases -> azurerm_oracle_autonomous_database, azurerm_oracle_autonomous_database_clone_from_backup, azurerm_oracle_autonomous_database_clone_from_database
+- PaloAltoNetworks.Cloudngfw/firewalls -> azurerm_palo_alto_next_generation_firewall_virtual_hub_local_rulestack, azurerm_palo_alto_next_generation_firewall_virtual_hub_panorama, azurerm_palo_alto_next_generation_firewall_virtual_hub_strata_cloud_manager, azurerm_palo_alto_next_generation_firewall_virtual_network_local_rulestack, azurerm_palo_alto_next_generation_firewall_virtual_network_panorama, azurerm_palo_alto_next_generation_firewall_virtual_network_strata_cloud_manager
+
+## Unresolved resources (365) — Create ID not traceable to a go-azure-sdk fmtString; skipped
+
+- `azurerm_active_directory_domain_service` (domainservices): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/domainservices/parse.NewDomainServiceID
+- `azurerm_active_directory_domain_service_replica_set` (domainservices): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/domainservices/parse.NewDomainServiceReplicaSetID
+- `azurerm_active_directory_domain_service_trust` (domainservices): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/domainservices/parse.NewDomainServiceTrustID
+- `azurerm_advanced_threat_protection` (securitycenter): no id := New*ID constructor in Create
+- `azurerm_advisor_suppression` (advisor): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/advisor/2023-01-01/suppressions.NewScopedSuppressionID
+- `azurerm_api_management_api_operation_policy` (apimanagement): no id := New*ID constructor in Create
+- `azurerm_api_management_api_policy` (apimanagement): no id := New*ID constructor in Create
+- `azurerm_api_management_custom_domain` (apimanagement): no id := New*ID constructor in Create
+- `azurerm_api_management_workspace_policy` (apimanagement): no id := New*ID constructor in Create
+- `azurerm_app_configuration` (appconfiguration): no id := New*ID constructor in Create
+- `azurerm_app_configuration_feature` (appconfiguration): no id := New*ID constructor in Create
+- `azurerm_app_configuration_key` (appconfiguration): no id := New*ID constructor in Create
+- `azurerm_app_service_certificate_binding` (web): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewCompositeResourceID
+- `azurerm_app_service_connection` (serviceconnector): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/servicelinker/2024-04-01/servicelinker.NewScopedLinkerID
+- `azurerm_app_service_slot_virtual_network_swift_connection` (web): no id := New*ID constructor in Create
+- `azurerm_app_service_source_control` (appservice): no id := New*ID constructor in Create
+- `azurerm_app_service_source_control_slot` (appservice): no id := New*ID constructor in Create
+- `azurerm_app_service_virtual_network_swift_connection` (web): no id := New*ID constructor in Create
+- `azurerm_application_insights_api_key` (applicationinsights): no id := New*ID constructor in Create
+- `azurerm_application_insights_smart_detection_rule` (applicationinsights): no id := New*ID constructor in Create
+- `azurerm_arc_kubernetes_cluster_extension` (arckubernetes): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/kubernetesconfiguration/2024-11-01/extensions.NewScopedExtensionID
+- `azurerm_arc_kubernetes_flux_configuration` (arckubernetes): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/kubernetesconfiguration/2025-04-01/fluxconfiguration.NewScopedFluxConfigurationID
+- `azurerm_automation_variable_bool` (automation): no id := New*ID constructor in Create
+- `azurerm_automation_variable_datetime` (automation): no id := New*ID constructor in Create
+- `azurerm_automation_variable_int` (automation): no id := New*ID constructor in Create
+- `azurerm_automation_variable_object` (automation): no id := New*ID constructor in Create
+- `azurerm_automation_variable_string` (automation): no id := New*ID constructor in Create
+- `azurerm_batch_job` (batch): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/batch/parse.NewJobID
+- `azurerm_batch_pool` (batch): no id := New*ID constructor in Create
+- `azurerm_billing_account_cost_management_export` (costmanagement): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/costmanagement/2023-08-01/exports.NewScopedExportID
+- `azurerm_blueprint_assignment` (blueprints): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/blueprints/2018-11-01-preview/assignment.NewScopedBlueprintAssignmentID
+- `azurerm_bot_channel_alexa` (bot): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/bot/parse.NewBotChannelID
+- `azurerm_bot_channel_direct_line_speech` (bot): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/bot/parse.NewBotChannelID
+- `azurerm_bot_channel_directline` (bot): no id := New*ID constructor in Create
+- `azurerm_bot_channel_email` (bot): no id := New*ID constructor in Create
+- `azurerm_bot_channel_facebook` (bot): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/bot/parse.NewBotChannelID
+- `azurerm_bot_channel_line` (bot): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/bot/parse.NewBotChannelID
+- `azurerm_bot_channel_ms_teams` (bot): no id := New*ID constructor in Create
+- `azurerm_bot_channel_slack` (bot): no id := New*ID constructor in Create
+- `azurerm_bot_channel_sms` (bot): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/bot/parse.NewBotChannelID
+- `azurerm_bot_channel_web_chat` (bot): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/bot/parse.NewBotChannelID
+- `azurerm_bot_channels_registration` (bot): no id := New*ID constructor in Create
+- `azurerm_bot_connection` (bot): no id := New*ID constructor in Create
+- `azurerm_bot_service_azure_bot` (bot): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/bot/parse.NewBotServiceID
+- `azurerm_bot_web_app` (bot): no id := New*ID constructor in Create
+- `azurerm_cdn_endpoint` (cdn): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/cdn/parse.NewEndpointID
+- `azurerm_cdn_endpoint_custom_domain` (cdn): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/cdn/parse.NewCustomDomainID
+- `azurerm_cdn_frontdoor_custom_domain_association` (cdn): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/cdn/parse.NewFrontDoorCustomDomainAssociationID
+- `azurerm_cdn_frontdoor_endpoint` (cdn): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/cdn/parse.NewFrontDoorEndpointID
+- `azurerm_cdn_frontdoor_origin` (cdn): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/cdn/parse.NewFrontDoorOriginID
+- `azurerm_cdn_frontdoor_origin_group` (cdn): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/cdn/parse.NewFrontDoorOriginGroupID
+- `azurerm_cdn_frontdoor_route` (cdn): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/cdn/parse.NewFrontDoorRouteID
+- `azurerm_cdn_frontdoor_secret` (cdn): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/cdn/parse.NewFrontDoorSecretID
+- `azurerm_cdn_frontdoor_security_policy` (cdn): no id := New*ID constructor in Create
+- `azurerm_cdn_profile` (cdn): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/cdn/parse.NewProfileID
+- `azurerm_chaos_studio_capability` (chaosstudio): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewChaosStudioCapabilityID
+- `azurerm_chaos_studio_target` (chaosstudio): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewChaosStudioTargetID
+- `azurerm_cognitive_account_customer_managed_key` (cognitive): no id := New*ID constructor in Create
+- `azurerm_communication_service_email_domain_association` (communication): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewCompositeResourceID
+- `azurerm_consumption_budget_management_group` (consumption): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/consumption/2019-10-01/budgets.NewScopedBudgetID
+- `azurerm_consumption_budget_resource_group` (consumption): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/consumption/2019-10-01/budgets.NewScopedBudgetID
+- `azurerm_consumption_budget_subscription` (consumption): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/consumption/2019-10-01/budgets.NewScopedBudgetID
+- `azurerm_container_app_custom_domain` (containerapps): no id := New*ID constructor in Create
+- `azurerm_container_app_environment_custom_domain` (containerapps): no id := New*ID constructor in Create
+- `azurerm_container_registry_task_schedule_run_now` (containers): no id := New*ID constructor in Create
+- `azurerm_container_registry_token_password` (containers): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/containers/parse.NewContainerRegistryTokenPasswordID
+- `azurerm_cost_anomaly_alert` (costmanagement): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/costmanagement/2023-08-01/scheduledactions.NewScopedScheduledActionID
+- `azurerm_cost_management_scheduled_action` (costmanagement): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/costmanagement/2023-08-01/scheduledactions.NewScopedScheduledActionID
+- `azurerm_data_factory_custom_dataset` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_customer_managed_key` (datafactory): no id := New*ID constructor in Create
+- `azurerm_data_factory_dataset_azure_blob` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_azure_sql_table` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_binary` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_cosmosdb_sqlapi` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_delimited_text` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_http` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_json` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_mysql` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_parquet` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_postgresql` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_snowflake` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_dataset_sql_server_table` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewDataSetID
+- `azurerm_data_factory_linked_custom_service` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_azure_blob_storage` (datafactory): no id := New*ID constructor in Create
+- `azurerm_data_factory_linked_service_azure_databricks` (datafactory): no id := New*ID constructor in Create
+- `azurerm_data_factory_linked_service_azure_file_storage` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_azure_function` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_azure_search` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_azure_sql_database` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_azure_table_storage` (datafactory): no id := New*ID constructor in Create
+- `azurerm_data_factory_linked_service_cosmosdb` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_cosmosdb_mongoapi` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_data_lake_storage_gen2` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_key_vault` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_kusto` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_mysql` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_odata` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_odbc` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_postgresql` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_sftp` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_snowflake` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_sql_server` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_synapse` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_linked_service_web` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewLinkedServiceID
+- `azurerm_data_factory_trigger_blob_event` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewTriggerID
+- `azurerm_data_factory_trigger_custom_event` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewTriggerID
+- `azurerm_data_factory_trigger_schedule` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewTriggerID
+- `azurerm_data_factory_trigger_tumbling_window` (datafactory): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/datafactory/parse.NewTriggerID
+- `azurerm_data_protection_backup_vault_customer_managed_key` (dataprotection): no id := New*ID constructor in Create
+- `azurerm_databricks_workspace_root_dbfs_customer_managed_key` (databricks): no id := New*ID constructor in Create
+- `azurerm_dns_aaaa_record` (dns): no id := New*ID constructor in Create
+- `azurerm_eventgrid_event_subscription` (eventgrid): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/eventgrid/2025-02-15/eventsubscriptions.NewScopedEventSubscriptionID
+- `azurerm_eventgrid_partner_configuration` (eventgrid): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewResourceGroupID
+- `azurerm_eventhub_namespace_customer_managed_key` (eventhub): no id := New*ID constructor in Create
+- `azurerm_firewall_application_rule_collection` (firewall): no id := New*ID constructor in Create
+- `azurerm_firewall_nat_rule_collection` (firewall): no id := New*ID constructor in Create
+- `azurerm_firewall_network_rule_collection` (firewall): no id := New*ID constructor in Create
+- `azurerm_frontdoor_custom_https_configuration` (frontdoor): no id := New*ID constructor in Create
+- `azurerm_function_app_active_slot` (appservice): no id := New*ID constructor in Create
+- `azurerm_function_app_connection` (serviceconnector): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/servicelinker/2024-04-01/servicelinker.NewScopedLinkerID
+- `azurerm_hpc_cache` (storagecache): no id := New*ID constructor in Create
+- `azurerm_hpc_cache_access_policy` (storagecache): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/storagecache/parse.NewCacheAccessPolicyID
+- `azurerm_hpc_cache_blob_target` (storagecache): no id := New*ID constructor in Create
+- `azurerm_hpc_cache_nfs_target` (storagecache): no id := New*ID constructor in Create
+- `azurerm_iot_security_device_group` (securitycenter): no id := New*ID constructor in Create
+- `azurerm_iot_security_solution` (securitycenter): no id := New*ID constructor in Create
+- `azurerm_iotcentral_application` (iotcentral): no id := New*ID constructor in Create
+- `azurerm_iotcentral_application_network_rule_set` (iotcentral): no id := New*ID constructor in Create
+- `azurerm_iotcentral_organization` (iotcentral): no id := New*ID constructor in Create
+- `azurerm_iothub` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewIotHubID
+- `azurerm_iothub_certificate` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewIotHubCertificateID
+- `azurerm_iothub_consumer_group` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewConsumerGroupID
+- `azurerm_iothub_endpoint_cosmosdb_account` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewEndpointCosmosDBAccountID
+- `azurerm_iothub_endpoint_eventhub` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewEndpointEventhubID
+- `azurerm_iothub_endpoint_servicebus_queue` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewEndpointServiceBusQueueID
+- `azurerm_iothub_endpoint_servicebus_topic` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewEndpointServiceBusTopicID
+- `azurerm_iothub_endpoint_storage_container` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewEndpointStorageContainerID
+- `azurerm_iothub_enrichment` (iothub): no id := New*ID constructor in Create
+- `azurerm_iothub_fallback_route` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewFallbackRouteID
+- `azurerm_iothub_file_upload` (iothub): no id := New*ID constructor in Create
+- `azurerm_iothub_route` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewRouteID
+- `azurerm_iothub_shared_access_policy` (iothub): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/iothub/parse.NewSharedAccessPolicyID
+- `azurerm_ip_group_cidr` (network): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/network/parse.NewIpGroupCidrID
+- `azurerm_key_vault_access_policy` (keyvault): no id := New*ID constructor in Create
+- `azurerm_key_vault_certificate` (keyvault): no id := New*ID constructor in Create
+- `azurerm_key_vault_certificate_contacts` (keyvault): no id := New*ID constructor in Create
+- `azurerm_key_vault_certificate_issuer` (keyvault): no id := New*ID constructor in Create
+- `azurerm_key_vault_key` (keyvault): no id := New*ID constructor in Create
+- `azurerm_key_vault_managed_hardware_security_module` (managedhsm): no id := New*ID constructor in Create
+- `azurerm_key_vault_managed_hardware_security_module_key` (managedhsm): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/managedhsm/parse.NewManagedHSMDataPlaneVersionlessKeyID
+- `azurerm_key_vault_managed_hardware_security_module_key_rotation_policy` (managedhsm): no id := New*ID constructor in Create
+- `azurerm_key_vault_managed_hardware_security_module_role_assignment` (managedhsm): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/managedhsm/parse.NewManagedHSMDataPlaneRoleAssignmentID
+- `azurerm_key_vault_managed_hardware_security_module_role_definition` (managedhsm): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/managedhsm/parse.NewManagedHSMDataPlaneRoleDefinitionID
+- `azurerm_key_vault_managed_storage_account` (keyvault): no id := New*ID constructor in Create
+- `azurerm_key_vault_managed_storage_account_sas_token_definition` (keyvault): no id := New*ID constructor in Create
+- `azurerm_key_vault_secret` (keyvault): no id := New*ID constructor in Create
+- `azurerm_kubernetes_cluster_deployment_safeguard` (containers): no id := New*ID constructor in Create
+- `azurerm_kubernetes_cluster_extension` (containers): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/kubernetesconfiguration/2024-11-01/extensions.NewScopedExtensionID
+- `azurerm_kubernetes_flux_configuration` (containers): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/kubernetesconfiguration/2025-04-01/fluxconfiguration.NewScopedFluxConfigurationID
+- `azurerm_kusto_cluster_customer_managed_key` (kusto): no id := New*ID constructor in Create
+- `azurerm_lb_backend_address_pool_address` (loadbalancer): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/loadbalancer/parse.NewBackendAddressPoolAddressID
+- `azurerm_lb_nat_pool` (loadbalancer): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/loadbalancer/parse.NewLoadBalancerInboundNatPoolID
+- `azurerm_lighthouse_assignment` (lighthouse): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/managedservices/2022-10-01/registrationassignments.NewScopedRegistrationAssignmentID
+- `azurerm_lighthouse_definition` (lighthouse): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/managedservices/2022-10-01/registrationdefinitions.NewScopedRegistrationDefinitionID
+- `azurerm_log_analytics_cluster_customer_managed_key` (loganalytics): no id := New*ID constructor in Create
+- `azurerm_log_analytics_data_export_rule` (loganalytics): no id := New*ID constructor in Create
+- `azurerm_logic_app_action_custom` (logic): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/logic/parse.NewActionID
+- `azurerm_logic_app_action_http` (logic): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/logic/parse.NewActionID
+- `azurerm_maintenance_assignment_dedicated_host` (maintenance): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/maintenance/2023-04-01/configurationassignments.NewScopedConfigurationAssignmentID
+- `azurerm_maintenance_assignment_virtual_machine` (maintenance): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/maintenance/2023-04-01/configurationassignments.NewScopedConfigurationAssignmentID
+- `azurerm_maintenance_assignment_virtual_machine_scale_set` (maintenance): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/maintenance/2023-04-01/configurationassignments.NewScopedConfigurationAssignmentID
+- `azurerm_managed_disk_sas_token` (compute): no id := New*ID constructor in Create
+- `azurerm_managed_redis` (managedredis): no id := New*ID constructor in Create
+- `azurerm_managed_redis_geo_replication` (managedredis): no id := New*ID constructor in Create
+- `azurerm_management_group` (managementgroup): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewManagementGroupID
+- `azurerm_management_group_policy_assignment` (policy): no id := New*ID constructor in Create
+- `azurerm_management_group_policy_exemption` (policy): no id := New*ID constructor in Create
+- `azurerm_management_group_policy_remediation` (policy): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/policyinsights/2021-10-01/remediations.NewProviders2RemediationID
+- `azurerm_management_group_policy_set_definition` (policy): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/resources/2025-01-01/policysetdefinitions.NewProviders2PolicySetDefinitionID
+- `azurerm_management_group_subscription_association` (managementgroup): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/management/2020-05-01/managementgroups.NewSubscriptionID
+- `azurerm_management_group_template_deployment` (resource): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/resource/parse.NewManagementGroupTemplateDeploymentID
+- `azurerm_management_lock` (resource): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/resources/2020-05-01/managementlocks.NewScopedLockID
+- `azurerm_marketplace_role_assignment` (authorization): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/authorization/parse.NewScopedRoleAssignmentID
+- `azurerm_monitor_aad_diagnostic_setting` (monitor): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/azureactivedirectory/2017-04-01/diagnosticsettings.NewDiagnosticSettingID
+- `azurerm_monitor_data_collection_rule_association` (monitor): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/insights/2023-03-11/datacollectionruleassociations.NewScopedDataCollectionRuleAssociationID
+- `azurerm_monitor_diagnostic_setting` (monitor): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/insights/2021-05-01-preview/diagnosticsettings.NewScopedDiagnosticSettingID
+- `azurerm_mssql_database_extended_auditing_policy` (mssql): no id := New*ID constructor in Create
+- `azurerm_mssql_database_vulnerability_assessment_rule_baseline` (mssql): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mssql/parse.NewDatabaseVulnerabilityAssessmentRuleBaselineID
+- `azurerm_mssql_job_credential` (mssql): no id := New*ID constructor in Create
+- `azurerm_mssql_job_schedule` (mssql): no id := New*ID constructor in Create
+- `azurerm_mssql_managed_instance_active_directory_administrator` (mssqlmanagedinstance): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mssqlmanagedinstance/parse.NewManagedInstanceAzureActiveDirectoryAdministratorID
+- `azurerm_mssql_managed_instance_security_alert_policy` (mssqlmanagedinstance): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mssqlmanagedinstance/parse.NewManagedInstancesSecurityAlertPolicyID
+- `azurerm_mssql_managed_instance_start_stop_schedule` (mssqlmanagedinstance): no id := New*ID constructor in Create
+- `azurerm_mssql_managed_instance_transparent_data_encryption` (mssqlmanagedinstance): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mssqlmanagedinstance/parse.NewManagedInstanceEncryptionProtectorID
+- `azurerm_mssql_managed_instance_vulnerability_assessment` (mssqlmanagedinstance): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mssqlmanagedinstance/parse.NewManagedInstanceVulnerabilityAssessmentID
+- `azurerm_mssql_server_extended_auditing_policy` (mssql): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mssql/parse.NewServerExtendedAuditingPolicyID
+- `azurerm_mssql_server_microsoft_support_auditing_policy` (mssql): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mssql/parse.NewServerMicrosoftSupportAuditingPolicyID
+- `azurerm_mssql_server_security_alert_policy` (mssql): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mssql/parse.NewServerSecurityAlertPolicyID
+- `azurerm_mssql_server_transparent_data_encryption` (mssql): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mssql/parse.NewEncryptionProtectorID
+- `azurerm_mssql_server_vulnerability_assessment` (mssql): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mssql/parse.NewServerVulnerabilityAssessmentID
+- `azurerm_mysql_flexible_server_active_directory_administrator` (mysql): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/mysql/parse.NewFlexibleServerAzureActiveDirectoryAdministratorID
+- `azurerm_nat_gateway_public_ip_association` (network): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewCompositeResourceID
+- `azurerm_nat_gateway_public_ip_prefix_association` (network): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewCompositeResourceID
+- `azurerm_netapp_account_encryption` (netapp): no id := New*ID constructor in Create
+- `azurerm_network_connection_monitor` (network): no id := New*ID constructor in Create
+- `azurerm_network_interface_application_gateway_backend_address_pool_association` (network): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewCompositeResourceID
+- `azurerm_network_interface_application_security_group_association` (network): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewCompositeResourceID
+- `azurerm_network_interface_backend_address_pool_association` (network): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewCompositeResourceID
+- `azurerm_network_interface_nat_rule_association` (network): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewCompositeResourceID
+- `azurerm_network_interface_security_group_association` (network): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewCompositeResourceID
+- `azurerm_network_manager_deployment` (network): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/network/parse.NewNetworkManagerDeploymentID
+- `azurerm_network_manager_management_group_connection` (network): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/network/2025-01-01/networkmanagerconnections.NewProviders2NetworkManagerConnectionID
+- `azurerm_palo_alto_local_rulestack_outbound_trust_certificate_association` (paloalto): no id := New*ID constructor in Create
+- `azurerm_palo_alto_local_rulestack_outbound_untrust_certificate_association` (paloalto): no id := New*ID constructor in Create
+- `azurerm_pim_active_role_assignment` (authorization): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/authorization/parse.NewPimRoleAssignmentID
+- `azurerm_pim_eligible_role_assignment` (authorization): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/authorization/parse.NewPimRoleAssignmentID
+- `azurerm_policy_definition` (policy): no id := New*ID constructor in Create
+- `azurerm_portal_tenant_configuration` (portal): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/portal/parse.NewPortalTenantConfigurationID
+- `azurerm_postgresql_flexible_server_configuration` (postgres): no id := New*ID constructor in Create
+- `azurerm_postgresql_flexible_server_virtual_endpoint` (postgres): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewCompositeResourceID
+- `azurerm_private_endpoint_application_security_group_association` (network): no id := New*ID constructor in Create
+- `azurerm_relay_hybrid_connection_authorization_rule` (relay): no id := New*ID constructor in Create
+- `azurerm_relay_namespace_authorization_rule` (relay): no id := New*ID constructor in Create
+- `azurerm_resource_group` (resource): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewResourceGroupID
+- `azurerm_resource_group_cost_management_export` (costmanagement): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/costmanagement/2023-08-01/exports.NewScopedExportID
+- `azurerm_resource_group_cost_management_view` (costmanagement): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/costmanagement/2023-08-01/views.NewScopedViewID
+- `azurerm_resource_group_policy_assignment` (policy): no id := New*ID constructor in Create
+- `azurerm_resource_group_policy_exemption` (policy): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/policy/parse.NewResourceGroupPolicyExemptionID
+- `azurerm_resource_group_template_deployment` (resource): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/resource/parse.NewResourceGroupTemplateDeploymentID
+- `azurerm_resource_management_private_link_association` (resource): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/resources/2020-05-01/privatelinkassociation.NewPrivateLinkAssociationID
+- `azurerm_resource_policy_assignment` (policy): no id := New*ID constructor in Create
+- `azurerm_resource_policy_exemption` (policy): no id := New*ID constructor in Create
+- `azurerm_resource_policy_remediation` (policy): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/policyinsights/2021-10-01/remediations.NewScopedRemediationID
+- `azurerm_resource_provider_feature_registration` (resource): no id := New*ID constructor in Create
+- `azurerm_resource_provider_registration` (resource): no id := New*ID constructor in Create
+- `azurerm_role_assignment` (authorization): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/authorization/parse.NewScopedRoleAssignmentID
+- `azurerm_role_definition` (authorization): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/authorization/2022-05-01-preview/roledefinitions.NewScopedRoleDefinitionID
+- `azurerm_role_management_policy` (authorization): no id := New*ID constructor in Create
+- `azurerm_security_center_assessment` (securitycenter): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/securitycenter/parse.NewAssessmentID
+- `azurerm_security_center_automation` (securitycenter): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/securitycenter/parse.NewAutomationID
+- `azurerm_security_center_contact` (securitycenter): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/securitycenter/parse.NewContactID
+- `azurerm_security_center_server_vulnerability_assessment_virtual_machine` (securitycenter): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/securitycenter/parse.NewVulnerabilityAssessmentVmID
+- `azurerm_security_center_server_vulnerability_assessments_setting` (securitycenter): no id := New*ID constructor in Create
+- `azurerm_security_center_setting` (securitycenter): no id := New*ID constructor in Create
+- `azurerm_security_center_storage_defender` (securitycenter): no SDK fmtString for github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.NewScopeID
+- `azurerm_security_center_workspace` (securitycenter): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/securitycenter/parse.NewWorkspaceID
+- `azurerm_sentinel_alert_rule_anomaly_built_in` (sentinel): no id := New*ID constructor in Create
+- `azurerm_sentinel_alert_rule_anomaly_duplicate` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewMLAnalyticsSettingsID
+- `azurerm_sentinel_automation_rule` (sentinel): no id := New*ID constructor in Create
+- `azurerm_sentinel_data_connector_aws_cloud_trail` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_aws_s3` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_azure_active_directory` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_azure_advanced_threat_protection` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_azure_security_center` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_dynamics_365` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_iot` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_microsoft_cloud_app_security` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_microsoft_defender_advanced_threat_protection` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_microsoft_threat_intelligence` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_microsoft_threat_protection` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_office_365` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_office_365_project` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_office_atp` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_office_irm` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_office_power_bi` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_threat_intelligence` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_data_connector_threat_intelligence_taxii` (sentinel): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/sentinel/parse.NewDataConnectorID
+- `azurerm_sentinel_threat_intelligence_indicator` (sentinel): no id := New*ID constructor in Create
+- `azurerm_service_fabric_managed_cluster` (servicefabricmanaged): no id := New*ID constructor in Create
+- `azurerm_servicebus_namespace_customer_managed_key` (servicebus): no id := New*ID constructor in Create
+- `azurerm_signalr_service_network_acl` (signalr): no id := New*ID constructor in Create
+- `azurerm_signalr_shared_private_link_resource` (signalr): no id := New*ID constructor in Create
+- `azurerm_site_recovery_protection_container_mapping` (recoveryservices): no id := New*ID constructor in Create
+- `azurerm_site_recovery_replicated_vm` (recoveryservices): no id := New*ID constructor in Create
+- `azurerm_source_control_token` (appservice): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/web/2023-01-01/resourceproviders.NewSourceControlID
+- `azurerm_spring_cloud_accelerator` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudAcceleratorID
+- `azurerm_spring_cloud_active_deployment` (springcloud): no id := New*ID constructor in Create
+- `azurerm_spring_cloud_api_portal_custom_domain` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudAPIPortalCustomDomainID
+- `azurerm_spring_cloud_app` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudAppID
+- `azurerm_spring_cloud_app_cosmosdb_association` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudAppAssociationID
+- `azurerm_spring_cloud_app_mysql_association` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudAppAssociationID
+- `azurerm_spring_cloud_app_redis_association` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudAppAssociationID
+- `azurerm_spring_cloud_application_live_view` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudApplicationLiveViewID
+- `azurerm_spring_cloud_build_deployment` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudDeploymentID
+- `azurerm_spring_cloud_build_pack_binding` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudBuildPackBindingID
+- `azurerm_spring_cloud_builder` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudBuildServiceBuilderID
+- `azurerm_spring_cloud_certificate` (springcloud): no id := New*ID constructor in Create
+- `azurerm_spring_cloud_connection` (serviceconnector): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/servicelinker/2024-04-01/servicelinker.NewScopedLinkerID
+- `azurerm_spring_cloud_container_deployment` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudDeploymentID
+- `azurerm_spring_cloud_custom_domain` (springcloud): no id := New*ID constructor in Create
+- `azurerm_spring_cloud_dev_tool_portal` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudDevToolPortalID
+- `azurerm_spring_cloud_gateway_custom_domain` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudGatewayCustomDomainID
+- `azurerm_spring_cloud_gateway_route_config` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudGatewayRouteConfigID
+- `azurerm_spring_cloud_java_deployment` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudDeploymentID
+- `azurerm_spring_cloud_service` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudServiceID
+- `azurerm_spring_cloud_storage` (springcloud): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/springcloud/parse.NewSpringCloudStorageID
+- `azurerm_storage_account_customer_managed_key` (storage): no id := New*ID constructor in Create
+- `azurerm_storage_account_network_rules` (storage): no id := New*ID constructor in Create
+- `azurerm_storage_account_queue_properties` (storage): no id := New*ID constructor in Create
+- `azurerm_storage_account_static_website` (storage): no id := New*ID constructor in Create
+- `azurerm_storage_blob` (storage): no SDK fmtString for github.com/jackofallops/giovanni/storage/2023-11-03/blob/blobs.NewBlobID
+- `azurerm_storage_container` (storage): no SDK fmtString for github.com/jackofallops/giovanni/storage/2023-11-03/blob/containers.NewContainerID
+- `azurerm_storage_container_immutability_policy` (storage): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/storage/parse.NewStorageContainerImmutabilityPolicyID
+- `azurerm_storage_data_lake_gen2_filesystem` (storage): no SDK fmtString for github.com/jackofallops/giovanni/storage/2023-11-03/datalakestore/filesystems.NewFileSystemID
+- `azurerm_storage_data_lake_gen2_path` (storage): no SDK fmtString for github.com/jackofallops/giovanni/storage/2023-11-03/datalakestore/paths.NewPathID
+- `azurerm_storage_management_policy` (storage): no id := New*ID constructor in Create
+- `azurerm_storage_object_replication` (storage): no id := New*ID constructor in Create
+- `azurerm_storage_share` (storage): no SDK fmtString for github.com/jackofallops/giovanni/storage/2023-11-03/file/shares.NewShareID
+- `azurerm_storage_share_directory` (storage): no SDK fmtString for github.com/jackofallops/giovanni/storage/2023-11-03/file/directories.NewDirectoryID
+- `azurerm_storage_share_file` (storage): no SDK fmtString for github.com/jackofallops/giovanni/storage/2023-11-03/file/files.NewFileID
+- `azurerm_storage_table` (storage): no SDK fmtString for github.com/jackofallops/giovanni/storage/2023-11-03/table/tables.NewTableID
+- `azurerm_storage_table_entity` (storage): no SDK fmtString for github.com/jackofallops/giovanni/storage/2023-11-03/table/entities.NewEntityID
+- `azurerm_stream_analytics_job_schedule` (streamanalytics): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/streamanalytics/parse.NewStreamingJobScheduleID
+- `azurerm_stream_analytics_job_storage_account` (streamanalytics): no id := New*ID constructor in Create
+- `azurerm_stream_analytics_reference_input_mssql` (streamanalytics): no id := New*ID constructor in Create
+- `azurerm_subnet_nat_gateway_association` (network): no id := New*ID constructor in Create
+- `azurerm_subnet_network_security_group_association` (network): no id := New*ID constructor in Create
+- `azurerm_subnet_route_table_association` (network): no id := New*ID constructor in Create
+- `azurerm_subscription` (subscription): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/subscription/2021-10-01/subscriptions.NewAliasID
+- `azurerm_subscription_cost_management_export` (costmanagement): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/costmanagement/2023-08-01/exports.NewScopedExportID
+- `azurerm_subscription_cost_management_view` (costmanagement): no SDK fmtString for github.com/hashicorp/go-azure-sdk/resource-manager/costmanagement/2023-08-01/views.NewScopedViewID
+- `azurerm_subscription_policy_assignment` (policy): no id := New*ID constructor in Create
+- `azurerm_subscription_policy_exemption` (policy): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/policy/parse.NewSubscriptionPolicyExemptionID
+- `azurerm_subscription_template_deployment` (resource): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/resource/parse.NewSubscriptionTemplateDeploymentID
+- `azurerm_synapse_firewall_rule` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewFirewallRuleID
+- `azurerm_synapse_integration_runtime_azure` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewIntegrationRuntimeID
+- `azurerm_synapse_integration_runtime_self_hosted` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewIntegrationRuntimeID
+- `azurerm_synapse_linked_service` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewLinkedServiceID
+- `azurerm_synapse_managed_private_endpoint` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewManagedPrivateEndpointID
+- `azurerm_synapse_private_link_hub` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewPrivateLinkHubID
+- `azurerm_synapse_role_assignment` (synapse): no id := New*ID constructor in Create
+- `azurerm_synapse_spark_pool` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewSparkPoolID
+- `azurerm_synapse_sql_pool` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewSqlPoolID
+- `azurerm_synapse_sql_pool_extended_auditing_policy` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewSqlPoolExtendedAuditingPolicyID
+- `azurerm_synapse_sql_pool_security_alert_policy` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewSqlPoolSecurityAlertPolicyID
+- `azurerm_synapse_sql_pool_vulnerability_assessment` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewSqlPoolVulnerabilityAssessmentID
+- `azurerm_synapse_sql_pool_vulnerability_assessment_baseline` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewSqlPoolVulnerabilityAssessmentBaselineID
+- `azurerm_synapse_sql_pool_workload_classifier` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewSqlPoolWorkloadClassifierID
+- `azurerm_synapse_sql_pool_workload_group` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewSqlPoolWorkloadGroupID
+- `azurerm_synapse_workspace` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewWorkspaceID
+- `azurerm_synapse_workspace_aad_admin` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewWorkspaceAADAdminID
+- `azurerm_synapse_workspace_extended_auditing_policy` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewWorkspaceExtendedAuditingPolicyID
+- `azurerm_synapse_workspace_key` (synapse): no id := New*ID constructor in Create
+- `azurerm_synapse_workspace_security_alert_policy` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewWorkspaceSecurityAlertPolicyID
+- `azurerm_synapse_workspace_sql_aad_admin` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewWorkspaceSqlAADAdminID
+- `azurerm_synapse_workspace_vulnerability_assessment` (synapse): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/synapse/parse.NewWorkspaceVulnerabilityAssessmentID
+- `azurerm_system_center_virtual_machine_manager_virtual_machine_instance` (systemcentervirtualmachinemanager): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/systemcentervirtualmachinemanager/parse.NewSystemCenterVirtualMachineManagerVirtualMachineInstanceID
+- `azurerm_system_center_virtual_machine_manager_virtual_machine_instance_guest_agent` (systemcentervirtualmachinemanager): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/systemcentervirtualmachinemanager/parse.NewSystemCenterVirtualMachineManagerVirtualMachineInstanceGuestAgentID
+- `azurerm_tenant_template_deployment` (resource): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/resource/parse.NewTenantTemplateDeploymentID
+- `azurerm_virtual_desktop_host_pool_registration_info` (desktopvirtualization): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/desktopvirtualization/parse.NewHostPoolRegistrationInfoID
+- `azurerm_virtual_desktop_scaling_plan_host_pool_association` (desktopvirtualization): no id := New*ID constructor in Create
+- `azurerm_virtual_desktop_workspace_application_group_association` (desktopvirtualization): no id := New*ID constructor in Create
+- `azurerm_virtual_hub_connection` (network): no id := New*ID constructor in Create
+- `azurerm_virtual_hub_route_table_route` (network): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/network/parse.NewHubRouteTableRouteID
+- `azurerm_virtual_machine_data_disk_attachment` (compute): no id := New*ID constructor in Create
+- `azurerm_virtual_machine_extension` (compute): no id := New*ID constructor in Create
+- `azurerm_virtual_machine_gallery_application_assignment` (compute): no id := New*ID constructor in Create
+- `azurerm_virtual_machine_implicit_data_disk_from_source` (compute): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/compute/parse.NewDataDiskID
+- `azurerm_virtual_network_dns_servers` (network): no SDK fmtString for github.com/hashicorp/terraform-provider-azurerm/internal/services/network/parse.NewVirtualNetworkDnsServersID
+- `azurerm_vpn_gateway_connection` (network): no id := New*ID constructor in Create
+- `azurerm_web_app_active_slot` (appservice): no id := New*ID constructor in Create
+- `azurerm_web_pubsub_network_acl` (signalr): no id := New*ID constructor in Create
+- `azurerm_web_pubsub_shared_private_link_resource` (signalr): no id := New*ID constructor in Create
+- `azurerm_windows_function_app` (appservice): no id := New*ID constructor in Create
+- `azurerm_windows_web_app` (appservice): no id := New*ID constructor in Create

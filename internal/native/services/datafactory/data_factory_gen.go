@@ -17,8 +17,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiDatafactoryFactorySchema returns the Terraform resource schema for Microsoft.DataFactory/factories@2018-06-01.
-func AzapiDatafactoryFactorySchema() schema.Schema {
+// AzapiDataFactorySchema returns the Terraform resource schema for Microsoft.DataFactory/factories@2018-06-01.
+func AzapiDataFactorySchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.DataFactory/factories resource. [azapin:Microsoft.DataFactory/factories@2018-06-01]",
 		Attributes: map[string]schema.Attribute{
@@ -386,12 +386,12 @@ func AzapiDatafactoryFactorySchema() schema.Schema {
 	}
 }
 
-// DatafactoryFactory describes azapi_datafactory_factory for registration and config builders.
-var DatafactoryFactory = services.Descriptor{
-	Name:           "azapi_datafactory_factory",
+// DataFactory describes azapi_data_factory for registration and config builders.
+var DataFactory = services.Descriptor{
+	Name:           "azapi_data_factory",
 	ARMType:        "Microsoft.DataFactory/factories",
 	APIVersion:     "2018-06-01",
-	Schema:         AzapiDatafactoryFactorySchema,
+	Schema:         AzapiDataFactorySchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",
 	Relational: []services.RelationalConstraint{
@@ -399,4 +399,4 @@ var DatafactoryFactory = services.Descriptor{
 	},
 }
 
-func init() { services.Register(DatafactoryFactory) }
+func init() { services.Register(DataFactory) }

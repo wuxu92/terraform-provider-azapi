@@ -19,8 +19,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// AzapiDocumentdbDatabaseAccountSchema returns the Terraform resource schema for Microsoft.DocumentDB/databaseAccounts@2026-03-15.
-func AzapiDocumentdbDatabaseAccountSchema() schema.Schema {
+// AzapiCosmosdbAccountSchema returns the Terraform resource schema for Microsoft.DocumentDB/databaseAccounts@2026-03-15.
+func AzapiCosmosdbAccountSchema() schema.Schema {
 	return schema.Schema{
 		Description: "Manages a Microsoft.DocumentDB/databaseAccounts resource. [azapin:Microsoft.DocumentDB/databaseAccounts@2026-03-15]",
 		Attributes: map[string]schema.Attribute{
@@ -391,9 +391,14 @@ func AzapiDocumentdbDatabaseAccountSchema() schema.Schema {
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
-					"database_account_offer_type": schema.DynamicAttribute{
+					"database_account_offer_type": schema.StringAttribute{
 						Description: "The offer type for the Cosmos DB database account.",
 						Required:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf(
+								"Standard",
+							),
+						},
 					},
 					"default_identity": schema.StringAttribute{
 						Description: "The default identity for accessing key vault used in features like customer managed keys. The default identity needs to be explicitly set by the users. It can be \\\"FirstPartyIdentity\\\", \\\"SystemAssign...",
@@ -548,6 +553,7 @@ func AzapiDocumentdbDatabaseAccountSchema() schema.Schema {
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
+										nativeschema.UseStateForEquivalentLocation(),
 										stringplanmodifier.UseStateForUnknown(),
 									},
 								},
@@ -713,6 +719,7 @@ func AzapiDocumentdbDatabaseAccountSchema() schema.Schema {
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
+										nativeschema.UseStateForEquivalentLocation(),
 										stringplanmodifier.UseStateForUnknown(),
 									},
 								},
@@ -1003,6 +1010,7 @@ func AzapiDocumentdbDatabaseAccountSchema() schema.Schema {
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
+										nativeschema.UseStateForEquivalentLocation(),
 										stringplanmodifier.UseStateForUnknown(),
 									},
 								},
@@ -1215,6 +1223,7 @@ func AzapiDocumentdbDatabaseAccountSchema() schema.Schema {
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
+										nativeschema.UseStateForEquivalentLocation(),
 										stringplanmodifier.UseStateForUnknown(),
 									},
 								},
@@ -1322,12 +1331,12 @@ func AzapiDocumentdbDatabaseAccountSchema() schema.Schema {
 	}
 }
 
-// DocumentdbDatabaseAccount describes azapi_documentdb_database_account for registration and config builders.
-var DocumentdbDatabaseAccount = services.Descriptor{
-	Name:           "azapi_documentdb_database_account",
+// CosmosdbAccount describes azapi_cosmosdb_account for registration and config builders.
+var CosmosdbAccount = services.Descriptor{
+	Name:           "azapi_cosmosdb_account",
 	ARMType:        "Microsoft.DocumentDB/databaseAccounts",
 	APIVersion:     "2026-03-15",
-	Schema:         AzapiDocumentdbDatabaseAccountSchema,
+	Schema:         AzapiCosmosdbAccountSchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",
 	Relational: []services.RelationalConstraint{
@@ -1335,4 +1344,4 @@ var DocumentdbDatabaseAccount = services.Descriptor{
 	},
 }
 
-func init() { services.Register(DocumentdbDatabaseAccount) }
+func init() { services.Register(CosmosdbAccount) }

@@ -9,28 +9,48 @@ import (
 	"unicode"
 )
 
-// resourceNameOverrides pins the Terraform resource name for ARM types whose
-// mechanical service+segment derivation is redundant or would collide. Keyed by
-// the bare ARM type (no @version). This is the naming override table the design
-// calls for (DEVELOPER_SPEC / GENERATOR.md): ResourceName consults it first, so a
-// single entry propagates to the descriptor name, the generated file name, and the
-// emitted Go identifiers. Keep it tiny and deliberate — the default is the
-// mechanical, predictable conversion.
-var resourceNameOverrides = map[string]string{
-	// The service token "managedidentity" already carries "identity", so the
-	// mechanical join stutters ("managedidentity_user_assigned_identity"). AzureRM
-	// and users know this resource simply as the user-assigned identity.
-	"Microsoft.ManagedIdentity/userAssignedIdentities": "azapi_user_assigned_identity",
-	// The service token "keyvault" plus the singularized segment "vault" stutters
-	// ("keyvault_vault"). AzureRM and users know this resource as the key vault.
-	"Microsoft.KeyVault/vaults": "azapi_key_vault",
-	// Keep child-resource names aligned with the user-facing Key Vault resource name
-	// instead of leaking the raw ARM segment "vaults" into Terraform names.
-	"Microsoft.KeyVault/vaults/keys": "azapi_key_vault_key",
-	// Authorization's native resource names match the AzureRM/user-facing nouns and
-	// avoid the redundant "authorization_" service prefix.
-	"Microsoft.Authorization/roleDefinitions": "azapi_role_definition",
-	"Microsoft.Authorization/roleAssignments": "azapi_role_assignment",
+// azurermReferenceOverrides supplements the generated azurermResourceForARMType
+// table (azurerm_reference_gen.go) for ARM types the extractor cannot resolve
+// mechanically but whose AzureRM noun is well-established. The extractor skips a
+// resource when its Create builds the ID through a scope-based or internal parser
+// instead of a go-azure-sdk New<Thing>ID constructor (see
+// azurerm_reference_report.md): role assignments and definitions are scope
+// extension resources built via authorization/parse, so they are pinned by hand.
+// Values are the AzureRM noun (azurerm_ prefix); the azapi_ prefix is substituted
+// at lookup. Overrides win over the generated table.
+var azurermReferenceOverrides = map[string]string{
+	"Microsoft.Authorization/roleAssignments": "azurerm_role_assignment",
+	"Microsoft.Authorization/roleDefinitions": "azurerm_role_definition",
+}
+
+// azurermReferenceLower indexes the generated table and the overrides by a
+// lowercased ARM type. ARM types are case-insensitive: the generated keys carry
+// the go-azure-sdk casing (e.g. "Microsoft.Web/serverFarms") while callers pass
+// the bicep casing ("Microsoft.Web/serverfarms"), so the lookup must be folded.
+var azurermReferenceLower = buildAzurermReferenceLower()
+
+func buildAzurermReferenceLower() map[string]string {
+	m := make(map[string]string, len(azurermResourceForARMType)+len(azurermReferenceOverrides))
+	for armType, name := range azurermResourceForARMType {
+		m[strings.ToLower(armType)] = name
+	}
+	for armType, name := range azurermReferenceOverrides {
+		m[strings.ToLower(armType)] = name
+	}
+	return m
+}
+
+// azurermReferenceName returns the azapi_ resource name AzureRM authoritatively
+// uses for armType, swapping the azurerm_ prefix for azapi_. AzureRM's curated
+// nouns are the naming authority; ResourceName consults this before the mechanical
+// derivation so "Microsoft.DocumentDB/databaseAccounts" becomes
+// azapi_cosmosdb_account (the name users know) rather than the mechanical
+// azapi_documentdb_database_account.
+func azurermReferenceName(armType string) (string, bool) {
+	if name, ok := azurermReferenceLower[strings.ToLower(armType)]; ok {
+		return "azapi_" + strings.TrimPrefix(name, "azurerm_"), true
+	}
+	return "", false
 }
 
 // typeReferenceNameOverrides pins parent-reference attribute nouns for ARM types
@@ -42,8 +62,8 @@ var typeReferenceNameOverrides = map[string]string{
 // ResourceName converts an ARM resource type (e.g., "Microsoft.Storage/storageAccounts")
 // to a Terraform resource name (e.g., "azapi_storage_account").
 func ResourceName(armType string) string {
-	if override, ok := resourceNameOverrides[armType]; ok {
-		return override
+	if name, ok := azurermReferenceName(armType); ok {
+		return name
 	}
 	parts := strings.Split(armType, "/")
 	if len(parts) < 2 {
@@ -52,7 +72,8 @@ func ResourceName(armType string) string {
 
 	// Extract service from namespace: Microsoft.Storage → storage
 	namespace := parts[0]
-	service := extractService(namespace)
+	serviceSeg := serviceSegmentRaw(namespace) // original case, e.g. "DataFactory"
+	service := strings.ToLower(serviceSeg)     // compact whole token, e.g. "datafactory"
 
 	// Convert each resource segment
 	segments := make([]string, 0, len(parts)-1)
@@ -69,8 +90,8 @@ func ResourceName(armType string) string {
 		segments = append(segments, snake)
 	}
 
-	// Flatten the service word and every segment word into one token list, then
-	// drop any token a later token repeats (singular/plural-insensitive), keeping
+	// Flatten the compact service token and every segment word into one token list,
+	// then drop any token a later token repeats (singular/plural-insensitive), keeping
 	// the last occurrence. This removes the stutter a mechanical service-prefix +
 	// segment join produces — "storage"+"storage_account" -> "storage_account",
 	// "resources"+"resource_group" -> "resource_group", "network"+"virtual_network"
@@ -79,7 +100,25 @@ func ResourceName(armType string) string {
 	for _, seg := range segments {
 		tokens = append(tokens, strings.Split(seg, "_")...)
 	}
-	return "azapi_" + strings.Join(dedupRepeatedWords(tokens), "_")
+	tokens = dedupRepeatedWords(tokens)
+
+	// dedupRepeatedWords compares whole tokens, so it cannot see a word buried inside
+	// the lowercased compound service token: "datafactory"+"factory" stutters into
+	// "datafactory_factory" because "datafactory" != "factory". Trim exactly that
+	// adjacent boundary repeat — when the service's trailing camelCase word equals the
+	// first segment's head word, replace the compact service token with its prefix
+	// words (dropping only the duplicated tail): "DataFactory/factories" -> data_factory,
+	// "KeyVault/vaults/secrets" -> key_vault_secret. Non-adjacent or non-matching
+	// compounds are untouched, so "eventhub_namespace" and "containerservice_managed_cluster"
+	// keep their compact service token.
+	serviceWords := strings.Split(CamelToSnake(serviceSeg), "_")
+	if len(serviceWords) >= 2 && len(segments) > 0 && len(tokens) > 0 && tokens[0] == service {
+		firstSegHead := strings.Split(segments[0], "_")[0]
+		if singularize(serviceWords[len(serviceWords)-1]) == singularize(firstSegHead) {
+			tokens = append(append([]string{}, serviceWords[:len(serviceWords)-1]...), tokens[1:]...)
+		}
+	}
+	return "azapi_" + strings.Join(tokens, "_")
 }
 
 // dedupRepeatedWords returns tokens with repeated word-classes collapsed to their
@@ -183,6 +222,21 @@ func extractService(namespace string) string {
 		service = parts[0]
 	}
 	return service
+}
+
+// serviceSegmentRaw returns the service segment of an ARM namespace in its
+// original case (the case-preserving counterpart of extractService), so the
+// segment's camelCase word boundaries survive for stutter detection:
+// "Microsoft.DataFactory" → "DataFactory", "Dynatrace.Observability" → "Dynatrace".
+func serviceSegmentRaw(namespace string) string {
+	parts := strings.Split(namespace, ".")
+	if len(parts) < 2 {
+		return namespace
+	}
+	if strings.ToLower(parts[0]) != "microsoft" {
+		return parts[0] // third-party: vendor is the first segment
+	}
+	return parts[len(parts)-1]
 }
 
 // Common irregular plurals and words that should not be singularized

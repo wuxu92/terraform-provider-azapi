@@ -307,7 +307,7 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 			needs.listValidator = true
 			needs.stringValidator = true
 		}
-		if prop.Type.IsEnum() && !computed {
+		if (prop.Type.IsEnum() || prop.Type.Kind == typegraph.KindStringLiteral) && !computed {
 			needs.stringValidator = true
 		}
 		if prop.Type.Kind == typegraph.KindArray && (prop.Type.ElementType == nil || prop.Type.ElementType.Kind != typegraph.KindObject) {
@@ -500,6 +500,25 @@ func emitAttribute(b *strings.Builder, tfName string, prop *typegraph.Property, 
 		emitPlanModifiers(b, prop, computed, tabs)
 		b.WriteString(fmt.Sprintf("%s},\n", tabs))
 
+	case typ.Kind == typegraph.KindStringLiteral:
+		// A fixed string constant (bicep StringLiteralType) is a string whose only
+		// valid value is the literal. Emit a StringAttribute with a OneOf validator,
+		// consistent with how the mapper treats it (a plain string, never a Dynamic).
+		// Falling through to the default DynamicAttribute would make expand drop it:
+		// expandValue routes KindStringLiteral to types.String, which a Dynamic state
+		// value fails, silently omitting a required constant from the ARM payload.
+		b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, tfName))
+		writeAttributeFlags(b, prop, computed, tabs)
+		if !computed && typ.Name != "" {
+			b.WriteString(fmt.Sprintf("%s\tValidators: []validator.String{\n", tabs))
+			b.WriteString(fmt.Sprintf("%s\t\tstringvalidator.OneOf(\n", tabs))
+			b.WriteString(fmt.Sprintf("%s\t\t\t%q,\n", tabs, typ.Name))
+			b.WriteString(fmt.Sprintf("%s\t\t),\n", tabs))
+			b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+		}
+		emitPlanModifiers(b, prop, computed, tabs)
+		b.WriteString(fmt.Sprintf("%s},\n", tabs))
+
 	case typ.Kind == typegraph.KindBool:
 		b.WriteString(fmt.Sprintf("%s%q: schema.BoolAttribute{\n", tabs, tfName))
 		writeAttributeFlags(b, prop, computed, tabs)
@@ -669,7 +688,16 @@ func emitPlanModifiers(b *strings.Builder, prop *typegraph.Property, computed bo
 }
 
 func usesLocationPlanModifier(prop *typegraph.Property, computed bool) bool {
-	return !computed && prop.Name == "location" && prop.Type != nil && prop.Type.Kind == typegraph.KindString
+	return !computed && prop.Type != nil && prop.Type.Kind == typegraph.KindString && isLocationFieldName(prop.Name)
+}
+
+// isLocationFieldName reports whether an ARM property carries an Azure region name
+// (case/space-insensitive, e.g. "eastus2" vs "East US 2"). Both the top-level
+// "location" and the nested "locationName" (Cosmos geo-replication, and similar
+// geo structs) are regions Azure echoes in a normalized display form, so both need
+// equivalent-location semantics to avoid perpetual post-apply drift.
+func isLocationFieldName(name string) bool {
+	return name == "location" || name == "locationName"
 }
 
 // planModifierFor returns the type-specific plan-modifier package and framework type.
