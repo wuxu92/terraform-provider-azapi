@@ -2,6 +2,8 @@
 package datafactory
 
 import (
+	"time"
+
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
@@ -12,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -23,8 +26,15 @@ func AzapiDataFactorySchema() schema.Schema {
 		Description: "Manages a Microsoft.DataFactory/factories resource. [azapin:Microsoft.DataFactory/factories@2018-06-01]",
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
-				Required:            true,
-				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(3, 63),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$`),
+						"Data Factory name must be 3-63 characters of alphanumerics and single hyphens, starting and ending with an alphanumeric character",
+					),
+				},
 				MarkdownDescription: "Specifies the name of the Azure resource.",
 			},
 			"resource_group_id": schema.StringAttribute{
@@ -89,6 +99,12 @@ func AzapiDataFactorySchema() schema.Schema {
 									"user_assigned_identity": schema.StringAttribute{
 										Description: "The resource id of the user assigned identity to authenticate to customer's key vault.",
 										Required:    true,
+										Validators: []validator.String{
+											stringvalidator.RegexMatches(
+												regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/[^/]+$`),
+												"must be a Microsoft.ManagedIdentity user-assigned identity resource ID",
+											),
+										},
 									},
 								},
 							},
@@ -151,14 +167,12 @@ func AzapiDataFactorySchema() schema.Schema {
 						Description: "Whether or not public network access is allowed for the data factory.",
 						Optional:    true,
 						Computed:    true,
+						Default:     stringdefault.StaticString("Enabled"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
 								"Enabled",
 								"Disabled",
 							),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"purview_configuration": schema.SingleNestedAttribute{
@@ -172,6 +186,12 @@ func AzapiDataFactorySchema() schema.Schema {
 							"purview_resource_id": schema.StringAttribute{
 								Description: "Purview resource id.",
 								Required:    true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.Purview/accounts/[^/]+$`),
+										"must be a Microsoft.Purview account resource ID",
+									),
+								},
 							},
 						},
 					},
@@ -240,6 +260,7 @@ func AzapiDataFactorySchema() schema.Schema {
 												Description: "Bring your own app client secret AKV URL.",
 												Optional:    true,
 												Computed:    true,
+												Sensitive:   true,
 												PlanModifiers: []planmodifier.String{
 													stringplanmodifier.UseStateForUnknown(),
 												},
@@ -248,6 +269,7 @@ func AzapiDataFactorySchema() schema.Schema {
 												Description: "Bring your own app client secret name in AKV.",
 												Optional:    true,
 												Computed:    true,
+												Sensitive:   true,
 												PlanModifiers: []planmodifier.String{
 													stringplanmodifier.UseStateForUnknown(),
 												},
@@ -395,7 +417,14 @@ var DataFactory = services.Descriptor{
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",
 	Relational: []services.RelationalConstraint{
+		{Kind: services.RequiredWith, Paths: [][]string{{"properties", "encryption", "key_name"}, {"properties", "encryption", "identity", "user_assigned_identity"}}, Message: "customer-managed-key encryption requires a user-assigned identity (properties.encryption.identity.userAssignedIdentity)"},
 		{Kind: services.AtMostOneOf, Paths: [][]string{{"properties", "repo_configuration", "factory_git_hub_configuration"}, {"properties", "repo_configuration", "factory_vsts_configuration"}}, Message: "at most one variant of the discriminated block may be set"},
+	},
+	Timeouts: services.Timeouts{
+		Create: 30 * time.Minute,
+		Read:   5 * time.Minute,
+		Update: 30 * time.Minute,
+		Delete: 30 * time.Minute,
 	},
 }
 

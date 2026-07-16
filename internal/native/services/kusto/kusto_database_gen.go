@@ -2,6 +2,8 @@
 package kusto
 
 import (
+	"time"
+
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
@@ -23,8 +25,15 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 		Description: "Manages a Microsoft.Kusto/clusters/databases resource. [azapin:Microsoft.Kusto/clusters/databases@2025-02-14]",
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
-				Required:            true,
-				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 260),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[a-zA-Z0-9\s._-]+$`),
+						"Kusto database name must be at most 260 characters of alphanumerics, whitespace, dots, dashes, and underscores",
+					),
+				},
 				MarkdownDescription: "Specifies the name of the Azure resource.",
 			},
 			"cluster_id": schema.StringAttribute{
@@ -45,6 +54,7 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 				PlanModifiers: []planmodifier.String{
 					nativeschema.UseStateForEquivalentLocation(),
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"system_data": schema.SingleNestedAttribute{
@@ -146,6 +156,12 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 							"hot_cache_period": schema.StringAttribute{
 								Description: "The time the data should be kept in cache for fast queries in TimeSpan.",
 								Required:    true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^P(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(\d+H)?(\d+M)?(\d+S)?)?$`),
+										"must be an ISO8601 duration (e.g. P30D)",
+									),
+								},
 							},
 							"leader_cluster_resource_id": schema.StringAttribute{
 								Description: "The name of the leader cluster",
@@ -306,6 +322,12 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 								Description: "The time the data should be kept in cache for fast queries in TimeSpan.",
 								Optional:    true,
 								Computed:    true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^P(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(\d+H)?(\d+M)?(\d+S)?)?$`),
+										"must be an ISO8601 duration (e.g. P30D)",
+									),
+								},
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
 								},
@@ -378,6 +400,12 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 								Description: "The time the data should be kept before it stops being accessible to queries in TimeSpan.",
 								Optional:    true,
 								Computed:    true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^P(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(\d+H)?(\d+M)?(\d+S)?)?$`),
+										"must be an ISO8601 duration (e.g. P31D)",
+									),
+								},
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
 								},
@@ -431,6 +459,12 @@ var KustoDatabase = services.Descriptor{
 	ParentAttr:     "cluster_id",
 	Relational: []services.RelationalConstraint{
 		{Kind: services.ExactlyOneOf, Paths: [][]string{{"read_only_following"}, {"read_write"}}, Message: "exactly one variant of the discriminated block must be set"},
+	},
+	Timeouts: services.Timeouts{
+		Create: 60 * time.Minute,
+		Read:   5 * time.Minute,
+		Update: 60 * time.Minute,
+		Delete: 60 * time.Minute,
 	},
 }
 

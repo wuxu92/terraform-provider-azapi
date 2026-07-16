@@ -18,4 +18,9 @@ func init() {
 	Register(armtype.RoleAssignment, customizeRoleAssignment)
 	Register(armtype.RoleDefinition, customizeRoleDefinition)
 	Register(armtype.VirtualNetwork, customizeVirtualNetwork)
+	Register(armtype.DataFactory, customizeDataFactory)
+	Register(armtype.DocumentDBDatabaseAccount, customizeDocumentDBDatabaseAccount)
+	Register(armtype.KustoCluster, customizeKustoCluster)
+	Register(armtype.KustoClusterDatabase, customizeKustoClusterDatabase)
+	Register(armtype.DeploymentScript, customizeDeploymentScript)
 }

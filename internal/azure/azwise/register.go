@@ -15,4 +15,9 @@ func RegisterAll() {
 	Register(NewRoleAssignment())
 	Register(NewRoleDefinition())
 	Register(NewVirtualNetwork())
+	Register(NewDataFactory())
+	Register(NewDocumentDBDatabaseAccount())
+	Register(NewKustoCluster())
+	Register(NewKustoClusterDatabase())
+	Register(NewDeploymentScript())
 }

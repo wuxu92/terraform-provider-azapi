@@ -2,18 +2,24 @@
 package documentdb
 
 import (
+	"time"
+
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -25,8 +31,15 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 		Description: "Manages a Microsoft.DocumentDB/databaseAccounts resource. [azapin:Microsoft.DocumentDB/databaseAccounts@2026-03-15]",
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
-				Required:            true,
-				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(3, 50),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[-a-z0-9]{3,50}$`),
+						"Cosmos DB account name must be 3-50 characters of lowercase letters, numbers, and hyphens",
+					),
+				},
 				MarkdownDescription: "Specifies the name of the Azure resource.",
 			},
 			"resource_group_id": schema.StringAttribute{
@@ -54,6 +67,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 				Description: "Indicates the type of database account. This can only be set at database account creation.",
 				Optional:    true,
 				Computed:    true,
+				Default:     stringdefault.StaticString("GlobalDocumentDB"),
 				Validators: []validator.String{
 					stringvalidator.OneOf(
 						"GlobalDocumentDB",
@@ -62,7 +76,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 					),
 				},
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"properties": schema.SingleNestedAttribute{
@@ -266,6 +280,9 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 							"total_throughput_limit": schema.Int64Attribute{
 								Description: "The total throughput limit imposed on the account. A totalThroughputLimit of 2000 imposes a strict limit of max throughput that can be provisioned on that account to be 2000. A totalThroughputLimit of...",
 								Required:    true,
+								Validators: []validator.Int64{
+									int64validator.AtLeast(-1),
+								},
 							},
 						},
 					},
@@ -307,16 +324,18 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 								Description: "When used with the Bounded Staleness consistency level, this value represents the time amount of staleness (in seconds) tolerated. Accepted range for this value is 5 - 86400. Required when defaultCons...",
 								Optional:    true,
 								Computed:    true,
-								PlanModifiers: []planmodifier.Int64{
-									int64planmodifier.UseStateForUnknown(),
+								Default:     int64default.StaticInt64(5),
+								Validators: []validator.Int64{
+									int64validator.Between(5, 86400),
 								},
 							},
 							"max_staleness_prefix": schema.Int64Attribute{
 								Description: "When used with the Bounded Staleness consistency level, this value represents the number of stale requests tolerated. Accepted range for this value is 1 – 2,147,483,647. Required when defaultConsist...",
 								Optional:    true,
 								Computed:    true,
-								PlanModifiers: []planmodifier.Int64{
-									int64planmodifier.UseStateForUnknown(),
+								Default:     int64default.StaticInt64(100),
+								Validators: []validator.Int64{
+									int64validator.Between(10, 2147483647),
 								},
 							},
 						},
@@ -381,6 +400,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						},
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
+							stringplanmodifier.RequiresReplace(),
 						},
 					},
 					"customer_managed_key_status": schema.StringAttribute{
@@ -404,9 +424,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						Description: "The default identity for accessing key vault used in features like customer managed keys. The default identity needs to be explicitly set by the users. It can be \\\"FirstPartyIdentity\\\", \\\"SystemAssign...",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
+						Default:     stringdefault.StaticString("FirstPartyIdentity"),
 					},
 					"default_priority_level": schema.StringAttribute{
 						Description: "Enum to indicate default Priority Level of request for Priority Based Execution.",
@@ -426,17 +444,13 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						Description: "Disable write operations on metadata resources (databases, containers, throughput) via account keys",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"disable_local_auth": schema.BoolAttribute{
 						Description: "Opt-out of local authentication and ensure only MSI and AAD can be used exclusively for authentication.",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"document_endpoint": schema.StringAttribute{
 						Description: "The connection endpoint for the Cosmos DB database account.",
@@ -449,25 +463,19 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						Description: "Flag to indicate whether to enable storage analytics.",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"enable_automatic_failover": schema.BoolAttribute{
 						Description: "Enables automatic failover of the write region in the rare event that the region is unavailable due to an outage. Automatic failover will result in a new write region for the account and is chosen bas...",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"enable_burst_capacity": schema.BoolAttribute{
 						Description: "Flag to indicate enabling/disabling of Burst Capacity Preview feature on the account",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"enable_cassandra_connector": schema.BoolAttribute{
 						Description: "Enables the cassandra connector on the Cosmos DB C* account",
@@ -481,25 +489,22 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						Description: "Flag to indicate whether Free Tier is enabled.",
 						Optional:    true,
 						Computed:    true,
+						Default:     booldefault.StaticBool(false),
 						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
+							boolplanmodifier.RequiresReplace(),
 						},
 					},
 					"enable_multiple_write_locations": schema.BoolAttribute{
 						Description: "Enables the account to write in multiple locations",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"enable_partition_merge": schema.BoolAttribute{
 						Description: "Flag to indicate enabling/disabling of Partition Merge feature on the account",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"enable_per_region_per_partition_autoscale": schema.BoolAttribute{
 						Description: "Flag to indicate enabling/disabling of Per-Region Per-partition autoscale Preview feature on the account",
@@ -587,9 +592,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						Description: "Flag to indicate whether to enable/disable Virtual Network ACL rules.",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"key_vault_key_uri": schema.StringAttribute{
 						Description: "The URI of the key vault",
@@ -597,6 +600,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						Computed:    true,
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.UseStateForUnknown(),
+							stringplanmodifier.RequiresReplace(),
 						},
 					},
 					"key_vault_key_uri_version": schema.StringAttribute{
@@ -737,6 +741,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						Description: "Indicates the minimum allowed Tls version. The default is Tls 1.0, except for Cassandra and Mongo API's, which only work with Tls 1.2.",
 						Optional:    true,
 						Computed:    true,
+						Default:     stringdefault.StaticString("Tls12"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
 								"Tls",
@@ -744,22 +749,17 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 								"Tls12",
 							),
 						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
 					},
 					"network_acl_bypass": schema.StringAttribute{
 						Description: "Indicates what services are allowed to bypass firewall checks.",
 						Optional:    true,
 						Computed:    true,
+						Default:     stringdefault.StaticString("None"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
 								"None",
 								"AzureServices",
 							),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"network_acl_bypass_resource_ids": schema.ListAttribute{
@@ -956,15 +956,13 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						Description: "Whether requests from Public Network are allowed",
 						Optional:    true,
 						Computed:    true,
+						Default:     stringdefault.StaticString("Enabled"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
 								"Enabled",
 								"Disabled",
 								"SecuredByPerimeter",
 							),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"read_locations": schema.ListNestedAttribute{
@@ -1030,6 +1028,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						Computed:    true,
 						PlanModifiers: []planmodifier.Object{
 							objectplanmodifier.UseStateForUnknown(),
+							objectplanmodifier.RequiresReplace(),
 						},
 						Attributes: map[string]schema.Attribute{
 							"databases_to_restore": schema.ListNestedAttribute{
@@ -1341,6 +1340,12 @@ var CosmosdbAccount = services.Descriptor{
 	ParentAttr:     "resource_group_id",
 	Relational: []services.RelationalConstraint{
 		{Kind: services.AtMostOneOf, Paths: [][]string{{"properties", "backup_policy", "continuous"}, {"properties", "backup_policy", "periodic"}}, Message: "at most one variant of the discriminated block may be set"},
+	},
+	Timeouts: services.Timeouts{
+		Create: 180 * time.Minute,
+		Read:   5 * time.Minute,
+		Update: 180 * time.Minute,
+		Delete: 300 * time.Minute,
 	},
 }
 

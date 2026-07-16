@@ -23,7 +23,7 @@ import (
 // paths that do not resolve in the type graph (e.g. ListKeys-only sensitive
 // fields that are not part of the body) are silently skipped.
 func ApplyAzwise(def *ResourceDefinition) {
-	if def == nil || def.Body == nil || def.Body.Kind != KindObject {
+	if def == nil || def.Body == nil || (def.Body.Kind != KindObject && def.Body.Kind != KindDiscriminated) {
 		return
 	}
 
@@ -51,7 +51,7 @@ func ApplyAzwise(def *ResourceDefinition) {
 
 	// Flag-level overlays available on the base interface.
 	for _, p := range k.GetComputedFields() {
-		if prop := Navigate(def.Body, p); prop != nil {
+		for _, prop := range navigateAll(def.Body, p) {
 			prop.ForceComputed = true
 		}
 	}
@@ -59,7 +59,7 @@ func ApplyAzwise(def *ResourceDefinition) {
 		if dv.Value == nil {
 			continue // Optional+Computed with no explicit default — leave to schema
 		}
-		if prop := Navigate(def.Body, dv.PropertyPath); prop != nil {
+		for _, prop := range navigateAll(def.Body, dv.PropertyPath) {
 			if s, ok := formatAzwiseDefault(dv.Value, prop.Type); ok {
 				prop.DefaultValue = s
 			}
@@ -72,12 +72,12 @@ func ApplyAzwise(def *ResourceDefinition) {
 		return
 	}
 	for _, p := range sk.GetForceNewPaths() {
-		if prop := Navigate(def.Body, p); prop != nil {
+		for _, prop := range navigateAll(def.Body, p) {
 			prop.ForceNew = true
 		}
 	}
 	for _, p := range sk.GetSensitiveFields() {
-		if prop := Navigate(def.Body, p); prop != nil {
+		for _, prop := range navigateAll(def.Body, p) {
 			prop.Sensitive = true
 		}
 	}
@@ -85,28 +85,30 @@ func ApplyAzwise(def *ResourceDefinition) {
 		if r.PropertyPath == "" || strings.Contains(r.PropertyPath, "[*]") {
 			continue // name rule or array-element rule — not a single attribute
 		}
-		prop := Navigate(def.Body, r.PropertyPath)
-		if prop == nil || prop.Type.Kind != KindString {
-			continue
+		for _, prop := range navigateAll(def.Body, r.PropertyPath) {
+			if prop.Type.Kind != KindString {
+				continue
+			}
+			applyStringRule(prop, r)
 		}
-		applyStringRule(prop, r)
 	}
 	for _, r := range sk.GetIntRules() {
 		if strings.Contains(r.PropertyPath, "[*]") {
 			continue
 		}
-		prop := Navigate(def.Body, r.PropertyPath)
-		if prop == nil || prop.Type.Kind != KindInt {
-			continue
-		}
-		if r.MinValue != nil || r.MaxValue != nil {
-			dropValidators(prop, ValidatorIntRange)
-			prop.Validators = append(prop.Validators, DescriptionValidator{
-				Kind:    ValidatorIntRange,
-				Min:     r.MinValue,
-				Max:     r.MaxValue,
-				Message: r.Message,
-			})
+		for _, prop := range navigateAll(def.Body, r.PropertyPath) {
+			if prop.Type.Kind != KindInt {
+				continue
+			}
+			if r.MinValue != nil || r.MaxValue != nil {
+				dropValidators(prop, ValidatorIntRange)
+				prop.Validators = append(prop.Validators, DescriptionValidator{
+					Kind:    ValidatorIntRange,
+					Min:     r.MinValue,
+					Max:     r.MaxValue,
+					Message: r.Message,
+				})
+			}
 		}
 	}
 
@@ -157,34 +159,69 @@ func ApplyAzwise(def *ResourceDefinition) {
 }
 
 // Navigate resolves an ARM dot path (e.g. "properties.networkAcls.defaultAction")
-// to the Property it names, walking ObjectType properties and descending through
-// single arrays of objects. Returns nil if any segment is missing.
+// to the Property it names, walking ObjectType properties, descending through
+// single arrays of objects, and treating a discriminated node transparently (see
+// navigateAll). Returns nil when the path resolves nowhere; when a path matches in
+// more than one variant it returns the first match. Callers needing every match
+// (the azwise overlay) use navigateAll.
 func Navigate(body *Type, path string) *Property {
-	cur := body
-	segments := strings.Split(path, ".")
-	for i, seg := range segments {
-		seg = strings.TrimSuffix(seg, "[*]")
-		if cur == nil || cur.Kind != KindObject {
-			return nil
-		}
-		prop, ok := cur.Properties[seg]
-		if !ok {
-			return nil
-		}
-		if i == len(segments)-1 {
-			return prop
-		}
-		// Descend: into the object, or into an array's element object.
-		switch prop.Type.Kind {
-		case KindObject:
-			cur = prop.Type
-		case KindArray:
-			cur = prop.Type.ElementType
-		default:
-			return nil
-		}
+	if all := navigateAll(body, path); len(all) > 0 {
+		return all[0]
 	}
 	return nil
+}
+
+// navigateAll resolves an ARM dot path to every Property it names. A
+// KindDiscriminated node (a polymorphic body/block) is resolved transparently:
+// the path is matched against the shared base properties AND each variant's
+// subtree, so a rule for a base or shared property lands on every variant block
+// that carries it — matching how the mapper flattens the selected variant back
+// into the tagged ARM object. A path present in only one variant resolves to just
+// that variant. The trailing "[*]" array-element marker is trimmed per segment.
+func navigateAll(body *Type, path string) []*Property {
+	return navigateSegments(body, strings.Split(path, "."))
+}
+
+// navigateSegments matches segments starting at cur, fanning out through a
+// discriminated node's base properties and every variant.
+func navigateSegments(cur *Type, segments []string) []*Property {
+	if cur == nil || len(segments) == 0 {
+		return nil
+	}
+	if cur.Kind == KindDiscriminated {
+		matches := navigateProps(cur, segments)
+		for _, v := range cur.Variants {
+			matches = append(matches, navigateSegments(v, segments)...)
+		}
+		return matches
+	}
+	if cur.Kind != KindObject {
+		return nil
+	}
+	return navigateProps(cur, segments)
+}
+
+// navigateProps matches segments against cur.Properties (cur is a KindObject, or
+// the base-property set of a KindDiscriminated node), descending objects, arrays
+// of objects, and nested discriminated nodes.
+func navigateProps(cur *Type, segments []string) []*Property {
+	seg := strings.TrimSuffix(segments[0], "[*]")
+	prop, ok := cur.Properties[seg]
+	if !ok {
+		return nil
+	}
+	if len(segments) == 1 {
+		return []*Property{prop}
+	}
+	rest := segments[1:]
+	switch prop.Type.Kind {
+	case KindObject, KindDiscriminated:
+		return navigateSegments(prop.Type, rest)
+	case KindArray:
+		return navigateSegments(prop.Type.ElementType, rest)
+	default:
+		return nil
+	}
 }
 
 // resolveObjectPathSegments resolves an ARM dot-path to snake_case schema segments,

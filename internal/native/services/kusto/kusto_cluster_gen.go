@@ -2,18 +2,23 @@
 package kusto
 
 import (
+	"time"
+
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -25,8 +30,15 @@ func AzapiKustoClusterSchema() schema.Schema {
 		Description: "Manages a Microsoft.Kusto/clusters resource. [azapin:Microsoft.Kusto/clusters@2025-02-14]",
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
-				Required:            true,
-				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(4, 22),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[a-z][a-z0-9-]+$`),
+						"Kusto cluster name must be 4-22 characters, start with a lowercase letter, and contain only lowercase letters, numbers, and hyphens",
+					),
+				},
 				MarkdownDescription: "Specifies the name of the Azure resource.",
 			},
 			"resource_group_id": schema.StringAttribute{
@@ -56,6 +68,9 @@ func AzapiKustoClusterSchema() schema.Schema {
 						Description: "The number of instances of the cluster.",
 						Optional:    true,
 						Computed:    true,
+						Validators: []validator.Int64{
+							int64validator.Between(1, 1000),
+						},
 						PlanModifiers: []planmodifier.Int64{
 							int64planmodifier.UseStateForUnknown(),
 						},
@@ -268,17 +283,13 @@ func AzapiKustoClusterSchema() schema.Schema {
 						Description: "A boolean value that indicates if the cluster could be automatically stopped (due to lack of data or no activity for many days).",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(true),
 					},
 					"enable_disk_encryption": schema.BoolAttribute{
 						Description: "A boolean value that indicates if the cluster's disks are encrypted.",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"enable_double_encryption": schema.BoolAttribute{
 						Description: "A boolean value that indicates if double encryption is enabled.",
@@ -286,23 +297,20 @@ func AzapiKustoClusterSchema() schema.Schema {
 						Computed:    true,
 						PlanModifiers: []planmodifier.Bool{
 							boolplanmodifier.UseStateForUnknown(),
+							boolplanmodifier.RequiresReplace(),
 						},
 					},
 					"enable_purge": schema.BoolAttribute{
 						Description: "A boolean value that indicates if the purge operations are enabled.",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"enable_streaming_ingest": schema.BoolAttribute{
 						Description: "A boolean value that indicates if the streaming ingest is enabled.",
 						Optional:    true,
 						Computed:    true,
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
+						Default:     booldefault.StaticBool(false),
 					},
 					"engine_type": schema.StringAttribute{
 						Description: "The engine type",
@@ -491,10 +499,16 @@ func AzapiKustoClusterSchema() schema.Schema {
 							"maximum": schema.Int64Attribute{
 								Description: "Maximum allowed instances count.",
 								Required:    true,
+								Validators: []validator.Int64{
+									int64validator.Between(0, 1000),
+								},
 							},
 							"minimum": schema.Int64Attribute{
 								Description: "Minimum allowed instances count.",
 								Required:    true,
+								Validators: []validator.Int64{
+									int64validator.Between(0, 1000),
+								},
 							},
 							"version": schema.Int64Attribute{
 								Description: "The version of the template defined, for instance 1.",
@@ -683,20 +697,19 @@ func AzapiKustoClusterSchema() schema.Schema {
 						Description: "Indicates what public IP type to create - IPv4 (default), or DualStack (both IPv4 and IPv6)",
 						Optional:    true,
 						Computed:    true,
+						Default:     stringdefault.StaticString("IPv4"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
 								"IPv4",
 								"DualStack",
 							),
 						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
 					},
 					"public_network_access": schema.StringAttribute{
 						Description: "Public network access to the cluster is enabled by default. When disabled, only private endpoint connection to the cluster is allowed",
 						Optional:    true,
 						Computed:    true,
+						Default:     stringdefault.StaticString("Enabled"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
 								"Enabled",
@@ -704,22 +717,17 @@ func AzapiKustoClusterSchema() schema.Schema {
 								"SecuredByPerimeter",
 							),
 						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
 					},
 					"restrict_outbound_network_access": schema.StringAttribute{
 						Description: "Whether or not to restrict outbound network access.  Value is optional but if passed in, must be 'Enabled' or 'Disabled'",
 						Optional:    true,
 						Computed:    true,
+						Default:     stringdefault.StaticString("Disabled"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
 								"Enabled",
 								"Disabled",
 							),
-						},
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
 					"state": schema.StringAttribute{
@@ -891,6 +899,7 @@ func AzapiKustoClusterSchema() schema.Schema {
 				Computed:    true,
 				PlanModifiers: []planmodifier.List{
 					listplanmodifier.UseStateForUnknown(),
+					listplanmodifier.RequiresReplace(),
 				},
 				ElementType: types.StringType,
 			},
@@ -921,6 +930,12 @@ var KustoCluster = services.Descriptor{
 	Schema:         AzapiKustoClusterSchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",
+	Timeouts: services.Timeouts{
+		Create: 60 * time.Minute,
+		Read:   5 * time.Minute,
+		Update: 60 * time.Minute,
+		Delete: 60 * time.Minute,
+	},
 }
 
 func init() { services.Register(KustoCluster) }

@@ -2,6 +2,8 @@
 package resources
 
 import (
+	"time"
+
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
@@ -12,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -23,8 +26,15 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 		Description: "Manages a Microsoft.Resources/deploymentScripts resource. [azapin:Microsoft.Resources/deploymentScripts@2023-08-01]",
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
-				Required:            true,
-				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 260),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[a-zA-Z0-9_().-]{0,259}[a-zA-Z0-9_()-]$`),
+						"deployment script name must be 1-260 characters of alphanumerics, underscore, parentheses, hyphen, and period, and cannot end with a period",
+					),
+				},
 				MarkdownDescription: "Specifies the name of the Azure resource.",
 			},
 			"resource_group_id": schema.StringAttribute{
@@ -44,6 +54,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 				Computed:    true,
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.UseStateForUnknown(),
+					objectplanmodifier.RequiresReplace(),
 				},
 				Attributes: map[string]schema.Attribute{
 					"tenant_id": schema.StringAttribute{
@@ -99,6 +110,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					nativeschema.UseStateForEquivalentLocation(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"system_data": schema.SingleNestedAttribute{
@@ -198,16 +210,27 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"az_cli_version": schema.StringAttribute{
 								Description: "Azure CLI module version to be used.",
 								Required:    true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^\d+\.\d+\.\d+$`),
+										"az_cli_version should be in the format X.Y.Z (e.g. 2.30.0)",
+									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"cleanup_preference": schema.StringAttribute{
 								Description: "The clean up preference when the script execution gets in a terminal state. Default setting is 'Always'.",
 								Optional:    true,
 								Computed:    true,
+								Default:     stringdefault.StaticString("Always"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"Always",
@@ -216,7 +239,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 									),
 								},
 								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"container_settings": schema.SingleNestedAttribute{
@@ -225,6 +248,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.Object{
 									objectplanmodifier.UseStateForUnknown(),
+									objectplanmodifier.RequiresReplace(),
 								},
 								Attributes: map[string]schema.Attribute{
 									"container_group_name": schema.StringAttribute{
@@ -267,6 +291,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.List{
 									listplanmodifier.UseStateForUnknown(),
+									listplanmodifier.RequiresReplace(),
 								},
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
@@ -299,6 +324,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"outputs": schema.MapAttribute{
@@ -315,6 +341,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"provisioning_state": schema.StringAttribute{
@@ -333,6 +360,9 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 										"must be in datetime format yyyy-MM-ddTHH:mm:ssZ",
 									),
 								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"script_content": schema.StringAttribute{
 								Description: "Script body.",
@@ -340,6 +370,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"status": schema.SingleNestedAttribute{
@@ -449,12 +480,14 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.Object{
 									objectplanmodifier.UseStateForUnknown(),
+									objectplanmodifier.RequiresReplace(),
 								},
 								Attributes: map[string]schema.Attribute{
 									"storage_account_key": schema.StringAttribute{
 										Description: "The storage account access key.",
 										Optional:    true,
 										Computed:    true,
+										Sensitive:   true,
 										PlanModifiers: []planmodifier.String{
 											stringplanmodifier.UseStateForUnknown(),
 										},
@@ -475,6 +508,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.List{
 									listplanmodifier.UseStateForUnknown(),
+									listplanmodifier.RequiresReplace(),
 								},
 								ElementType: types.StringType,
 							},
@@ -482,6 +516,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Description: "Maximum allowed script execution time specified in ISO 8601 format. Default value is P1D",
 								Optional:    true,
 								Computed:    true,
+								Default:     stringdefault.StaticString("P1D"),
 								Validators: []validator.String{
 									stringvalidator.RegexMatches(
 										regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$`),
@@ -489,7 +524,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 									),
 								},
 								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 						},
@@ -511,16 +546,27 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"az_power_shell_version": schema.StringAttribute{
 								Description: "Azure PowerShell module version to be used.",
 								Required:    true,
+								Validators: []validator.String{
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^\d+\.\d+$`),
+										"az_power_shell_version should be in the format X.Y (e.g. 9.7)",
+									),
+								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"cleanup_preference": schema.StringAttribute{
 								Description: "The clean up preference when the script execution gets in a terminal state. Default setting is 'Always'.",
 								Optional:    true,
 								Computed:    true,
+								Default:     stringdefault.StaticString("Always"),
 								Validators: []validator.String{
 									stringvalidator.OneOf(
 										"Always",
@@ -529,7 +575,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 									),
 								},
 								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"container_settings": schema.SingleNestedAttribute{
@@ -538,6 +584,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.Object{
 									objectplanmodifier.UseStateForUnknown(),
+									objectplanmodifier.RequiresReplace(),
 								},
 								Attributes: map[string]schema.Attribute{
 									"container_group_name": schema.StringAttribute{
@@ -580,6 +627,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.List{
 									listplanmodifier.UseStateForUnknown(),
+									listplanmodifier.RequiresReplace(),
 								},
 								NestedObject: schema.NestedAttributeObject{
 									Attributes: map[string]schema.Attribute{
@@ -612,6 +660,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"outputs": schema.MapAttribute{
@@ -628,6 +677,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"provisioning_state": schema.StringAttribute{
@@ -646,6 +696,9 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 										"must be in datetime format yyyy-MM-ddTHH:mm:ssZ",
 									),
 								},
+								PlanModifiers: []planmodifier.String{
+									stringplanmodifier.RequiresReplace(),
+								},
 							},
 							"script_content": schema.StringAttribute{
 								Description: "Script body.",
@@ -653,6 +706,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.String{
 									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 							"status": schema.SingleNestedAttribute{
@@ -762,12 +816,14 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.Object{
 									objectplanmodifier.UseStateForUnknown(),
+									objectplanmodifier.RequiresReplace(),
 								},
 								Attributes: map[string]schema.Attribute{
 									"storage_account_key": schema.StringAttribute{
 										Description: "The storage account access key.",
 										Optional:    true,
 										Computed:    true,
+										Sensitive:   true,
 										PlanModifiers: []planmodifier.String{
 											stringplanmodifier.UseStateForUnknown(),
 										},
@@ -788,6 +844,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Computed:    true,
 								PlanModifiers: []planmodifier.List{
 									listplanmodifier.UseStateForUnknown(),
+									listplanmodifier.RequiresReplace(),
 								},
 								ElementType: types.StringType,
 							},
@@ -795,6 +852,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 								Description: "Maximum allowed script execution time specified in ISO 8601 format. Default value is P1D",
 								Optional:    true,
 								Computed:    true,
+								Default:     stringdefault.StaticString("P1D"),
 								Validators: []validator.String{
 									stringvalidator.RegexMatches(
 										regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$`),
@@ -802,7 +860,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 									),
 								},
 								PlanModifiers: []planmodifier.String{
-									stringplanmodifier.UseStateForUnknown(),
+									stringplanmodifier.RequiresReplace(),
 								},
 							},
 						},
@@ -828,6 +886,12 @@ var ResourcesDeploymentScript = services.Descriptor{
 	ParentAttr:     "resource_group_id",
 	Relational: []services.RelationalConstraint{
 		{Kind: services.ExactlyOneOf, Paths: [][]string{{"azure_cli"}, {"azure_power_shell"}}, Message: "exactly one variant of the discriminated block must be set"},
+	},
+	Timeouts: services.Timeouts{
+		Create: 30 * time.Minute,
+		Read:   5 * time.Minute,
+		Update: 30 * time.Minute,
+		Delete: 30 * time.Minute,
 	},
 }
 
