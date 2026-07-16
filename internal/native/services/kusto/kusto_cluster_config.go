@@ -36,7 +36,7 @@ func NewKustoClusterCfg(resourceGroup resources.ResourceGroupCfg, label ...strin
 const devSKU = `
   sku = {
     name     = "Standard_L8s_v3"
-    tier     = "Basic"
+    tier     = "Standard"
     capacity = 1
   }`
 
