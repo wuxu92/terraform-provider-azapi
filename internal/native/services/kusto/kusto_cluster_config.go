@@ -37,7 +37,7 @@ const devSKU = `
   sku = {
     name     = "Standard_L8s_v3"
     tier     = "Standard"
-    capacity = 1
+    capacity = 2
   }`
 
 // KustoClusterCfg_Basic is a minimal single-node dev-tier cluster: the cheapest valid
