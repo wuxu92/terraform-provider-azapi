@@ -96,9 +96,9 @@ func TestResourceName(t *testing.T) {
 		{"Microsoft.Resources/resourceGroups", "azapi_resource_group"},                           // provider-less ID, not extracted
 		{"Microsoft.KeyVault/vaults/keys", "azapi_key_vault_key"},                                // data-plane ID, not extracted
 		{"Microsoft.KeyVault/vaults/secrets", "azapi_key_vault_secret"},                          // data-plane ID, not extracted
-		{"Microsoft.Compute/virtualMachines", "azapi_compute_virtual_machine"},                   // ambiguous (linux/windows)
+		{"Microsoft.Compute/virtualMachines", "azapi_virtual_machine"},                           // ambiguous (linux/windows): pinned to os-agnostic noun
 		{"Microsoft.Compute/virtualMachines/extensions", "azapi_compute_virtual_machine_extension"},
-		{"Microsoft.Web/sites", "azapi_web_site"}, // ambiguous (web/function apps)
+		{"Microsoft.Web/sites", "azapi_web_site"}, // ambiguous (web/function/logic apps): pinned to the mechanical web_site noun the native resource carries
 	}
 
 	for _, tt := range tests {
@@ -270,5 +270,48 @@ func TestParentARMType(t *testing.T) {
 		if got := parentARMType(in); got != want {
 			t.Errorf("parentARMType(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// TestAmbiguousResourceNames verifies the curated pins for ARM types the
+// extractor leaves ambiguous (applied via init over the generated table) resolve
+// through ResourceName, and that no pin duplicates a name the generated table or
+// the overrides already own. The init also rebuilds azurermReferenceLower, so a
+// hit here confirms that ordering fix.
+func TestAmbiguousResourceNames(t *testing.T) {
+	want := map[string]string{
+		"Microsoft.Compute/virtualMachines":                         "azapi_virtual_machine",
+		"Microsoft.Compute/virtualMachineScaleSets":                 "azapi_virtual_machine_scale_set",
+		"Microsoft.Compute/restorePointCollections":                 "azapi_virtual_machine_restore_point_collection",
+		"Microsoft.DataFactory/factories/dataflows":                 "azapi_data_factory_data_flow",
+		"Microsoft.Insights/webTests":                               "azapi_application_insights_web_test",
+		"Microsoft.MachineLearningServices/workspaces":              "azapi_machine_learning_workspace",
+		"Microsoft.Network/frontDoorWebApplicationFirewallPolicies": "azapi_cdn_frontdoor_firewall_policy",
+		"Microsoft.Network/virtualHubs":                             "azapi_virtual_hub",
+		"Microsoft.Network/virtualHubs/bgpConnections":              "azapi_virtual_hub_bgp_connection",
+		"Microsoft.PolicyInsights/remediations":                     "azapi_policy_remediation",
+		"Microsoft.RecoveryServices/vaults/replicationFabrics":      "azapi_site_recovery_fabric",
+		"Microsoft.RecoveryServices/vaults/replicationPolicies":     "azapi_site_recovery_replication_policy",
+		"Microsoft.StorageMover/storageMovers/endpoints":            "azapi_storage_mover_endpoint",
+		"Microsoft.Web/sites":                                       "azapi_web_site",
+		"Microsoft.Web/sites/slots":                                 "azapi_web_site_slot",
+		// certificates is corrected via azurermReferenceOverrides from the bare
+		// app_service collapse to its primary variant.
+		"Microsoft.Web/certificates": "azapi_app_service_certificate",
+	}
+	for armType, exp := range want {
+		if got := ResourceName(armType); got != exp {
+			t.Errorf("ResourceName(%q) = %q, want %q", armType, got, exp)
+		}
+	}
+
+	// No two ARM types in the curated set may resolve to the same azapi noun.
+	seen := map[string]string{}
+	for armType := range ambiguousResourceNames {
+		n := ResourceName(armType)
+		if prev, ok := seen[n]; ok {
+			t.Errorf("duplicate pinned name %q: %q and %q", n, prev, armType)
+		}
+		seen[n] = armType
 	}
 }

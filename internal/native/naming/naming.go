@@ -18,21 +18,32 @@ import (
 //     go-azure-sdk New<Thing>ID constructor (see azurerm_reference_report.md):
 //     role assignments and definitions are scope extension resources built via
 //     authorization/parse, so they are pinned by hand.
-//   - Correcting an ambiguous group the extractor auto-collapses to a name that is
-//     too generic for a resource we already generate. Storage accounts and
+//   - Correcting an ambiguous group the extractor auto-collapses to a wrong or
+//     too-generic name, or one another resource needs. Storage accounts and
 //     deployment scripts share their ARM type with sibling AzureRM resources
 //     (storage_blob_inventory_policy; the azure_cli/power_shell script variants),
 //     so the discriminated-base heuristic collapses them to azurerm_storage /
-//     azurerm_resource_deployment_script_azure. These pins keep the native
-//     resource's established name stable across regeneration.
+//     azurerm_resource_deployment_script_azure. Microsoft.Web/certificates
+//     collapses to the bare azurerm_app_service (its azurerm resources are the
+//     app_service and app_service_managed certificates), too generic for the
+//     certificate resource, so it is corrected to azurerm_app_service_certificate,
+//     the primary variant.
+//     Microsoft.Network/networkWatchers/packetCaptures collapses to the shared
+//     prefix azurerm_virtual_machine (its azurerm resources are the vm and
+//     vm-scale-set packet captures) — semantically wrong for a packet-capture
+//     resource and a collision with the virtualMachines pin — so it is corrected
+//     to azurerm_virtual_machine_packet_capture, the primary variant. These pins
+//     keep each native resource's established name stable across regeneration.
 //
 // Values are the AzureRM noun (azurerm_ prefix); the azapi_ prefix is substituted
 // at lookup. Overrides win over the generated table.
 var azurermReferenceOverrides = map[string]string{
-	"Microsoft.Authorization/roleAssignments": "azurerm_role_assignment",
-	"Microsoft.Authorization/roleDefinitions": "azurerm_role_definition",
-	"Microsoft.Storage/storageAccounts":       "azurerm_storage_account",
-	"Microsoft.Resources/deploymentScripts":   "azurerm_resources_deployment_script",
+	"Microsoft.Authorization/roleAssignments":          "azurerm_role_assignment",
+	"Microsoft.Authorization/roleDefinitions":          "azurerm_role_definition",
+	"Microsoft.Storage/storageAccounts":                "azurerm_storage_account",
+	"Microsoft.Resources/deploymentScripts":            "azurerm_resources_deployment_script",
+	"Microsoft.Web/certificates":                       "azurerm_app_service_certificate",
+	"Microsoft.Network/networkWatchers/packetCaptures": "azurerm_virtual_machine_packet_capture",
 }
 
 // azurermReferenceLower indexes the generated table and the overrides by a
