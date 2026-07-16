@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AzAPI Native (azapin)",
+    "subtitle": "Static typed resources — offline generation to provider runtime",
+    "output": "azapi-native.architecture.html"
+  },
+  "components": [
+    { "id": "bicep", "type": "external", "label": "bicep types.json", "sublabel": "ARM $ref graph", "pos": [40, 96], "size": [140, 60] },
+    { "id": "azwise", "type": "external", "label": "azwise knowledge", "sublabel": "from AzureRM", "pos": [40, 216], "size": [140, 60], "tag": "ForceNew / defaults" },
+    { "id": "naming", "type": "external", "label": "naming table", "sublabel": "AzureRM-authoritative", "pos": [40, 336], "size": [140, 60] },
+
+    { "id": "typegraph", "type": "backend", "label": "Type-Graph Walker", "sublabel": "parse + post-process + overlay", "pos": [250, 216], "size": [150, 64] },
+    { "id": "customizers", "type": "backend", "label": "Gen Customizers", "sublabel": "mutate graph pre-emit", "pos": [450, 216], "size": [150, 64] },
+    { "id": "emitter", "type": "backend", "label": "Schema Emitter", "sublabel": "typed _gen.go source", "pos": [650, 216], "size": [150, 64] },
+    { "id": "verify", "type": "security", "label": "Self-Verify Gate", "sublabel": "invariants + parity", "pos": [850, 216], "size": [150, 64], "tag": "schema \u2194 bicep" },
+    { "id": "gen", "type": "messagebus", "label": "Generated _gen.go", "sublabel": "self-registers via init()", "pos": [1050, 216], "size": [150, 64] },
+
+    { "id": "registry", "type": "database", "label": "services.Registry", "sublabel": "Descriptor per resource", "pos": [1050, 470], "size": [150, 64] },
+    { "id": "base", "type": "backend", "label": "resource.Base", "sublabel": "generic CRUD lifecycle", "pos": [820, 470], "size": [150, 64], "tag": "ADR-0002" },
+    { "id": "hooks", "type": "backend", "label": "Runtime Hooks", "sublabel": "Before/After CRUD", "pos": [820, 600], "size": [150, 60] },
+    { "id": "mapper", "type": "backend", "label": "Generic Mapper", "sublabel": "Expand / Flatten", "pos": [590, 470], "size": [150, 64] },
+    { "id": "arm", "type": "cloud", "label": "Azure ARM API", "sublabel": "PUT / GET / DELETE", "pos": [360, 470], "size": [150, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Generation (offline)", "wraps": ["typegraph", "customizers", "emitter", "verify", "gen"] },
+    { "kind": "security-group", "label": "Provider Runtime", "wraps": ["registry", "base", "hooks", "mapper"] }
+  ],
+  "connections": [
+    { "from": "bicep", "to": "typegraph", "label": "$ref graph", "variant": "emphasis", "fromSide": "right", "toSide": "top", "labelDy": -8 },
+    { "from": "azwise", "to": "typegraph", "label": "overlay", "variant": "security", "fromSide": "right", "toSide": "left", "route": "orthogonal-h" },
+    { "from": "naming", "to": "typegraph", "label": "nouns", "fromSide": "right", "toSide": "bottom", "labelDy": 8 },
+    { "from": "typegraph", "to": "customizers", "variant": "emphasis" },
+    { "from": "customizers", "to": "emitter", "variant": "emphasis" },
+    { "from": "emitter", "to": "verify", "variant": "emphasis" },
+    { "from": "verify", "to": "gen", "variant": "emphasis" },
+    { "from": "gen", "to": "registry", "label": "compiled in", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v", "labelDy": 0 },
+    { "from": "registry", "to": "base", "label": "New(name)", "variant": "emphasis", "fromSide": "left", "toSide": "right" },
+    { "from": "base", "to": "hooks", "label": "lifecycle", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v" },
+    { "from": "base", "to": "mapper", "label": "Expand / Flatten", "variant": "emphasis", "fromSide": "left", "toSide": "right", "labelDy": -26 },
+    { "from": "mapper", "to": "arm", "label": "ARM JSON", "variant": "emphasis", "fromSide": "left", "toSide": "right" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Generation (offline)", "items": ["Latest-stable API version only", "azwise overlays curated AzureRM behavior", "Customizers freeze final schema pre-emit", "Gate: invariants + live acceptance test"] },
+    { "dot": "emerald", "title": "Runtime (generic)", "items": ["One Base for every resource — no per-resource struct", "ARM names resolved from embedded type graph", "Mapper walks the shared graph, no marshaling code", "Schema never rewritten at runtime (ADR-0007)"] },
+    { "dot": "rose", "title": "Seams", "items": ["Gen-time customizers mutate the type graph", "Runtime hooks customize behavior only", "Relational constraints \u2192 ConfigValidators", "Envelope: name / parent ref / id / timeouts"] }
+  ]
+}

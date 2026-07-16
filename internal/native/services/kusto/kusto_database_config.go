@@ -66,6 +66,7 @@ func (r KustoClusterDatabaseCfg) config(body string) string {
 	return r.RenderConfig(config.ConfigEnvelope{
 		Name:       "accazapidb" + "{{.RandomString}}",
 		ParentAttr: "cluster_id",
+		Location:   true,
 		ParentRef:  r.cluster.IDRef(),
 		Body:       body,
 	})
