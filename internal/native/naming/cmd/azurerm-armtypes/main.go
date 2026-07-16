@@ -12,20 +12,23 @@
 // AzureRM's resource nouns are the human-curated authority for how practitioners
 // already know each Azure resource, so the azapi native generator adopts them as
 // its naming reference (see internal/native/naming). This tool regenerates that
-// reference table.
+// reference table. The table is a naming HINT for the generator: an imperfect
+// entry can be patched in the naming package, so the heuristics below favour
+// resolving obvious families over being conservative.
 //
 // When several AzureRM resources share one ARM type, the group is auto-resolved
 // where the members have an obvious shared identity:
 //
 //   - main resource: one member is a whole-word prefix of every other
 //     (Microsoft.ApiManagement/service -> azurerm_api_management is the parent of
-//     azurerm_api_management_policy, _api, ...); the parent wins.
-//   - discriminated base: every member is a common word-prefix plus exactly one
-//     distinguishing word (.../identityProviders -> azurerm_api_management_
-//     identity_provider_{aad,aadb2c,facebook,google,microsoft,twitter}); the
-//     shared prefix azurerm_api_management_identity_provider is used.
+//     azurerm_api_management_policy, ...); the parent wins.
+//   - discriminated base: every member is a common word-prefix plus a distinct
+//     suffix (.../identityProviders -> azurerm_api_management_identity_provider_
+//     {aad,aadb2c,facebook,...}; .../credentials -> azurerm_data_factory_
+//     credential_{service_principal,user_managed_identity}); the shared prefix is
+//     used, unless it already names another resource.
 //
-// Groups that fit neither pattern (Microsoft.Web/sites -> linux/windows web_app
+// Groups fitting neither pattern (Microsoft.Web/sites -> linux/windows web_app
 // and function_app) stay ambiguous, and resources whose Create uses a
 // legacy/internal ID parser are unresolved; both are listed in the report and
 // fall back to the mechanical naming rule rather than being guessed. Run:
@@ -90,25 +93,83 @@ func main() {
 		members []string
 		kind    string
 	}
+
+	// First pass: unique ARM types own their name outright. Collect those names
+	// into taken so a later discriminated-base collapse cannot duplicate a name a
+	// real resource already holds (e.g. .../dataflows must not collapse to
+	// azurerm_data_factory, which already names Microsoft.DataFactory/factories).
 	var clean []entry
-	var autoResolved []resolvedGroup
-	var ambiguous []string
+	taken := map[string]bool{}
+	var ambiguousKeys []string
 	for key, names := range byARM {
 		if len(names) == 1 {
 			clean = append(clean, entry{origCasing[key], names[0]})
+			taken[names[0]] = true
 			continue
 		}
-		sort.Strings(names)
-		if base, kind, ok := resolveAmbiguous(names); ok {
-			autoResolved = append(autoResolved, resolvedGroup{origCasing[key], base, names, kind})
-			continue
-		}
-		ambiguous = append(ambiguous, fmt.Sprintf("%s -> %s", origCasing[key], strings.Join(names, ", ")))
+		ambiguousKeys = append(ambiguousKeys, key)
 	}
-	// Auto-resolved groups join the emitted table; they are also listed in the
-	// report so each collapse can be reviewed.
-	for _, g := range autoResolved {
-		clean = append(clean, entry{g.armType, g.name})
+
+	// Second pass: compute a candidate resolution for each ambiguous group, then
+	// accept them in confidence order — a main resource is a stronger signal than a
+	// discriminated base — rejecting any base a unique resource or an
+	// already-accepted group claims. Two distinct ARM types must never resolve to
+	// the same azapi noun, so a discriminated base contested by more than one group
+	// is dropped for all of them; the losers fall back to the mechanical rule (the
+	// four RecoveryServices replication* types that share only azurerm_site_recovery,
+	// and Microsoft.Insights/webTests, which would otherwise shadow the
+	// azurerm_application_insights that .../components legitimately owns as a main).
+	type candidate struct {
+		key, base, kind string
+		names           []string
+	}
+	var autoResolved []resolvedGroup
+	var ambiguous []string
+	var mains, discs []candidate
+	for _, key := range ambiguousKeys {
+		names := byARM[key]
+		sort.Strings(names)
+		base, kind, ok := resolveAmbiguous(names, taken)
+		if !ok {
+			ambiguous = append(ambiguous, fmt.Sprintf("%s -> %s", origCasing[key], strings.Join(names, ", ")))
+			continue
+		}
+		c := candidate{key, base, kind, names}
+		if kind == "main resource" {
+			mains = append(mains, c)
+		} else {
+			discs = append(discs, c)
+		}
+	}
+	sort.Slice(mains, func(i, j int) bool { return mains[i].key < mains[j].key })
+	sort.Slice(discs, func(i, j int) bool { return discs[i].key < discs[j].key })
+
+	// A discriminated base wanted by more than one group is inherently ambiguous.
+	discWant := map[string]int{}
+	for _, c := range discs {
+		discWant[c.base]++
+	}
+	accept := func(c candidate) {
+		taken[c.base] = true
+		autoResolved = append(autoResolved, resolvedGroup{origCasing[c.key], c.base, c.names, c.kind})
+		clean = append(clean, entry{origCasing[c.key], c.base})
+	}
+	reject := func(c candidate) {
+		ambiguous = append(ambiguous, fmt.Sprintf("%s -> %s", origCasing[c.key], strings.Join(c.names, ", ")))
+	}
+	for _, c := range mains {
+		if taken[c.base] {
+			reject(c)
+			continue
+		}
+		accept(c)
+	}
+	for _, c := range discs {
+		if taken[c.base] || discWant[c.base] > 1 {
+			reject(c)
+			continue
+		}
+		accept(c)
 	}
 	sort.Slice(clean, func(i, j int) bool { return clean[i].armType < clean[j].armType })
 	sort.Slice(autoResolved, func(i, j int) bool { return autoResolved[i].armType < autoResolved[j].armType })
@@ -171,12 +232,15 @@ func main() {
 //  1. main resource: one member is a whole-word prefix of every other member, so
 //     it is the parent and the others are its sub-resources
 //     (azurerm_api_management is the parent of azurerm_api_management_policy, ...).
-//  2. discriminated base: every member equals a common word-prefix plus exactly
-//     one distinguishing trailing word, i.e. the ARM type has variant resources
-//     (azurerm_api_management_identity_provider_{aad,google,...}); the shared
-//     prefix is the base. The prefix must carry more than the bare "azurerm"
-//     token so unrelated resources sharing only the provider prefix stay ambiguous.
-func resolveAmbiguous(names []string) (base, kind string, ok bool) {
+//  2. discriminated base: every member equals a common word-prefix plus a
+//     non-empty distinguishing suffix (of any word length), i.e. the ARM type has
+//     variant resources (azurerm_api_management_identity_provider_{aad,google,...},
+//     azurerm_data_factory_credential_{service_principal,user_managed_identity}).
+//     Two guards prevent over-collapsing: the prefix must carry more than the bare
+//     "azurerm" token, and it must not already name another resource (taken) — the
+//     latter keeps .../dataflows ambiguous, since its members share only
+//     azurerm_data_factory, the name of the parent Microsoft.DataFactory/factories.
+func resolveAmbiguous(names []string, taken map[string]bool) (base, kind string, ok bool) {
 	for _, cand := range names {
 		prefixOfAll := true
 		for _, other := range names {
@@ -195,15 +259,15 @@ func resolveAmbiguous(names []string) (base, kind string, ok bool) {
 
 	prefix := commonWordPrefix(names)
 	prefixWords := len(strings.Split(prefix, "_"))
-	if prefix != "" && prefixWords >= 2 {
-		allPlusOne := true
+	if prefix != "" && prefixWords >= 2 && !taken[prefix] {
+		allSuffixed := true
 		for _, n := range names {
-			if !strings.HasPrefix(n, prefix+"_") || len(strings.Split(n, "_")) != prefixWords+1 {
-				allPlusOne = false
+			if !strings.HasPrefix(n, prefix+"_") || len(n) <= len(prefix)+1 {
+				allSuffixed = false
 				break
 			}
 		}
-		if allPlusOne {
+		if allSuffixed {
 			return prefix, "discriminated base", true
 		}
 	}

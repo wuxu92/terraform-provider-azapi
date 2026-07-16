@@ -9,18 +9,30 @@ import (
 	"unicode"
 )
 
-// azurermReferenceOverrides supplements the generated azurermResourceForARMType
-// table (azurerm_reference_gen.go) for ARM types the extractor cannot resolve
-// mechanically but whose AzureRM noun is well-established. The extractor skips a
-// resource when its Create builds the ID through a scope-based or internal parser
-// instead of a go-azure-sdk New<Thing>ID constructor (see
-// azurerm_reference_report.md): role assignments and definitions are scope
-// extension resources built via authorization/parse, so they are pinned by hand.
+// azurermReferenceOverrides supplements and corrects the generated
+// azurermResourceForARMType table (azurerm_reference_gen.go). It serves two roles:
+//
+//   - Pinning ARM types the extractor cannot resolve mechanically but whose
+//     AzureRM noun is well-established. The extractor skips a resource when its
+//     Create builds the ID through a scope-based or internal parser instead of a
+//     go-azure-sdk New<Thing>ID constructor (see azurerm_reference_report.md):
+//     role assignments and definitions are scope extension resources built via
+//     authorization/parse, so they are pinned by hand.
+//   - Correcting an ambiguous group the extractor auto-collapses to a name that is
+//     too generic for a resource we already generate. Storage accounts and
+//     deployment scripts share their ARM type with sibling AzureRM resources
+//     (storage_blob_inventory_policy; the azure_cli/power_shell script variants),
+//     so the discriminated-base heuristic collapses them to azurerm_storage /
+//     azurerm_resource_deployment_script_azure. These pins keep the native
+//     resource's established name stable across regeneration.
+//
 // Values are the AzureRM noun (azurerm_ prefix); the azapi_ prefix is substituted
 // at lookup. Overrides win over the generated table.
 var azurermReferenceOverrides = map[string]string{
 	"Microsoft.Authorization/roleAssignments": "azurerm_role_assignment",
 	"Microsoft.Authorization/roleDefinitions": "azurerm_role_definition",
+	"Microsoft.Storage/storageAccounts":       "azurerm_storage_account",
+	"Microsoft.Resources/deploymentScripts":   "azurerm_resources_deployment_script",
 }
 
 // azurermReferenceLower indexes the generated table and the overrides by a
