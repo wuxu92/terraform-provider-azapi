@@ -1,15 +1,24 @@
 # AzureRM ARM-type reference: extraction report
 
-Generated table: 537 ARM types with a unique AzureRM resource.
+Generated table: 547 ARM types (537 unique + 10 auto-resolved).
 
-## Ambiguous ARM types (61) — one ARM type, several AzureRM resources; skipped
+## Auto-resolved ambiguous ARM types (10) — collapsed to a main resource or discriminated base
+
+- `Microsoft.ApiManagement/service` -> **azurerm_api_management** _(main resource)_: azurerm_api_management, azurerm_api_management_policy
+- `Microsoft.ApiManagement/service/identityProviders` -> **azurerm_api_management_identity_provider** _(discriminated base)_: azurerm_api_management_identity_provider_aad, azurerm_api_management_identity_provider_aadb2c, azurerm_api_management_identity_provider_facebook, azurerm_api_management_identity_provider_google, azurerm_api_management_identity_provider_microsoft, azurerm_api_management_identity_provider_twitter
+- `Microsoft.ApiManagement/service/products` -> **azurerm_api_management_product** _(main resource)_: azurerm_api_management_product, azurerm_api_management_product_policy
+- `Microsoft.Automation/automationAccounts/connections` -> **azurerm_automation_connection** _(main resource)_: azurerm_automation_connection, azurerm_automation_connection_certificate, azurerm_automation_connection_classic_certificate, azurerm_automation_connection_service_principal
+- `Microsoft.DigitalTwins/digitalTwinsInstances/endpoints` -> **azurerm_digital_twins_endpoint** _(discriminated base)_: azurerm_digital_twins_endpoint_eventgrid, azurerm_digital_twins_endpoint_eventhub, azurerm_digital_twins_endpoint_servicebus
+- `Microsoft.Insights/components` -> **azurerm_application_insights** _(main resource)_: azurerm_application_insights, azurerm_application_insights_analytics_item
+- `Microsoft.OperationalInsights/workspaces/tables` -> **azurerm_log_analytics_workspace_table** _(main resource)_: azurerm_log_analytics_workspace_table, azurerm_log_analytics_workspace_table_custom_log
+- `Microsoft.SignalRService/webPubSub` -> **azurerm_web_pubsub** _(main resource)_: azurerm_web_pubsub, azurerm_web_pubsub_socketio
+- `Microsoft.StreamAnalytics/streamingJobs/functions` -> **azurerm_stream_analytics_function_javascript** _(discriminated base)_: azurerm_stream_analytics_function_javascript_uda, azurerm_stream_analytics_function_javascript_udf
+- `Oracle.Database/autonomousDatabases` -> **azurerm_oracle_autonomous_database** _(main resource)_: azurerm_oracle_autonomous_database, azurerm_oracle_autonomous_database_clone_from_backup, azurerm_oracle_autonomous_database_clone_from_database
+
+## Ambiguous ARM types (51) — several unrelated AzureRM resources; skipped
 
 - Microsoft.AlertsManagement/actionRules -> azurerm_monitor_alert_processing_rule_action_group, azurerm_monitor_alert_processing_rule_suppression
-- Microsoft.ApiManagement/service -> azurerm_api_management, azurerm_api_management_policy
-- Microsoft.ApiManagement/service/identityProviders -> azurerm_api_management_identity_provider_aad, azurerm_api_management_identity_provider_aadb2c, azurerm_api_management_identity_provider_facebook, azurerm_api_management_identity_provider_google, azurerm_api_management_identity_provider_microsoft, azurerm_api_management_identity_provider_twitter
-- Microsoft.ApiManagement/service/products -> azurerm_api_management_product, azurerm_api_management_product_policy
 - Microsoft.AppPlatform/spring/apms -> azurerm_spring_cloud_app_dynamics_application_performance_monitoring, azurerm_spring_cloud_application_insights_application_performance_monitoring, azurerm_spring_cloud_dynatrace_application_performance_monitoring, azurerm_spring_cloud_elastic_application_performance_monitoring, azurerm_spring_cloud_new_relic_application_performance_monitoring
-- Microsoft.Automation/automationAccounts/connections -> azurerm_automation_connection, azurerm_automation_connection_certificate, azurerm_automation_connection_classic_certificate, azurerm_automation_connection_service_principal
 - Microsoft.Compute/restorePointCollections -> azurerm_restore_point_collection, azurerm_virtual_machine_restore_point_collection
 - Microsoft.Compute/virtualMachineScaleSets -> azurerm_linux_virtual_machine_scale_set, azurerm_orchestrated_virtual_machine_scale_set, azurerm_virtual_machine_scale_set, azurerm_windows_virtual_machine_scale_set
 - Microsoft.Compute/virtualMachines -> azurerm_linux_virtual_machine, azurerm_virtual_machine, azurerm_windows_virtual_machine
@@ -20,10 +29,8 @@ Generated table: 537 ARM types with a unique AzureRM resource.
 - Microsoft.DataProtection/backupVaults/backupPolicies -> azurerm_data_protection_backup_policy_blob_storage, azurerm_data_protection_backup_policy_data_lake_storage, azurerm_data_protection_backup_policy_disk, azurerm_data_protection_backup_policy_kubernetes_cluster, azurerm_data_protection_backup_policy_mysql_flexible_server, azurerm_data_protection_backup_policy_postgresql_flexible_server
 - Microsoft.DataShare/accounts/shares/dataSets -> azurerm_data_share_dataset_blob_storage, azurerm_data_share_dataset_data_lake_gen2, azurerm_data_share_dataset_kusto_cluster, azurerm_data_share_dataset_kusto_database
 - Microsoft.DevTestLab/labs/virtualMachines -> azurerm_dev_test_linux_virtual_machine, azurerm_dev_test_windows_virtual_machine
-- Microsoft.DigitalTwins/digitalTwinsInstances/endpoints -> azurerm_digital_twins_endpoint_eventgrid, azurerm_digital_twins_endpoint_eventhub, azurerm_digital_twins_endpoint_servicebus
 - Microsoft.ExtendedLocation/customLocations -> azurerm_extended_custom_location, azurerm_extended_location_custom_location
 - Microsoft.HDInsight/clusters -> azurerm_hdinsight_hadoop_cluster, azurerm_hdinsight_hbase_cluster, azurerm_hdinsight_interactive_query_cluster, azurerm_hdinsight_kafka_cluster, azurerm_hdinsight_spark_cluster
-- Microsoft.Insights/components -> azurerm_application_insights, azurerm_application_insights_analytics_item
 - Microsoft.Insights/scheduledQueryRules -> azurerm_monitor_scheduled_query_rules_alert, azurerm_monitor_scheduled_query_rules_alert_v2, azurerm_monitor_scheduled_query_rules_log
 - Microsoft.Insights/webTests -> azurerm_application_insights_standard_web_test, azurerm_application_insights_web_test
 - Microsoft.Kubernetes/connectedClusters -> azurerm_arc_kubernetes_cluster, azurerm_arc_kubernetes_provisioned_cluster
@@ -43,7 +50,6 @@ Generated table: 537 ARM types with a unique AzureRM resource.
 - Microsoft.Network/virtualHubs/bgpConnections -> azurerm_route_server_bgp_connection, azurerm_virtual_hub_bgp_connection
 - Microsoft.OperationalInsights/workspaces/dataSources -> azurerm_log_analytics_datasource_windows_event, azurerm_log_analytics_datasource_windows_performance_counter
 - Microsoft.OperationalInsights/workspaces/providers/Microsoft.SecurityInsights/alertRules -> azurerm_sentinel_alert_rule_fusion, azurerm_sentinel_alert_rule_machine_learning_behavior_analytics, azurerm_sentinel_alert_rule_ms_security_incident, azurerm_sentinel_alert_rule_nrt, azurerm_sentinel_alert_rule_scheduled, azurerm_sentinel_alert_rule_threat_intelligence
-- Microsoft.OperationalInsights/workspaces/tables -> azurerm_log_analytics_workspace_table, azurerm_log_analytics_workspace_table_custom_log
 - Microsoft.PolicyInsights/remediations -> azurerm_resource_group_policy_remediation, azurerm_subscription_policy_remediation
 - Microsoft.RecoveryServices/vaults/backupFabrics/protectionContainers/protectedItems -> azurerm_backup_protected_file_share, azurerm_backup_protected_vm
 - Microsoft.RecoveryServices/vaults/backupPolicies -> azurerm_backup_policy_file_share, azurerm_backup_policy_vm, azurerm_backup_policy_vm_workload
@@ -52,10 +58,8 @@ Generated table: 537 ARM types with a unique AzureRM resource.
 - Microsoft.RecoveryServices/vaults/replicationFabrics/replicationProtectionContainers/replicationProtectionContainerMappings -> azurerm_site_recovery_hyperv_replication_policy_association, azurerm_site_recovery_vmware_replication_policy_association
 - Microsoft.RecoveryServices/vaults/replicationPolicies -> azurerm_site_recovery_hyperv_replication_policy, azurerm_site_recovery_replication_policy, azurerm_site_recovery_vmware_replication_policy
 - Microsoft.Resources/deploymentScripts -> azurerm_resource_deployment_script_azure_cli, azurerm_resource_deployment_script_azure_power_shell
-- Microsoft.SignalRService/webPubSub -> azurerm_web_pubsub, azurerm_web_pubsub_socketio
 - Microsoft.Storage/storageAccounts -> azurerm_storage_account, azurerm_storage_blob_inventory_policy
 - Microsoft.StorageMover/storageMovers/endpoints -> azurerm_storage_mover_source_endpoint, azurerm_storage_mover_target_endpoint
-- Microsoft.StreamAnalytics/streamingJobs/functions -> azurerm_stream_analytics_function_javascript_uda, azurerm_stream_analytics_function_javascript_udf
 - Microsoft.StreamAnalytics/streamingJobs/inputs -> azurerm_stream_analytics_reference_input_blob, azurerm_stream_analytics_stream_input_blob, azurerm_stream_analytics_stream_input_eventhub, azurerm_stream_analytics_stream_input_eventhub_v2, azurerm_stream_analytics_stream_input_iothub
 - Microsoft.StreamAnalytics/streamingJobs/outputs -> azurerm_stream_analytics_output_blob, azurerm_stream_analytics_output_cosmosdb, azurerm_stream_analytics_output_eventhub, azurerm_stream_analytics_output_function, azurerm_stream_analytics_output_mssql, azurerm_stream_analytics_output_powerbi, azurerm_stream_analytics_output_servicebus_queue, azurerm_stream_analytics_output_servicebus_topic, azurerm_stream_analytics_output_synapse, azurerm_stream_analytics_output_table
 - Microsoft.Web/certificates -> azurerm_app_service_certificate, azurerm_app_service_managed_certificate
@@ -63,7 +67,6 @@ Generated table: 537 ARM types with a unique AzureRM resource.
 - Microsoft.Web/sites/hybridConnectionNamespaces/relays -> azurerm_function_app_hybrid_connection, azurerm_web_app_hybrid_connection
 - Microsoft.Web/sites/slots -> azurerm_linux_function_app_slot, azurerm_linux_web_app_slot, azurerm_windows_function_app_slot, azurerm_windows_web_app_slot
 - Microsoft.Workloads/sapVirtualInstances -> azurerm_workloads_sap_discovery_virtual_instance, azurerm_workloads_sap_single_node_virtual_instance, azurerm_workloads_sap_three_tier_virtual_instance
-- Oracle.Database/autonomousDatabases -> azurerm_oracle_autonomous_database, azurerm_oracle_autonomous_database_clone_from_backup, azurerm_oracle_autonomous_database_clone_from_database
 - PaloAltoNetworks.Cloudngfw/firewalls -> azurerm_palo_alto_next_generation_firewall_virtual_hub_local_rulestack, azurerm_palo_alto_next_generation_firewall_virtual_hub_panorama, azurerm_palo_alto_next_generation_firewall_virtual_hub_strata_cloud_manager, azurerm_palo_alto_next_generation_firewall_virtual_network_local_rulestack, azurerm_palo_alto_next_generation_firewall_virtual_network_panorama, azurerm_palo_alto_next_generation_firewall_virtual_network_strata_cloud_manager
 
 ## Unresolved resources (365) — Create ID not traceable to a go-azure-sdk fmtString; skipped

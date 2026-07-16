@@ -14,9 +14,21 @@
 // its naming reference (see internal/native/naming). This tool regenerates that
 // reference table.
 //
-// It is best-effort: resources whose Create uses a legacy/internal ID parser, or
-// whose ARM type maps to more than one AzureRM resource (ambiguous), are skipped
-// and listed in the report rather than guessed. Run:
+// When several AzureRM resources share one ARM type, the group is auto-resolved
+// where the members have an obvious shared identity:
+//
+//   - main resource: one member is a whole-word prefix of every other
+//     (Microsoft.ApiManagement/service -> azurerm_api_management is the parent of
+//     azurerm_api_management_policy, _api, ...); the parent wins.
+//   - discriminated base: every member is a common word-prefix plus exactly one
+//     distinguishing word (.../identityProviders -> azurerm_api_management_
+//     identity_provider_{aad,aadb2c,facebook,google,microsoft,twitter}); the
+//     shared prefix azurerm_api_management_identity_provider is used.
+//
+// Groups that fit neither pattern (Microsoft.Web/sites -> linux/windows web_app
+// and function_app) stay ambiguous, and resources whose Create uses a
+// legacy/internal ID parser are unresolved; both are listed in the report and
+// fall back to the mechanical naming rule rather than being guessed. Run:
 //
 //	go run ./internal/native/naming/cmd/azurerm-armtypes \
 //	  -azurerm ../terraform-provider-azurerm \
@@ -72,7 +84,14 @@ func main() {
 		armType string
 		name    string
 	}
+	type resolvedGroup struct {
+		armType string
+		name    string
+		members []string
+		kind    string
+	}
 	var clean []entry
+	var autoResolved []resolvedGroup
 	var ambiguous []string
 	for key, names := range byARM {
 		if len(names) == 1 {
@@ -80,9 +99,19 @@ func main() {
 			continue
 		}
 		sort.Strings(names)
+		if base, kind, ok := resolveAmbiguous(names); ok {
+			autoResolved = append(autoResolved, resolvedGroup{origCasing[key], base, names, kind})
+			continue
+		}
 		ambiguous = append(ambiguous, fmt.Sprintf("%s -> %s", origCasing[key], strings.Join(names, ", ")))
 	}
+	// Auto-resolved groups join the emitted table; they are also listed in the
+	// report so each collapse can be reviewed.
+	for _, g := range autoResolved {
+		clean = append(clean, entry{g.armType, g.name})
+	}
 	sort.Slice(clean, func(i, j int) bool { return clean[i].armType < clean[j].armType })
+	sort.Slice(autoResolved, func(i, j int) bool { return autoResolved[i].armType < autoResolved[j].armType })
 	sort.Strings(ambiguous)
 
 	// Emit generated table.
@@ -91,9 +120,10 @@ func main() {
 	b.WriteString("//\n")
 	b.WriteString("// Source of truth: terraform-provider-azurerm resource registrations, traced\n")
 	b.WriteString("// through each resource's Create ID constructor to the go-azure-sdk fmtString.\n")
-	b.WriteString("// Only ARM types that map to exactly one AzureRM resource are listed here;\n")
-	b.WriteString("// ambiguous and unresolved types are omitted (see azurerm_reference_report.md)\n")
-	b.WriteString("// and fall back to the mechanical naming rule in naming.go.\n\n")
+	b.WriteString("// ARM types with a unique AzureRM resource, plus ambiguous groups auto-resolved\n")
+	b.WriteString("// to a main resource or a discriminated base, are listed here; still-ambiguous\n")
+	b.WriteString("// and unresolved types are omitted (see azurerm_reference_report.md) and fall\n")
+	b.WriteString("// back to the mechanical naming rule in naming.go.\n\n")
 	b.WriteString("package naming\n\n")
 	b.WriteString("// azurermResourceForARMType maps a bare ARM resource type to the AzureRM\n")
 	b.WriteString("// resource noun that authoritatively names it. ResourceName consults this\n")
@@ -110,8 +140,12 @@ func main() {
 	// Emit report.
 	var r strings.Builder
 	r.WriteString("# AzureRM ARM-type reference: extraction report\n\n")
-	r.WriteString(fmt.Sprintf("Generated table: %d ARM types with a unique AzureRM resource.\n\n", len(clean)))
-	r.WriteString(fmt.Sprintf("## Ambiguous ARM types (%d) — one ARM type, several AzureRM resources; skipped\n\n", len(ambiguous)))
+	r.WriteString(fmt.Sprintf("Generated table: %d ARM types (%d unique + %d auto-resolved).\n\n", len(clean), len(clean)-len(autoResolved), len(autoResolved)))
+	r.WriteString(fmt.Sprintf("## Auto-resolved ambiguous ARM types (%d) — collapsed to a main resource or discriminated base\n\n", len(autoResolved)))
+	for _, g := range autoResolved {
+		r.WriteString(fmt.Sprintf("- `%s` -> **%s** _(%s)_: %s\n", g.armType, g.name, g.kind, strings.Join(g.members, ", ")))
+	}
+	r.WriteString(fmt.Sprintf("\n## Ambiguous ARM types (%d) — several unrelated AzureRM resources; skipped\n\n", len(ambiguous)))
 	for _, a := range ambiguous {
 		r.WriteString("- " + a + "\n")
 	}
@@ -124,8 +158,78 @@ func main() {
 		fatalf("write report: %v", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "wrote %s (%d entries), %s (%d ambiguous, %d unresolved)\n",
-		*outPath, len(clean), *reportPath, len(ambiguous), len(skips))
+	fmt.Fprintf(os.Stderr, "wrote %s (%d entries: %d unique + %d auto-resolved), %s (%d ambiguous, %d unresolved)\n",
+		*outPath, len(clean), len(clean)-len(autoResolved), len(autoResolved), *reportPath, len(ambiguous), len(skips))
+}
+
+// resolveAmbiguous collapses a set of AzureRM resource names that share one ARM
+// type to a single azapi noun when the members form an obvious family. It returns
+// the chosen base name, a human-readable kind, and ok=false when no pattern fits.
+//
+// Two patterns are recognised, tried in order:
+//
+//  1. main resource: one member is a whole-word prefix of every other member, so
+//     it is the parent and the others are its sub-resources
+//     (azurerm_api_management is the parent of azurerm_api_management_policy, ...).
+//  2. discriminated base: every member equals a common word-prefix plus exactly
+//     one distinguishing trailing word, i.e. the ARM type has variant resources
+//     (azurerm_api_management_identity_provider_{aad,google,...}); the shared
+//     prefix is the base. The prefix must carry more than the bare "azurerm"
+//     token so unrelated resources sharing only the provider prefix stay ambiguous.
+func resolveAmbiguous(names []string) (base, kind string, ok bool) {
+	for _, cand := range names {
+		prefixOfAll := true
+		for _, other := range names {
+			if other == cand {
+				continue
+			}
+			if !strings.HasPrefix(other, cand+"_") {
+				prefixOfAll = false
+				break
+			}
+		}
+		if prefixOfAll {
+			return cand, "main resource", true
+		}
+	}
+
+	prefix := commonWordPrefix(names)
+	prefixWords := len(strings.Split(prefix, "_"))
+	if prefix != "" && prefixWords >= 2 {
+		allPlusOne := true
+		for _, n := range names {
+			if !strings.HasPrefix(n, prefix+"_") || len(strings.Split(n, "_")) != prefixWords+1 {
+				allPlusOne = false
+				break
+			}
+		}
+		if allPlusOne {
+			return prefix, "discriminated base", true
+		}
+	}
+	return "", "", false
+}
+
+// commonWordPrefix returns the longest shared prefix of the names measured in
+// whole underscore-delimited words (not characters), so "a_bc" and "a_bd" share
+// "a", not "a_b".
+func commonWordPrefix(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	parts := strings.Split(names[0], "_")
+	for _, n := range names[1:] {
+		w := strings.Split(n, "_")
+		i := 0
+		for i < len(parts) && i < len(w) && parts[i] == w[i] {
+			i++
+		}
+		parts = parts[:i]
+		if len(parts) == 0 {
+			return ""
+		}
+	}
+	return strings.Join(parts, "_")
 }
 
 // --- SDK fmtString index -----------------------------------------------------

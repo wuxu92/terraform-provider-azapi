@@ -2,9 +2,10 @@
 //
 // Source of truth: terraform-provider-azurerm resource registrations, traced
 // through each resource's Create ID constructor to the go-azure-sdk fmtString.
-// Only ARM types that map to exactly one AzureRM resource are listed here;
-// ambiguous and unresolved types are omitted (see azurerm_reference_report.md)
-// and fall back to the mechanical naming rule in naming.go.
+// ARM types with a unique AzureRM resource, plus ambiguous groups auto-resolved
+// to a main resource or a discriminated base, are listed here; still-ambiguous
+// and unresolved types are omitted (see azurerm_reference_report.md) and fall
+// back to the mechanical naming rule in naming.go.
 
 package naming
 
@@ -22,6 +23,7 @@ var azurermResourceForARMType = map[string]string{
 	"Microsoft.AlertsManagement/smartDetectorAlertRules":                                                             "azurerm_monitor_smart_detector_alert_rule",
 	"Microsoft.AnalysisServices/servers":                                                                             "azurerm_analysis_services_server",
 	"Microsoft.ApiManagement/gateways":                                                                               "azurerm_api_management_standalone_gateway",
+	"Microsoft.ApiManagement/service":                                                                                "azurerm_api_management",
 	"Microsoft.ApiManagement/service/apiVersionSets":                                                                 "azurerm_api_management_api_version_set",
 	"Microsoft.ApiManagement/service/apis":                                                                           "azurerm_api_management_api",
 	"Microsoft.ApiManagement/service/apis/diagnostics":                                                               "azurerm_api_management_api_diagnostic",
@@ -42,12 +44,14 @@ var azurermResourceForARMType = map[string]string{
 	"Microsoft.ApiManagement/service/gateways/hostnameConfigurations":                                                "azurerm_api_management_gateway_host_name_configuration",
 	"Microsoft.ApiManagement/service/groups":                                                                         "azurerm_api_management_group",
 	"Microsoft.ApiManagement/service/groups/users":                                                                   "azurerm_api_management_group_user",
+	"Microsoft.ApiManagement/service/identityProviders":                                                              "azurerm_api_management_identity_provider",
 	"Microsoft.ApiManagement/service/loggers":                                                                        "azurerm_api_management_logger",
 	"Microsoft.ApiManagement/service/namedValues":                                                                    "azurerm_api_management_named_value",
 	"Microsoft.ApiManagement/service/notifications/recipientEmails":                                                  "azurerm_api_management_notification_recipient_email",
 	"Microsoft.ApiManagement/service/notifications/recipientUsers":                                                   "azurerm_api_management_notification_recipient_user",
 	"Microsoft.ApiManagement/service/openidConnectProviders":                                                         "azurerm_api_management_openid_connect_provider",
 	"Microsoft.ApiManagement/service/policyFragments":                                                                "azurerm_api_management_policy_fragment",
+	"Microsoft.ApiManagement/service/products":                                                                       "azurerm_api_management_product",
 	"Microsoft.ApiManagement/service/products/apis":                                                                  "azurerm_api_management_product_api",
 	"Microsoft.ApiManagement/service/products/groups":                                                                "azurerm_api_management_product_group",
 	"Microsoft.ApiManagement/service/products/tags":                                                                  "azurerm_api_management_product_tag",
@@ -79,6 +83,7 @@ var azurermResourceForARMType = map[string]string{
 	"Microsoft.Automation/automationAccounts/certificates":                                                           "azurerm_automation_certificate",
 	"Microsoft.Automation/automationAccounts/configurations":                                                         "azurerm_automation_dsc_configuration",
 	"Microsoft.Automation/automationAccounts/connectionTypes":                                                        "azurerm_automation_connection_type",
+	"Microsoft.Automation/automationAccounts/connections":                                                            "azurerm_automation_connection",
 	"Microsoft.Automation/automationAccounts/credentials":                                                            "azurerm_automation_credential",
 	"Microsoft.Automation/automationAccounts/hybridRunbookWorkerGroups":                                              "azurerm_automation_hybrid_runbook_worker_group",
 	"Microsoft.Automation/automationAccounts/hybridRunbookWorkerGroups/hybridRunbookWorkers":                         "azurerm_automation_hybrid_runbook_worker",
@@ -229,6 +234,7 @@ var azurermResourceForARMType = map[string]string{
 	"Microsoft.Devices/provisioningServices/certificates":                                                            "azurerm_iothub_dps_certificate",
 	"Microsoft.Devices/provisioningServices/keys":                                                                    "azurerm_iothub_dps_shared_access_policy",
 	"Microsoft.DigitalTwins/digitalTwinsInstances":                                                                   "azurerm_digital_twins_instance",
+	"Microsoft.DigitalTwins/digitalTwinsInstances/endpoints":                                                         "azurerm_digital_twins_endpoint",
 	"Microsoft.DigitalTwins/digitalTwinsInstances/timeSeriesDatabaseConnections":                                     "azurerm_digital_twins_time_series_database_connection",
 	"Microsoft.DocumentDB/cassandraClusters":                                                                         "azurerm_cosmosdb_cassandra_cluster",
 	"Microsoft.DocumentDB/cassandraClusters/dataCenters":                                                             "azurerm_cosmosdb_cassandra_datacenter",
@@ -292,6 +298,7 @@ var azurermResourceForARMType = map[string]string{
 	"Microsoft.Insights/actionGroups":                                                                                "azurerm_monitor_action_group",
 	"Microsoft.Insights/activityLogAlerts":                                                                           "azurerm_monitor_activity_log_alert",
 	"Microsoft.Insights/autoScaleSettings":                                                                           "azurerm_monitor_autoscale_setting",
+	"Microsoft.Insights/components":                                                                                  "azurerm_application_insights",
 	"Microsoft.Insights/dataCollectionEndpoints":                                                                     "azurerm_monitor_data_collection_endpoint",
 	"Microsoft.Insights/dataCollectionRules":                                                                         "azurerm_monitor_data_collection_rule",
 	"Microsoft.Insights/metricAlerts":                                                                                "azurerm_monitor_metric_alert",
@@ -439,6 +446,7 @@ var azurermResourceForARMType = map[string]string{
 	"Microsoft.OperationalInsights/workspaces/providers/Microsoft.SecurityInsights/watchlists/watchlistItems":        "azurerm_sentinel_watchlist_item",
 	"Microsoft.OperationalInsights/workspaces/savedSearches":                                                         "azurerm_log_analytics_saved_search",
 	"Microsoft.OperationalInsights/workspaces/storageInsightConfigs":                                                 "azurerm_log_analytics_storage_insights",
+	"Microsoft.OperationalInsights/workspaces/tables":                                                                "azurerm_log_analytics_workspace_table",
 	"Microsoft.OperationsManagement/solutions":                                                                       "azurerm_log_analytics_solution",
 	"Microsoft.Orbital/contactProfiles":                                                                              "azurerm_orbital_contact_profile",
 	"Microsoft.Orbital/spacecrafts":                                                                                  "azurerm_orbital_spacecraft",
@@ -482,6 +490,7 @@ var azurermResourceForARMType = map[string]string{
 	"Microsoft.SignalRService/signalR":                                                                               "azurerm_signalr_service",
 	"Microsoft.SignalRService/signalR/customCertificates":                                                            "azurerm_signalr_service_custom_certificate",
 	"Microsoft.SignalRService/signalR/customDomains":                                                                 "azurerm_signalr_service_custom_domain",
+	"Microsoft.SignalRService/webPubSub":                                                                             "azurerm_web_pubsub",
 	"Microsoft.SignalRService/webPubSub/customCertificates":                                                          "azurerm_web_pubsub_custom_certificate",
 	"Microsoft.SignalRService/webPubSub/hubs":                                                                        "azurerm_web_pubsub_hub",
 	"Microsoft.Solutions/applicationDefinitions":                                                                     "azurerm_managed_application_definition",
@@ -521,6 +530,7 @@ var azurermResourceForARMType = map[string]string{
 	"Microsoft.StreamAnalytics/clusters":                                                                             "azurerm_stream_analytics_cluster",
 	"Microsoft.StreamAnalytics/clusters/privateEndpoints":                                                            "azurerm_stream_analytics_managed_private_endpoint",
 	"Microsoft.StreamAnalytics/streamingJobs":                                                                        "azurerm_stream_analytics_job",
+	"Microsoft.StreamAnalytics/streamingJobs/functions":                                                              "azurerm_stream_analytics_function_javascript",
 	"Microsoft.VideoIndexer/accounts":                                                                                "azurerm_video_indexer_account",
 	"Microsoft.Web/connections":                                                                                      "azurerm_api_connection",
 	"Microsoft.Web/hostingEnvironments":                                                                              "azurerm_app_service_environment_v3",
@@ -538,6 +548,7 @@ var azurermResourceForARMType = map[string]string{
 	"Nginx.NginxPlus/nginxDeployments/apiKeys":                                                                       "azurerm_nginx_api_key",
 	"Nginx.NginxPlus/nginxDeployments/certificates":                                                                  "azurerm_nginx_certificate",
 	"Nginx.NginxPlus/nginxDeployments/configurations":                                                                "azurerm_nginx_configuration",
+	"Oracle.Database/autonomousDatabases":                                                                            "azurerm_oracle_autonomous_database",
 	"Oracle.Database/autonomousDatabases/autonomousDatabaseBackups":                                                  "azurerm_oracle_autonomous_database_backup",
 	"Oracle.Database/cloudExadataInfrastructures":                                                                    "azurerm_oracle_exadata_infrastructure",
 	"Oracle.Database/cloudVmClusters":                                                                                "azurerm_oracle_cloud_vm_cluster",
