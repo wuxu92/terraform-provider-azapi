@@ -1,4 +1,4 @@
-## A. Implemented features & key tech choice (9)
+## A. Implemented features & key tech choice (10)
 
 1. **Static typed schema generation from bicep `types.json`.**
    A type-graph walker resolves ARM `$ref` graphs into a Terraform
@@ -42,23 +42,48 @@
    outside the bicep body (bicep does not model resource naming/placement) and
    seeded from the ARM type + writable scope.
 
-8. **Data source auto-generation** (shipped).
+8. **AzureRM-authoritative resource naming.**
+   The `azapi_*` resource noun for an ARM type derives from terraform-provider-
+   azurerm's curated names, not a raw spec derivation, so a generated resource
+   carries the name practitioners already know
+   (`Microsoft.DocumentDB/databaseAccounts` → `azapi_cosmosdb_account`, not the
+   mechanical `azapi_document_database_account`). An offline extractor
+   (`naming/cmd/azurerm-armtypes`) traces every azurerm resource's Create ID
+   constructor → go-azure-sdk `fmtString` → ARM type, emitting a generated table
+   (`azurerm_reference_gen.go`) that `ResourceName` consults first, swapping the
+   `azurerm_` prefix for `azapi_`; types absent from the table fall back to the
+   mechanical service+segment rule. Ambiguous ARM types (several azurerm
+   resources share one type) are auto-resolved by two heuristics — **main
+   resource** (one member is a whole-word prefix of the rest, e.g.
+   `.../service` → `api_management`) and **discriminated base** (members are a
+   common prefix + a distinguishing suffix, e.g. `.../identityProviders` →
+   `api_management_identity_provider`) — guarded so two distinct ARM types can
+   never emit the same noun (collision with an existing name, or a base contested
+   by multiple groups, drops the group back to the mechanical rule). Key choice:
+   the generated table is **machine-owned** (regenerated, never hand-edited);
+   imperfect collapses, extractor-unresolvable scope/data-plane IDs, and the
+   canonical noun for still-ambiguous types are patched through override maps in
+   the naming package (`azurermReferenceOverrides`, `ambiguousResourceNames`)
+   that win at lookup, keeping already-generated resource names stable across
+   regeneration.
+
+9. **Data source auto-generation** (shipped).
    Every registered resource gets a read-only data source for free: the generic
    `DataSource` converts the resource schema (name + parent Required, all else
    Computed) and reuses the resource read path.
 
-9. **Self-verification gate.**
-   Generation runs flag-invariant checks plus a schema↔bicep **parity
-   validator** (extra/type-mismatch fatal, missing = warning). A resource only
-   graduates the allowlist after invariants + a live-Azure acceptance test + an
-   authored azwise overlay (ADR-0006). Every shipped resource is a permanent
-   schema contract, so correctness gates coverage.
+10. **Self-verification gate.**
+    Generation runs flag-invariant checks plus a schema↔bicep **parity
+    validator** (extra/type-mismatch fatal, missing = warning). A resource only
+    graduates the allowlist after invariants + a live-Azure acceptance test + an
+    authored azwise overlay (ADR-0006). Every shipped resource is a permanent
+    schema contract, so correctness gates coverage.
 
 ---
 
 ## B. Key future features & possible solutions (6)
 
-10. **Discriminated / polymorphic type support** (biggest typed-coverage gap, undergoing...).
+11. **Discriminated / polymorphic type support** (biggest typed-coverage gap, undergoing...).
     Today every `DiscriminatedObjectType` collapses to `types.Dynamic`; **632
     resources whose root body is discriminated are skipped entirely** and fall
     back to `azapi_resource`. Recommended solution: **nested per-variant blocks**
@@ -67,7 +92,7 @@
     machinery, with a variant-count fallback to dynamic for pathological wide
     unions. Full analysis in `discriminator-report.md`.
 
-11. **Live-API schema verification harness** (TODO #16).
+12. **Live-API schema verification harness** (TODO #16).
     Bicep/azwise are lossy vs real ARM behavior (ranges, enum completeness,
     MaxItems, immutability, real defaults, write-but-not-honored fields).
     Solution: probe the live API with boundary values, diff PUT→GET, classify
@@ -75,25 +100,25 @@
     azwise/customizer edits. One core, two adapters — raw REST engine +
     typed-TF regression path (ADR-0008).
 
-12. **`azapi_resource` → native migration tooling** (TODO #9, #5).
+13. **`azapi_resource` → native migration tooling** (TODO #9, #5).
     Read `type/name/parent_id/body/response_export_values`, map body JSON paths
     to native attributes, emit new HCL. Hardest part is state migration and a
     fallback for polymorphic/dynamic fields; AzureRM→native is a larger superset
     needing name mapping + behavior-diff reports.
 
-13. **Lifecycle tooling: breaking-change detector + API-version upgrade + docs**
+14. **Lifecycle tooling: breaking-change detector + API-version upgrade + docs**
     (TODO #6, #8, #2). Compare old vs regenerated schema models (removed attrs,
     flag/type/validator/default/ForceNew changes) to drive deprecation windows
     and framework state upgraders; automate version-bump regeneration + azwise
     path-survival checks; generate AzureRM-style per-resource docs from
     descriptors + azwise + config-builder examples.
 
-14. **Terraform resource identity + list resources** (TODO #12, #13).
+15. **Terraform resource identity + list resources** (TODO #12, #13).
     Implement `ResourceWithIdentity` on `Base` (immutable ARM identity, import
     by identity) and typed list resources with paging/filtering, reusing the new
     data-source read/flatten machinery.
 
-15. **Cross-resource operation locking** (TODO #3).
+16. **Cross-resource operation locking** (TODO #3).
     Scoped, keyed lock manager (by ARM ID / parent ID) for operations ARM
     serializes poorly — subnets, app settings, role assignments, network rules.
     Avoid global locks.
@@ -102,20 +127,22 @@
 
 ## C. Non-goals / hard limits (4)
 
-16. **Not a replacement for `azapi_resource`.** It remains the day-zero,
+17. **Not a replacement for `azapi_resource`.** It remains the day-zero,
     any-type/any-version, preview, and escape-hatch path. azapin coexists;
     users choose per resource.
 
-17. **No per-resource Go model structs, and no static ARM-name property map**
+18. **No per-resource Go model structs, and no static ARM-name property map**
     (ADR-0002). Everything is generic + runtime-resolved from the embedded type
     graph. This bounds binary/code growth but means all behavior flows through
     one generic engine.
 
-18. **No AzureRM property-name parity.** azapin uses **mechanical snake_case**
-    from the spec — predictable, not curated. Migration tooling must bridge the
-    naming gap; parity is explicitly out of scope.
+19. **No AzureRM property-name parity.** Resource-type nouns are
+    AzureRM-authoritative (feature 8), but **property** names within a resource
+    stay **mechanical snake_case** from the spec — predictable, not curated.
+    Migration tooling must bridge the property-naming gap; property parity is
+    explicitly out of scope.
 
-19. **Latest stable API version only, one resource per ARM type** (ADR-0001,
+20. **Latest stable API version only, one resource per ARM type** (ADR-0001,
     ADR-0004). No user-settable `api_version`; preview versions →
     `azapi_resource`. Multi-version support is deliberately deferred (multiplies
     schemas, docs, tests, and state transitions). Sub-APIs are modeled as their
