@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure"
 	"github.com/Azure/terraform-provider-azapi/internal/native/armtype"
@@ -51,6 +52,10 @@ func main() {
 	// index/types.json rolls the generated schema forward without editing this
 	// command. types.json is read from the same embedded FS the provider runtime
 	// loads, so the generator never reads or reconstructs an on-disk path.
+	defer func(start time.Time) {
+		fmt.Fprintf(os.Stderr, "Generation of %d resource(s) completed in %s\n", len(targets), time.Since(start))
+	}(time.Now())
+
 	byName := map[string]*typegraph.ResourceDefinition{}
 	tags := make([]string, 0, len(targets))
 	loaded := map[string]bool{}
