@@ -94,3 +94,13 @@ _Avoid_: coverage list, catalog
 **Graduation**:
 The gate a candidate resource must clear before it ships as a static resource: framework flag-invariants + a live-Azure acceptance test + an authored azwise overlay. The live-API schema verification harness produces the evidence for the middle step.
 _Avoid_: promotion, release gate
+
+### Testing
+
+**Acceptance config builder**:
+The per-resource Go file (`internal/native/services/<service>/<resource>_config.go`) that renders the HCL for a static resource's live acceptance `Scenario`s. A `<Resource>Cfg` type carries the Terraform address metadata plus the dependencies every scenario needs (constructed via `New<Resource>Cfg`); each scenario is a named type implementing `Config() string`. Its dependencies must be other native resources, never raw `azapi_resource` HCL (the native-dependency rule).
+_Avoid_: test fixture, HCL template
+
+**Scenario**:
+A named acceptance configuration a static resource is applied through, chained in-place in one `Ordered` container so one resource is created once and mutated through each state. Canonical trio: **Basic** (minimal create baseline — required fields plus a present, often empty, block for every all-optional nested object carrying computed/azwise defaults), **Complete** (as many optional properties as one valid in-place configuration covers), and **Complete_update** (Complete's shape with every in-place-updatable property flipped to a different valid value, proving each survives Update → Read → empty plan). ForceNew and write-not-honored properties are held out of the update set.
+_Avoid_: test case, step
