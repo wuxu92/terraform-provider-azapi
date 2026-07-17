@@ -20,13 +20,13 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 // enums, tenantId UUID, softDeleteRetentionInDays range, defaults) targets a real
 // body dot-path and is overlaid automatically by ApplyAzwise.
 func customizeKeyVault(def *typegraph.ResourceDefinition) {
-	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{
+	def.SetNameValidators(
 		typegraph.LengthValidator(3, 24),
 		typegraph.RegexValidator(
 			`^[a-zA-Z](-?[a-zA-Z0-9])*$`,
 			"key vault name must be 3-24 characters, start with a letter, end with a letter or digit, and contain only alphanumeric characters or non-consecutive hyphens",
 		),
-	}
+	)
 
 	// Access-policy permission enums (case-insensitive; ARM normalizes casing).
 	for path, allowed := range map[string][]string{
@@ -49,8 +49,7 @@ func customizeKeyVault(def *typegraph.ResourceDefinition) {
 			"Purge", "Recover", "RegenerateKey", "Restore", "Set", "SetSAS", "Update",
 		},
 	} {
-		p := typegraph.FindProperty(def, path)
-		p.Validators = append(p.Validators, typegraph.OneOfCaseInsensitiveValidator(
+		def.AddValidatorsFor(path, typegraph.OneOfCaseInsensitiveValidator(
 			"must be a valid key vault permission (case-insensitive)", allowed...,
 		))
 	}
@@ -60,19 +59,17 @@ func customizeKeyVault(def *typegraph.ResourceDefinition) {
 	// Key Vault RP always echoes them back as []. An empty-list default makes the
 	// omitted-config plan value ([]) match the API's [] on apply/read/import, while an
 	// explicitly-configured list (including an explicit []) is left untouched.
-	for _, path := range []string{
+	def.WithEmptyListDefault(
 		"properties.networkAcls.ipRules",
 		"properties.networkAcls.virtualNetworkRules",
-	} {
-		typegraph.FindProperty(def, path).DefaultEmptyList = true
-	}
+	)
 
 	// purge_on_destroy is a synthetic behavior-only attribute (not part of the bicep
 	// body): when true, destroying the vault also purges its soft-deleted shadow so
 	// the name is immediately reusable. It defaults off (null) because a purge bypasses
 	// the soft-delete recovery window and is irreversible; a runtime AfterDelete hook
 	// (see key_vault_hooks.go) reads it from state and runs the deletedVaults purge.
-	def.Envelope.Meta = append(def.Envelope.Meta, typegraph.MetaAttr{
+	def.AddMetaAttr(typegraph.MetaAttr{
 		Name: "purge_on_destroy",
 		Description: "When `true`, permanently purges the vault's soft-deleted shadow on destroy so its " +
 			"name can be reused immediately, instead of leaving it recoverable until Azure's retention " +

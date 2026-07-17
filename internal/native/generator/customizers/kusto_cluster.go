@@ -12,16 +12,13 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //     while the bicep graph leaves the SKU object and its fields optional. Mark sku,
 //     sku.name, and sku.tier required so native users cannot plan a malformed body.
 func customizeKustoCluster(def *typegraph.ResourceDefinition) {
-	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{
+	def.SetNameValidators(
 		typegraph.LengthValidator(4, 22),
 		typegraph.RegexValidator(
 			`^[a-z][a-z0-9-]+$`,
 			"Kusto cluster name must be 4-22 characters, start with a lowercase letter, and contain only lowercase letters, numbers, and hyphens",
 		),
-	}
+	)
 
-	sku := typegraph.FindProperty(def, "sku")
-	sku.Flags |= typegraph.FlagRequired
-	typegraph.FindProperty(def, "sku.name").Flags |= typegraph.FlagRequired
-	typegraph.FindProperty(def, "sku.tier").Flags |= typegraph.FlagRequired
+	def.Required("sku", "sku.name", "sku.tier")
 }

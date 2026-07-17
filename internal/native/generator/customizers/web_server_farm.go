@@ -14,19 +14,14 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //     App Service Environment ID semantically; attach the shared resource-ID
 //     validator where the bicep graph only knows "string".
 func customizeWebServerFarm(def *typegraph.ResourceDefinition) {
-	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{typegraph.
-		LengthValidator(1, 60), typegraph.
-		RegexValidator(
+	def.SetNameValidators(
+		typegraph.LengthValidator(1, 60),
+		typegraph.RegexValidator(
 			`^[0-9A-Za-z-_]+$`,
 			"App Service plan name may only contain alphanumeric characters, dashes, and underscores, up to 60 characters",
 		),
-	}
+	)
 
-	sku := typegraph.FindProperty(def, "sku")
-	sku.Flags |= typegraph.FlagRequired
-	skuName := typegraph.FindProperty(def, "sku.name")
-	skuName.Flags |= typegraph.FlagRequired
-
-	aseID := typegraph.FindProperty(def, "properties.hostingEnvironmentProfile.id")
-	aseID.Validators = append(aseID.Validators, typegraph.SharedValidator("AzureResourceID()"))
+	def.Required("sku", "sku.name")
+	def.AddValidatorsFor("properties.hostingEnvironmentProfile.id", typegraph.SharedValidator("AzureResourceID()"))
 }

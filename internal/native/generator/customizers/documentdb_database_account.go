@@ -14,11 +14,11 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 // between two values, which a static schema plan modifier cannot express; they live
 // in the azwise CheckForceNew override wired through the documentdb ModifyPlan hook.
 func customizeDocumentDBDatabaseAccount(def *typegraph.ResourceDefinition) {
-	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{
+	def.SetNameValidators(
 		typegraph.LengthValidator(3, 50),
 		typegraph.RegexValidator(
 			`^[-a-z0-9]{3,50}$`,
 			"Cosmos DB account name must be 3-50 characters of lowercase letters, numbers, and hyphens",
 		),
-	}
+	)
 }

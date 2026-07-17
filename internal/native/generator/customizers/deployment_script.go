@@ -9,11 +9,11 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //     rather than as an empty-path azwise StringRule (which the overlay skips
 //     because name is not in the body graph).
 func customizeDeploymentScript(def *typegraph.ResourceDefinition) {
-	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{
+	def.SetNameValidators(
 		typegraph.LengthValidator(1, 260),
 		typegraph.RegexValidator(
 			`^[a-zA-Z0-9_().-]{0,259}[a-zA-Z0-9_()-]$`,
 			"deployment script name must be 1-260 characters of alphanumerics, underscore, parentheses, hyphen, and period, and cannot end with a period",
 		),
-	}
+	)
 }

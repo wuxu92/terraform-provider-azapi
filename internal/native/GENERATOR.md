@@ -265,15 +265,16 @@ every customizer, keyed by ARM type):
 
 ```go
 // storage_account.go — the per-resource logic
-func customizeStorageAccount(def *generator.ResourceDefinition) {
+func customizeStorageAccount(def *typegraph.ResourceDefinition) {
     // name is part of the operational envelope, not the bicep body
-    def.Envelope.Name.Validators = []generator.DescriptionValidator{
-        generator.LengthValidator(3, 24),
-        generator.RegexValidator(`^[a-z0-9]+$`, "must be 3-24 lowercase letters and digits"),
-    }
-    // default / force-new / mark a body property by ARM dot path
-    // (FindProperty panics on an unknown path, so a typo fails the generator)
-    generator.FindProperty(def, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"
+    def.SetNameValidators(
+        typegraph.LengthValidator(3, 24),
+        typegraph.RegexValidator(`^[a-z0-9]+$`, "must be 3-24 lowercase letters and digits"),
+    )
+    // mark body properties by ARM dot path; calls chain and each path is variadic
+    // (the helpers panic on an unknown path, so a typo fails the generator)
+    def.Default("properties.minimumTlsVersion", "TLS1_2").
+        Required("sku", "sku.name")
 }
 
 // register.go — the single registration point (ARM types come from the armtype catalog)
@@ -292,13 +293,34 @@ say. Because it mutates the same type graph and `Envelope` spec the emitter
 consumes, every change is baked into the generated `_gen.go` — there is no runtime
 schema mutation and no runtime cost.
 
-Customizers mutate `*Property` fields directly (`DefaultValue`, `ForceNew`,
-`Sensitive`, `ForceComputed`, `Validators`, `Description`) and use the helper
-constructors `generator.RegexValidator` / `LengthValidator` / `OneOfValidator` /
-`IntRangeValidator` (which build the `DescriptionValidator` the emitter already
-knows how to emit). `generator.FindProperty` and `generator.IsolateArrayElement`
-**panic** on an unresolved/invalid ARM path — a customizer authors paths by hand,
-so a typo must fail generation rather than be silently skipped.
+Prefer the fluent helper methods on `*typegraph.ResourceDefinition` (in
+`typegraph/customize.go`) — each is path-variadic, chains, and panics on an
+unknown path, so a customizer reads as intent rather than field-poking:
+
+| Helper | Effect |
+|---|---|
+| `Required(paths…)` | promote to `FlagRequired` |
+| `Computed(paths…)` | force `ForceComputed` (Computed-only) |
+| `ForceNew(paths…)` | `ForceNew` (RequiresReplace plan modifier) |
+| `Sensitive(paths…)` | `Sensitive: true` |
+| `AsSet(paths…)` | emit a primitive array as a set (`UseSet`) |
+| `WithEmptyListDefault(paths…)` | empty-list schema default (`DefaultEmptyList`) |
+| `NonNullStateForUnknown(paths…)` | opt out of `UseStateForUnknown` for null→non-null server fields |
+| `Default(path, value)` | set `DefaultValue` |
+| `AddValidatorsFor(path, validators…)` | append `Validators` |
+| `SetNameValidators(validators…)` | replace the envelope name attribute's validators |
+| `SetParent(name, description)` | rename/redescribe the envelope parent reference |
+| `AddMetaAttr(attrs…)` | append synthetic behavior-only envelope attributes |
+
+Underneath, these mutate the same `*Property` fields (`DefaultValue`, `ForceNew`,
+`Sensitive`, `ForceComputed`, `Validators`, `Description`) and `Envelope` spec you
+may still set directly for the rare case a helper does not cover; validators are
+built with the `typegraph.RegexValidator` / `LengthValidator` / `OneOfValidator` /
+`IntRangeValidator` constructors (which build the `DescriptionValidator` the
+emitter already knows how to emit). `typegraph.FindProperty` and
+`typegraph.IsolateArrayElement` (and every path-based helper above) **panic** on
+an unresolved/invalid ARM path — a customizer authors paths by hand, so a typo
+must fail generation rather than be silently skipped.
 
 For a semantic rule a regex/length/enum cannot express, attach a hand-written
 `validator.String`. Two placements, by reusability:

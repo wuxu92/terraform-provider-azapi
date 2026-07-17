@@ -14,13 +14,13 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //     body `location` to Required (azwise RequiredFields is planner metadata, not a
 //     schema flag); its ForceNew RequiresReplace already rides the azwise overlay.
 func customizeKustoClusterDatabase(def *typegraph.ResourceDefinition) {
-	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{
+	def.SetNameValidators(
 		typegraph.LengthValidator(1, 260),
 		typegraph.RegexValidator(
 			`^[a-zA-Z0-9\s._-]+$`,
 			"Kusto database name must be at most 260 characters of alphanumerics, whitespace, dots, dashes, and underscores",
 		),
-	}
+	)
 
-	typegraph.FindProperty(def, "location").Flags |= typegraph.FlagRequired
+	def.Required("location")
 }

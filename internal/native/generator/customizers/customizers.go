@@ -14,14 +14,15 @@
 // that holds the init() and registers every customizer, keyed by ARM type):
 //
 //	// storage_account.go
-//	func customizeStorageAccount(def *generator.ResourceDefinition) {
+//	func customizeStorageAccount(def *typegraph.ResourceDefinition) {
 //	    // constrain the resource name (bicep does not model it)
-//	    def.Envelope.Name.Validators = []generator.DescriptionValidator{
-//	        generator.LengthValidator(3, 24),
-//	        generator.RegexValidator(`^[a-z0-9]+$`, "name must be 3-24 lowercase letters and digits"),
-//	    }
-//	    // default an inferred-but-unset property (FindProperty panics on a bad path)
-//	    generator.FindProperty(def, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"
+//	    def.SetNameValidators(
+//	        typegraph.LengthValidator(3, 24),
+//	        typegraph.RegexValidator(`^[a-z0-9]+$`, "name must be 3-24 lowercase letters and digits"),
+//	    )
+//	    // fluent, path-variadic helpers on *ResourceDefinition (typegraph/customize.go)
+//	    // chain and panic on a bad path; see that file for the full vocabulary
+//	    def.Default("properties.minimumTlsVersion", "TLS1_2").Required("sku", "sku.name")
 //	}
 //
 //	// register.go

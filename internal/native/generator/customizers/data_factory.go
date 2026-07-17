@@ -9,11 +9,11 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //     envelope name here rather than as an empty-path azwise StringRule (which the
 //     overlay skips because name is not in the body graph).
 func customizeDataFactory(def *typegraph.ResourceDefinition) {
-	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{
+	def.SetNameValidators(
 		typegraph.LengthValidator(3, 63),
 		typegraph.RegexValidator(
 			`^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$`,
 			"Data Factory name must be 3-63 characters of alphanumerics and single hyphens, starting and ending with an alphanumeric character",
 		),
-	}
+	)
 }

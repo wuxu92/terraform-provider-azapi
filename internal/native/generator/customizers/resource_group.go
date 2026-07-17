@@ -13,11 +13,11 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //   - non-blank, at most 90 characters (length 1..90)
 //   - alphanumerics, dash, underscore, parentheses, period; may not end with a period
 func customizeResourceGroup(def *typegraph.ResourceDefinition) {
-	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{typegraph.
-		LengthValidator(1, 90), typegraph.
-		RegexValidator(
+	def.SetNameValidators(
+		typegraph.LengthValidator(1, 90),
+		typegraph.RegexValidator(
 			`^[-\w._()]*[-\w_()]$`,
 			"resource group name may contain only alphanumerics, dashes, underscores, parentheses and periods, and may not end with a period",
 		),
-	}
+	)
 }

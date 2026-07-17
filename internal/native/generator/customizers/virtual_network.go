@@ -28,35 +28,31 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //     arrays share one bicep element type; IsolateArrayElement un-shares each before
 //     flagging so the rules land independently.
 func customizeVirtualNetwork(def *typegraph.ResourceDefinition) {
-	bgp := typegraph.FindProperty(def, "properties.bgpCommunities.virtualNetworkCommunity")
-	bgp.Validators = append(bgp.Validators, typegraph.CustomValidator("VirtualNetworkBgpCommunity()"))
-
-	ddosID := typegraph.FindProperty(def, "properties.ddosProtectionPlan.id")
-	ddosID.Validators = append(ddosID.Validators, typegraph.SharedValidator("AzureResourceID()"))
+	def.AddValidatorsFor("properties.bgpCommunities.virtualNetworkCommunity", typegraph.CustomValidator("VirtualNetworkBgpCommunity()"))
+	def.AddValidatorsFor("properties.ddosProtectionPlan.id", typegraph.SharedValidator("AzureResourceID()"))
 
 	for _, path := range []string{
 		"properties.addressSpace.ipamPoolPrefixAllocations",
 		"properties.subnets.properties.ipamPoolPrefixAllocations",
 	} {
-		elem := typegraph.IsolateArrayElement(def, path)
-		pool := elem.Properties["pool"]
-		if pool == nil {
-			panic("native: customizeVirtualNetwork: " + path + " element has no pool property")
-		}
-		pool.Flags |= typegraph.FlagRequired
+		// Un-share the element so the rules land on this array only; both ipam arrays
+		// share one bicep element type.
+		typegraph.IsolateArrayElement(def, path)
 
-		count := elem.Properties["numberOfIpAddresses"]
-		if count == nil {
-			panic("native: customizeVirtualNetwork: " + path + " element has no numberOfIpAddresses property")
-		}
-		count.Flags |= typegraph.FlagRequired
-		count.Validators = append(count.Validators, typegraph.RegexValidator(
+		// Promote pool to Required (pool.id is already Required via single-optional
+		// promotion) and number_of_ip_addresses to Required with AzureRM's positive-
+		// number regex, so a missing pool or a non-numeric count fails at plan time
+		// instead of as a cryptic ARM 400.
+		def.Required(path+".pool", path+".numberOfIpAddresses")
+		def.AddValidatorsFor(path+".numberOfIpAddresses", typegraph.RegexValidator(
 			`^[1-9]\d*$`,
 			"number_of_ip_addresses must be a string representing a positive number",
 		))
 
-		arr := typegraph.FindProperty(def, path)
-		arr.Validators = append(arr.Validators,
+		// The array itself is Optional+Computed (one side of address_space/ipam
+		// ExactlyOneOf), so an empty list would otherwise satisfy "set": require at
+		// least one entry and cap at a dual-stack IPv4/IPv6 pool pair.
+		def.AddValidatorsFor(path,
 			typegraph.ListSizeAtLeastValidator(1),
 			typegraph.ListSizeAtMostValidator(2),
 		)

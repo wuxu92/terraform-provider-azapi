@@ -18,11 +18,8 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 // assignable_scopes default (a runtime hook) are handled by the azwise overlay and
 // role_definition_hooks.go respectively; see internal/azure/azwise/role_definition.go.
 func customizeRoleDefinition(def *typegraph.ResourceDefinition) {
-	def.Envelope.Name.Validators = []typegraph.DescriptionValidator{
-		typegraph.SharedValidator("UUID()"),
-	}
-	def.Envelope.Parent.Name = "scope_id"
-	def.Envelope.Parent.Description = "The scope ID where this role definition is defined."
+	def.SetNameValidators(typegraph.SharedValidator("UUID()"))
+	def.SetParent("scope_id", "The scope ID where this role definition is defined.")
 
-	typegraph.FindProperty(def, "properties.roleName").Flags |= typegraph.FlagRequired
+	def.Required("properties.roleName")
 }
