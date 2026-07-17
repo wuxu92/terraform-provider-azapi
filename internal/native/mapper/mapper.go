@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -249,7 +250,7 @@ func Flatten(ctx context.Context, arm map[string]interface{}, objType basetypes.
 		}
 		armVal, present := arm[prop.Name]
 		if !present || armVal == nil {
-			values[name] = nullOf(ctx, at)
+			values[name] = defaultOrNull(ctx, prop, at)
 			continue
 		}
 		v, d := flattenValue(ctx, armVal, at, prop.Type)
@@ -305,7 +306,7 @@ func flattenDiscriminated(ctx context.Context, arm map[string]interface{}, objTy
 		}
 		armVal, present := arm[prop.Name]
 		if !present || armVal == nil {
-			values[name] = nullOf(ctx, at)
+			values[name] = defaultOrNull(ctx, prop, at)
 			continue
 		}
 		v, d := flattenValue(ctx, armVal, at, prop.Type)
@@ -422,6 +423,36 @@ func nullOf(ctx context.Context, at attr.Type) attr.Value {
 		return types.DynamicNull()
 	}
 	return v
+}
+
+// defaultOrNull returns the property's schema default as a typed value when the ARM
+// response omits it, falling back to the type's null when there is no default. Import
+// builds state directly from the GET response with no prior state and no plan pass, so
+// a defaulted Optional+Computed field the response leaves out would otherwise import as
+// null and diff against the schema default the next plan applies — a spurious "update",
+// or a forced replacement when the field is ForceNew (e.g. Cosmos DB create_mode, which
+// Azure omits from a fresh account's GET). Create/update/read preserve the value through
+// the base object, so only this base-less Flatten (import) path needs the default.
+func defaultOrNull(ctx context.Context, prop *typegraph.Property, at attr.Type) attr.Value {
+	if prop == nil || prop.DefaultValue == "" || prop.Type == nil {
+		return nullOf(ctx, at)
+	}
+	switch {
+	case prop.Type.Kind == typegraph.KindBool:
+		if b, err := strconv.ParseBool(prop.DefaultValue); err == nil {
+			return types.BoolValue(b)
+		}
+	case prop.Type.Kind == typegraph.KindInt:
+		if n, err := strconv.ParseInt(prop.DefaultValue, 10, 64); err == nil {
+			return types.Int64Value(n)
+		}
+	case prop.Type.Kind == typegraph.KindString,
+		prop.Type.Kind == typegraph.KindStringLiteral,
+		prop.Type.Kind == typegraph.KindUnion,
+		prop.Type.IsEnum():
+		return types.StringValue(prop.DefaultValue)
+	}
+	return nullOf(ctx, at)
 }
 
 // ResolveUnknowns recursively replaces any remaining unknown value with the null

@@ -1184,3 +1184,40 @@ func TestDiscriminatedRootRoundTrip(t *testing.T) {
 		t.Errorf("envelope name not preserved through FlattenInto: got %v", refreshed.Attributes()["name"])
 	}
 }
+
+// TestFlattenAppliesSchemaDefaultOnImport guards the import path (base-less Flatten):
+// when the ARM GET response omits an Optional+Computed field that carries a schema
+// default, the imported state must land the default value, not null. Azure omits
+// createMode from a fresh Cosmos DB account's GET, so without this the field imports
+// as null and the next plan diffs null -> "Default" — a forced replacement because
+// createMode is ForceNew. Create/update/read keep the value through the base object;
+// only import has no base, so it is the sole path that must synthesize the default.
+func TestFlattenAppliesSchemaDefaultOnImport(t *testing.T) {
+	ctx := context.Background()
+	body := loadBody(t, "Microsoft.DocumentDB/databaseAccounts")
+	objType := services.Registry["azapi_cosmosdb_account"].Schema().Type().(basetypes.ObjectType)
+
+	// A GET response that omits properties.createMode, exactly as Azure returns for a
+	// freshly-created default account.
+	arm := map[string]interface{}{
+		"kind": "GlobalDocumentDB",
+		"properties": map[string]interface{}{
+			"databaseAccountOfferType": "Standard",
+		},
+	}
+	stateObj, diags := mapper.Flatten(ctx, arm, objType, body, nil)
+	if diags.HasError() {
+		t.Fatalf("Flatten diags: %v", diags)
+	}
+	props, ok := stateObj.Attributes()["properties"].(types.Object)
+	if !ok || props.IsNull() {
+		t.Fatalf("properties missing from imported state: %v", stateObj.Attributes()["properties"])
+	}
+	createMode, ok := props.Attributes()["create_mode"].(types.String)
+	if !ok {
+		t.Fatalf("create_mode missing from imported properties: %v", props.Attributes()["create_mode"])
+	}
+	if createMode.IsNull() || createMode.ValueString() != "Default" {
+		t.Errorf("imported create_mode = %v, want \"Default\" (schema default synthesized when response omits it)", createMode)
+	}
+}
