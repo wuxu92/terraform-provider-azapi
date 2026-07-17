@@ -398,6 +398,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 						Description: "Enum to indicate the mode of account creation.",
 						Optional:    true,
 						Computed:    true,
+						Default:     stringdefault.StaticString("Default"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(
 								"Default",
@@ -405,7 +406,6 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 							),
 						},
 						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
 							stringplanmodifier.RequiresReplace(),
 						},
 					},

@@ -195,6 +195,7 @@ func NewDocumentDBDatabaseAccount() *DocumentDBDatabaseAccount {
 			},
 			DefaultValues: []DefaultValue{
 				{PropertyPath: "kind", Value: "GlobalDocumentDB"},
+				{PropertyPath: "properties.createMode", Value: "Default"},
 				{PropertyPath: "properties.minimalTlsVersion", Value: "Tls12"},
 				{PropertyPath: "properties.defaultIdentity", Value: "FirstPartyIdentity"},
 				{PropertyPath: "properties.publicNetworkAccess", Value: "Enabled"},
