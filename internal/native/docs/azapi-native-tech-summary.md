@@ -129,10 +129,6 @@
     every drafted attribute exists), and the native-dependency wall fails loud on
     a missing native type rather than emitting a foreign block.
 
----
-
-## B. Key future features & possible solutions (6)
-
 12. **Discriminated / polymorphic type support** (biggest typed-coverage gap, undergoing...).
     Today every `DiscriminatedObjectType` collapses to `types.Dynamic`; **632
     resources whose root body is discriminated are skipped entirely** and fall
@@ -141,6 +137,10 @@
     discriminator derived), reusing existing nested-object + relational
     machinery, with a variant-count fallback to dynamic for pathological wide
     unions. Full analysis in `discriminator-report.md`.
+
+---
+
+## B. Key future features & possible solutions (6)
 
 13. **Live-API schema verification harness** (TODO #16).
     Bicep/azwise are lossy vs real ARM behavior (ranges, enum completeness,
