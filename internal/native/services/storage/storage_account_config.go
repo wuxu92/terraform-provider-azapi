@@ -139,6 +139,9 @@ func (r StorageAccountCfg) completeProps() string {
     key_policy = {
       key_expiration_period_in_days = 7
     }
+  }
+  tags = {
+    environment = "Production"
   }`
 }
 
@@ -169,5 +172,8 @@ func (r StorageAccountCfg) completeUpdateProps() string {
     key_policy = {
       key_expiration_period_in_days = 14
     }
+  }
+  tags = {
+    environment = "staging" // flipped from Production; azurerm storage update() proves the tag map updates in place
   }`
 }

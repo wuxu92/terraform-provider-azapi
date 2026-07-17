@@ -37,6 +37,15 @@ var _ = Describe("Azure Resource Group", Ordered, func() {
 		)
 	})
 
+	It("updates tags and managed_by in place", func() {
+		// Basic created the group with no body; Complete adds managed_by and a tag map,
+		// then Complete_update rewrites the tags (environment changed, cost_center
+		// dropped) while holding managed_by. Each Apply re-plans for drift, so the
+		// in-place updates round-trip without per-value assertions.
+		rg.Apply(resources.ResourceGroupCfg_Complete(cfg))
+		rg.Apply(resources.ResourceGroupCfg_Complete_update(cfg))
+	})
+
 	It("rejects a name ending with a period", func() {
 		invalid := resources.NewResourceGroupCfg("invalid")
 		ws.ResourceFor(invalid).ApplyExpectError(
