@@ -6,6 +6,10 @@
    breaking to a DAG, **description mining** (defaults/validators/format hints
    the formal spec omits), and conditional imports (pre-scan the graph so a
    generated file imports only what it uses).
+   **Why:** a typed, plan-time-validated schema gives practitioners
+   autocomplete, required/enum/range checks, and diffable attributes the opaque
+   `azapi_resource` body cannot — the payoff that justifies generating and
+   shipping a per-resource schema at all.
 
 2. **azwise operational-knowledge overlay.**
    Per-resource curated knowledge (ForceNew, real defaults, validation,
@@ -13,17 +17,31 @@
    applied on top of the mechanical schema. This is what makes the output
    behave like a hand-authored resource. Key choice: azwise is the base for the
    override layer, not a runtime lookup.
+   **Why:** bicep/swagger is lossy — no real ForceNew, defaults, validation
+   ranges, or sensitive/computed truth — while terraform-provider-azurerm
+   already encodes years of curated, live-tested operational knowledge; the
+   overlay reuses that instead of re-deriving it, and applying it at generation
+   time (not runtime) keeps the shipped schema final.
 
 3. **One generic runtime base — no per-resource Go struct** (ADR-0002).
    A single `Base` implements the full CRUD lifecycle for every generated
    resource; ARM property names are resolved at runtime from the embedded type
    graph, never duplicated per resource.
+   **Why:** emitting a per-resource Go struct + CRUD implementation for the
+   hundreds-to-thousands of ARM types would explode binary size and multiply
+   lifecycle bugs; one generic base keeps code growth flat and fixes every
+   resource at once.
 
 4. **Generic bidirectional mapper (Terraform ⇄ ARM JSON).**
    `Expand` (typed config → ARM payload) and `Flatten`/`FlattenInto` (ARM
    response → typed state) walk the shared type graph — no per-resource
    marshaling code. Handles idempotency concerns: sensitive/write-only
    retention, semantic location equality, case-preserving open-map keys.
+   **Why:** the idempotency-critical concerns (sensitive/write-only retention,
+   semantic location equality, open-map key casing) are subtle and identical
+   across resources — implementing them once in a graph-walking mapper is
+   correct by construction, where N generated per-resource marshalers would each
+   be a place to get them wrong.
 
 5. **Two customization seams: generation-time customizers + runtime hooks.**
    Customizers mutate the type graph before emission (validators, defaults,
@@ -31,11 +49,22 @@
    (`Before/After Create/Read/Update/Delete`, Singleton, `ModifyPlan`,
    `ValidateConfig`) customize behavior only. Key choice: schema is frozen at
    generation time; the runtime never rewrites it (ADR-0007).
+   **Why (two reasons):** (1) what the developer reads in `<name>_gen.go` is
+   exactly what ships to the customer, so debugging an issue never means merging
+   a patch or overlay over the schema in your head. (2) The schema is
+   regenerated on every swagger re-vendor and API-version bump — a hand-edited
+   `_gen.go` would be silently overwritten, and a separate patch layer's
+   compatibility with the newly-generated schema cannot be known — so all
+   customization moves *into* the generator ahead of emission rather than onto
+   the output.
 
 6. **Relational cross-property constraints.**
    `ConflictsWith / RequiredWith / ExactlyOneOf / AtLeastOneOf` lowered from
    azwise into the generated descriptor and enforced at runtime as framework
    `ConfigValidators` over nested snake_case paths.
+   **Why:** the cross-field rules are declared once in the knowledge layer and
+   enforced by framework-native `ConfigValidators`, so they survive regeneration
+   and need no hand-written per-resource validation Go.
 
 7. **Operational envelope synthesis.**
    `name`, parent reference, `id`, and per-operation `timeouts` are synthesized
@@ -71,6 +100,10 @@
    Every registered resource gets a read-only data source for free: the generic
    `DataSource` converts the resource schema (name + parent Required, all else
    Computed) and reuses the resource read path.
+   **Why:** a read-only data source is fully derivable from the resource schema
+   plus the read path, so hand-authoring one per resource would be pure
+   duplication that drifts from the resource; deriving it gives every resource
+   free, always-consistent data-source coverage.
 
 10. **Self-verification gate.**
     Generation runs flag-invariant checks plus a schema↔bicep **parity
