@@ -188,6 +188,9 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 								Description: "Variant \\\"Continuous\\\" of the discriminated type.",
 								Optional:    true,
 								Computed:    true,
+								PlanModifiers: []planmodifier.Object{
+									nativeschema.DiscriminatedVariant("periodic"),
+								},
 								Attributes: map[string]schema.Attribute{
 									"continuous_mode_properties": schema.SingleNestedAttribute{
 										Description: "Configuration values for continuous mode backup",
@@ -211,6 +214,9 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 								Description: "Variant \\\"Periodic\\\" of the discriminated type.",
 								Optional:    true,
 								Computed:    true,
+								PlanModifiers: []planmodifier.Object{
+									nativeschema.DiscriminatedVariant("continuous"),
+								},
 								Attributes: map[string]schema.Attribute{
 									"periodic_mode_properties": schema.SingleNestedAttribute{
 										Description: "Configuration values for periodic mode backup",

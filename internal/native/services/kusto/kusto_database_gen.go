@@ -49,11 +49,9 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 			},
 			"location": schema.StringAttribute{
 				Description: "Resource location.",
-				Optional:    true,
-				Computed:    true,
+				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					nativeschema.UseStateForEquivalentLocation(),
-					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
@@ -134,6 +132,9 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 				Description: "Variant \\\"ReadOnlyFollowing\\\" of the discriminated type.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Object{
+					nativeschema.DiscriminatedVariant("read_write"),
+				},
 				Attributes: map[string]schema.Attribute{
 					"properties": schema.SingleNestedAttribute{
 						Description: "The database properties.",
@@ -313,6 +314,9 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 				Description: "Variant \\\"ReadWrite\\\" of the discriminated type.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Object{
+					nativeschema.DiscriminatedVariant("read_only_following"),
+				},
 				Attributes: map[string]schema.Attribute{
 					"properties": schema.SingleNestedAttribute{
 						Description: "The database properties.",

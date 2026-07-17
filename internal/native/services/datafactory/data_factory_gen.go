@@ -239,6 +239,9 @@ func AzapiDataFactorySchema() schema.Schema {
 								Description: "Variant \\\"FactoryGitHubConfiguration\\\" of the discriminated type.",
 								Optional:    true,
 								Computed:    true,
+								PlanModifiers: []planmodifier.Object{
+									nativeschema.DiscriminatedVariant("factory_vsts_configuration"),
+								},
 								Attributes: map[string]schema.Attribute{
 									"client_id": schema.StringAttribute{
 										Description: "GitHub bring your own app client id.",
@@ -290,6 +293,9 @@ func AzapiDataFactorySchema() schema.Schema {
 								Description: "Variant \\\"FactoryVSTSConfiguration\\\" of the discriminated type.",
 								Optional:    true,
 								Computed:    true,
+								PlanModifiers: []planmodifier.Object{
+									nativeschema.DiscriminatedVariant("factory_git_hub_configuration"),
+								},
 								Attributes: map[string]schema.Attribute{
 									"project_name": schema.StringAttribute{
 										Description: "VSTS project name.",

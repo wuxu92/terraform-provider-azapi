@@ -352,8 +352,13 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 			scanImportNeedsRecurse(prop.Type, needs)
 		}
 	}
-	// A discriminated type's variants are emitted as nested object blocks; scan
-	// each so their inner attributes contribute their framework imports.
+	// A discriminated type's variants are emitted as nested object blocks, each
+	// carrying the nativeschema.DiscriminatedVariant plan modifier; scan each so
+	// their inner attributes contribute their framework imports.
+	if len(typ.Variants) > 0 {
+		needs.nativeSchema = true
+		needs.planmodifier = true
+	}
 	for _, variant := range typ.Variants {
 		scanImportNeedsRecurse(variant, needs)
 	}
@@ -380,9 +385,9 @@ func emitAttributes(b *strings.Builder, objType *typegraph.Type, indent int, inC
 // emitDiscriminatedAttributes writes a discriminated block's attributes: the
 // shared base properties, then one Optional SingleNestedAttribute per variant
 // (keyed by the snake_cased discriminator value). Variant blocks are mutually
-// exclusive and carry SuppressStateReuse so an omitted variant plans as unknown
-// and clears on a switch (see the ExactlyOneOf/AtMostOneOf member rationale on
-// Property.SuppressStateReuse).
+// exclusive; each carries the DiscriminatedVariant plan modifier (reuse prior
+// state for an unselected variant, clear it on a switch) with its sibling variant
+// names, so an omitted variant stops planning as "(known after apply)".
 func emitDiscriminatedAttributes(b *strings.Builder, discType *typegraph.Type, indent int, inCollection bool) {
 	tabs := strings.Repeat("\t", indent)
 
@@ -399,21 +404,34 @@ func emitDiscriminatedAttributes(b *strings.Builder, discType *typegraph.Type, i
 		emitAttribute(b, naming.CamelToSnake(armName), prop, tabs, indent, inCollection)
 	}
 
-	for _, value := range sortedVariantValues(discType) {
-		emitAttribute(b, naming.CamelToSnake(value), variantProperty(value, discType.Variants[value]), tabs, indent, inCollection)
+	values := sortedVariantValues(discType)
+	snake := make([]string, len(values))
+	for i, value := range values {
+		snake[i] = naming.CamelToSnake(value)
+	}
+	for i, value := range values {
+		siblings := make([]string, 0, len(snake)-1)
+		for j, name := range snake {
+			if j != i {
+				siblings = append(siblings, name)
+			}
+		}
+		emitAttribute(b, snake[i], variantProperty(value, discType.Variants[value], siblings), tabs, indent, inCollection)
 	}
 }
 
-// variantProperty wraps a discriminated variant object as an Optional block
-// property. It is the mutually-exclusive selector for one discriminator value, so
-// it opts out of state reuse (SuppressStateReuse) exactly like a generated
-// ExactlyOneOf member.
-func variantProperty(value string, variant *typegraph.Type) *typegraph.Property {
+// variantProperty wraps a discriminated variant object as an Optional+Computed
+// block property. It is the mutually-exclusive selector for one discriminator
+// value: it carries its sibling variant names so the emitter renders the
+// DiscriminatedVariant plan modifier (reuse-state-unless-switching), fixing the
+// "(known after apply)" drift a plain SuppressStateReuse leaves on an unselected
+// variant while still clearing on a variant switch.
+func variantProperty(value string, variant *typegraph.Type, siblings []string) *typegraph.Property {
 	return &typegraph.Property{
-		Name:               value,
-		Type:               variant,
-		Description:        fmt.Sprintf("Variant %q of the discriminated type.", value),
-		SuppressStateReuse: true,
+		Name:            value,
+		Type:            variant,
+		Description:     fmt.Sprintf("Variant %q of the discriminated type.", value),
+		VariantSiblings: siblings,
 	}
 }
 
@@ -660,6 +678,24 @@ func emitPlanModifiers(b *strings.Builder, prop *typegraph.Property, computed bo
 	// make null prior state unknown for Azure-populated values. Members of a
 	// mutual-exclusion / choice constraint opt out (SuppressStateReuse) so an omitted
 	// side plans as unknown and the server re-owns it, instead of pinning stale state.
+	if len(prop.VariantSiblings) > 0 {
+		// A discriminated variant block: an unselected variant reuses prior state
+		// but clears when a sibling variant is selected (see nativeschema
+		// .DiscriminatedVariant). This replaces the plain UseStateForUnknown, whose
+		// omission (SuppressStateReuse) left the unselected variant perpetually
+		// planning as "(known after apply)".
+		b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.Object{\n", tabs))
+		b.WriteString(fmt.Sprintf("%s\t\tnativeschema.DiscriminatedVariant(", tabs))
+		for i, sib := range prop.VariantSiblings {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(fmt.Sprintf("%q", sib))
+		}
+		b.WriteString("),\n")
+		b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+		return
+	}
 	useState := !prop.Flags.IsRequired() && prop.DefaultValue == "" && !prop.DefaultEmptyList && !prop.SuppressStateReuse
 	forceNew := prop.ForceNew && !computed
 	location := usesLocationPlanModifier(prop, computed)

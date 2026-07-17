@@ -242,6 +242,11 @@ func TestEmitDiscriminatedRootBody(t *testing.T) {
 		`"azure_power_shell": schema.SingleNestedAttribute{`,
 		`"script_content": schema.StringAttribute{`,
 		`services.ExactlyOneOf`,
+		// Each variant carries the DiscriminatedVariant plan modifier naming its
+		// sibling, so an unselected variant reuses prior state instead of planning
+		// as "(known after apply)".
+		`nativeschema.DiscriminatedVariant("azure_power_shell")`,
+		`nativeschema.DiscriminatedVariant("azure_cli")`,
 	} {
 		if !strings.Contains(source, needle) {
 			t.Errorf("emitted source missing %q:\n%s", needle, source)

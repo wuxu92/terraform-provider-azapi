@@ -199,6 +199,9 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 				Description: "Variant \\\"AzureCLI\\\" of the discriminated type.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Object{
+					nativeschema.DiscriminatedVariant("azure_power_shell"),
+				},
 				Attributes: map[string]schema.Attribute{
 					"properties": schema.SingleNestedAttribute{
 						Description: "Properties of the Azure CLI script object.",
@@ -535,6 +538,9 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 				Description: "Variant \\\"AzurePowerShell\\\" of the discriminated type.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Object{
+					nativeschema.DiscriminatedVariant("azure_cli"),
+				},
 				Attributes: map[string]schema.Attribute{
 					"properties": schema.SingleNestedAttribute{
 						Description: "Properties of the Azure PowerShell script object.",

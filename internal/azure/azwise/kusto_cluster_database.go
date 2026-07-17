@@ -79,9 +79,11 @@ func NewKustoClusterDatabase() *KustoClusterDatabase {
 		BaseKnowledge: BaseKnowledge{
 			ResourceType: "Microsoft.Kusto/clusters/databases",
 			ApiVersions:  []string{"2025-02-14"},
-			// AzureRM marks location ForceNew (commonschema.Location()); a database's
-			// location is pinned to its cluster, so changing it replaces the resource.
-			// name and cluster (parent) are envelope-owned RequiresReplace (see doc).
+			// AzureRM marks location Required + ForceNew (commonschema.Location()); a
+			// database's location is pinned to its cluster, so changing it replaces the
+			// resource. name and cluster (parent) are envelope-owned RequiresReplace
+			// (see doc). The Required schema flag is promoted in the customizer
+			// (RequiredFields below is planner metadata, not a native schema flag).
 			ForceNew: []ForceNewRule{
 				{PropertyPath: "location"},
 			},
@@ -120,7 +122,9 @@ func NewKustoClusterDatabase() *KustoClusterDatabase {
 			SensitiveFields: []string{},
 			ComputedFields:  []string{},
 			DefaultValues:   []DefaultValue{},
-			RequiredFields:  []string{},
+			// location is Required in AzureRM (commonschema.Location()); the schema flag
+			// is promoted in the kusto_cluster_database customizer.
+			RequiredFields: []string{"location"},
 		},
 	}
 }
