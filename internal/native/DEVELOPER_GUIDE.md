@@ -50,8 +50,8 @@ Two failure modes to internalize:
 | azwise knowledge (curated AzureRM) | `internal/azure/azwise/<resource>.go` + `register.go` |
 | Generation targets | `internal/native/generator/cmd/generate_poc.go` |
 | Customizers (generation-time schema) | `internal/native/generator/customizers/<resource>.go` + `register.go` |
-| Shared validators (cross-resource) | `internal/native/schema/validator_<rule>.go` |
-| Per-service validators | `internal/native/services/<service>/validators/<rule>.go` |
+| Schema validators (generic) | `internal/native/schema/validators/<rule>.go` |
+| Schema validators (service-specific) | `internal/native/services/<service>/validators/<rule>.go` |
 | Generated output | `internal/native/services/<service>/<name>_gen.go` |
 | Runtime hooks for a generated resource | `internal/native/services/<service>/<name>_hooks.go` |
 | Service aggregator (blank imports) | `internal/native/services/all/all.go` |
@@ -298,11 +298,15 @@ description-mining). Common moves:
 - **Body property** — `FindProperty(def, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"`
   (also sets `ForceNew` / `Sensitive` / `Validators`).
 - **Envelope name** — `def.Envelope.Name.Validators = …` (name isn't in the body).
-- **Semantic validator** — attach a `validator.String`, home by reusability:
-  - Generic/cross-resource → `SharedValidator("UUID()")`, ctor in
-    `schema/validator_<rule>.go`. Reuse `UUID()`, `AzureResourceID()`, … before adding one.
-  - Resource-specific → `CustomValidator("StorageAccountIPRule()")`, ctor in
-    `services/<service>/validators/<rule>.go`.
+- **Semantic validator** — `def.AddValidatorsFor("<path>", typegraph.Validator(validators.UUID))`,
+  referencing the constructor by symbol (rename/delete → compile error). Reuse the
+  generic `validators.UUID` / `validators.AzureResourceID` from
+  `internal/native/schema/validators` before adding one; a rule tied to a single
+  service (e.g. `storagevalidators.StorageAccountIPRule`) lives in
+  `internal/native/services/<service>/validators`, imported under a `<svc>validators`
+  alias. A new validator is just a `validator.String` ctor in the package matching its
+  scope — no catalog, no registration; the emitter reflects the func to derive the
+  call qualifier + import alias.
 - **Array element shared with a sibling** (`ipRules` vs `ipv6Rules`) — call
   `IsolateArrayElement(def, "<path>")` **first** so the validator doesn't leak to the sibling.
 - **Behavior-only Meta attribute** — `def.Envelope.Meta = append(def.Envelope.Meta, typegraph.MetaAttr{Name: "purge_on_destroy", Description: …})`

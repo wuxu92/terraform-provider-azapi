@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator/customizers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
+	storagevalidators "github.com/Azure/terraform-provider-azapi/internal/native/services/storage/validators"
 	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
 
@@ -38,7 +39,7 @@ func TestCustomizerBakesEnvelopeAndPropertyChanges(t *testing.T) {
 		typegraph.
 			FindProperty(d, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"
 		accessTier := typegraph.FindProperty(d, "properties.accessTier")
-		accessTier.Validators = append(accessTier.Validators, typegraph.CustomValidator("StorageAccountIPRule()"))
+		accessTier.Validators = append(accessTier.Validators, typegraph.Validator(storagevalidators.StorageAccountIPRule))
 	})
 	t.Cleanup(func() { customizers.Unregister(armType) })
 
@@ -74,7 +75,7 @@ func TestCustomizerBakesEnvelopeAndPropertyChanges(t *testing.T) {
 		`stringvalidator.LengthBetween(3, 24)`,
 		"regexp.MustCompile(`^[a-z0-9]+$`)",
 		`stringdefault.StaticString("TLS1_2")`,
-		`StorageAccountIPRule()`,
+		`storagevalidators.StorageAccountIPRule()`,
 	} {
 		if !strings.Contains(src, want) {
 			t.Errorf("emitted source missing %q", want)

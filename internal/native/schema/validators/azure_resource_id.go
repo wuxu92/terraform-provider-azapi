@@ -1,4 +1,4 @@
-package schema
+package validators
 
 import (
 	"context"
@@ -33,7 +33,8 @@ func (azureResourceIDValidator) ValidateString(_ context.Context, req validator.
 }
 
 // AzureResourceID returns a string validator that requires a parseable ARM
-// resource ID, ported from AzureRM's azure.ValidateResourceID.
+// resource ID, ported from AzureRM's azure.ValidateResourceID. Generic and
+// cross-resource; reuse it before adding a new validator.
 func AzureResourceID() validator.String {
 	return azureResourceIDValidator{}
 }

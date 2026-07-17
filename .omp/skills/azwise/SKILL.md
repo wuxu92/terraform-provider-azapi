@@ -96,13 +96,15 @@ ArrayRule{PropertyPath: "properties.ipRules", MaxItems: ptrInt(200)}
 Transfer **every** other `ValidateFunc` too, routed by reusability:
 
 - **Generic / cross-resource** (`validation.IsUUID`, `azure.ValidateResourceID`, …):
-  use a shared validator in `internal/native/schema` (`UUID()`, `AzureResourceID()`,
-  …) via `generator.SharedValidator("UUID()")`. Add a new one there only when the
+  use a validator in `internal/native/schema/validators` (`UUID`, `AzureResourceID`,
+  …) via `typegraph.Validator(validators.UUID)`. Add a new one there only when the
   rule is genuinely cross-resource.
-- **Resource-specific** (e.g. `StorageAccountIpRule` — regex *plus* a public-vs-private
+- **Service-specific** (e.g. `StorageAccountIpRule` — regex *plus* a public-vs-private
   IP check): a `validator.String` in `internal/native/services/<service>/validators/<rule>.go`
-  (package `validators`, e.g. `services/storage/validators/ip_rules.go`), one per
-  file, referenced via `generator.CustomValidator("StorageAccountIPRule()")`.
+  (one per file, e.g. `storage_account_ip_rule.go`), referenced via
+  `typegraph.Validator(storagevalidators.StorageAccountIPRule)` — just the ctor, no
+  catalog. Both validator packages are named `validators`; the emitter aliases the
+  service one so a generated file can use both.
 - **Sub-service** (e.g. `BlobPropertiesDefaultServiceVersion`): goes on the
   sub-service resource, not the parent. **Non-mappable** (composite Key Vault key
   URI, map-key validators): skip with a note.

@@ -1,4 +1,4 @@
-package schema
+package validators
 
 import (
 	"context"
@@ -7,12 +7,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
-
-// UUID and AzureResourceID are generic, cross-resource schema validators shared by
-// every generated resource. Resource-specific validators instead live with their
-// service in internal/native/services/<service>/validators. A customizer attaches
-// a shared validator via generator.SharedValidator("UUID()"), emitted as a
-// qualified nativeschema.UUID() call in the generated schema.
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
@@ -41,7 +35,8 @@ func (uuidValidator) ValidateString(_ context.Context, req validator.StringReque
 }
 
 // UUID returns a string validator that requires a canonical UUID, ported from
-// AzureRM's validation.IsUUID.
+// AzureRM's validation.IsUUID. Generic and cross-resource; reuse it before adding
+// a new validator.
 func UUID() validator.String {
 	return uuidValidator{}
 }

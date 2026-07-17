@@ -136,7 +136,12 @@ type DescriptionValidator struct {
 	Max     *int64   // For numeric range / length validators
 	Allowed []string // For OneOf validators
 	Message string   // Human-readable description
-	Call    string   // For ValidatorCustom: an nativeschema constructor call, e.g. "StorageAccountIPRule()"
+	// Func is the validator constructor referenced by a customizer, e.g.
+	// validators.UUID (an uncalled func() validator.String). Stored as any so
+	// typegraph stays free of the terraform-plugin-framework dependency; the
+	// emitter reflects it (runtime.FuncForPC) to recover the qualified call and
+	// the package import. Set only for ValidatorFunc.
+	Func any
 }
 
 // ValidatorKind identifies the type of validator.
@@ -149,8 +154,7 @@ const (
 	ValidatorStringOneOf                                     // String enum (azwise AllowedValues)
 	ValidatorStringOneOfCaseInsensitive                      // Case-insensitive string enum (list-element permissions)
 	ValidatorStringLength                                    // String length min/max (azwise)
-	ValidatorCustom                                          // Service-specific validator: services/<service>/validators (validators.X())
-	ValidatorShared                                          // Generic shared validator: internal/native/schema (nativeschema.X())
+	ValidatorFunc                                            // Hand-written validator referenced by func value: validators.X()
 	ValidatorListSizeAtLeast                                 // Minimum list length (listvalidator.SizeAtLeast); uses Min
 	ValidatorListSizeAtMost                                  // Maximum list length (listvalidator.SizeAtMost); uses Max
 )

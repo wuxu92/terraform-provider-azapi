@@ -7,8 +7,9 @@ import (
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
-	"github.com/Azure/terraform-provider-azapi/internal/native/services/storage/validators"
+	storagevalidators "github.com/Azure/terraform-provider-azapi/internal/native/services/storage/validators"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -334,7 +335,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 										Optional:    true,
 										Computed:    true,
 										Validators: []validator.String{
-											nativeschema.UUID(),
+											validators.UUID(),
 										},
 										PlanModifiers: []planmodifier.String{
 											stringplanmodifier.UseStateForUnknown(),
@@ -1165,7 +1166,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 											Description: "Specifies the IP or IP range in CIDR format.",
 											Required:    true,
 											Validators: []validator.String{
-												validators.StorageAccountIPRule(),
+												storagevalidators.StorageAccountIPRule(),
 											},
 										},
 									},
@@ -1211,7 +1212,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 											Optional:    true,
 											Computed:    true,
 											Validators: []validator.String{
-												nativeschema.AzureResourceID(),
+												validators.AzureResourceID(),
 											},
 											PlanModifiers: []planmodifier.String{
 												stringplanmodifier.UseStateForUnknown(),
@@ -1222,7 +1223,7 @@ func AzapiStorageAccountSchema() schema.Schema {
 											Optional:    true,
 											Computed:    true,
 											Validators: []validator.String{
-												nativeschema.UUID(),
+												validators.UUID(),
 											},
 											PlanModifiers: []planmodifier.String{
 												stringplanmodifier.UseStateForUnknown(),

@@ -1,11 +1,26 @@
 package customizers
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
 	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
+
+// refsValidator reports whether vs contains a func-referenced validator whose
+// constructor is fn (compared by func pointer, the identity typegraph.Validator
+// stores).
+func refsValidator(vs []typegraph.DescriptionValidator, fn any) bool {
+	want := reflect.ValueOf(fn).Pointer()
+	for _, v := range vs {
+		if v.Kind == typegraph.ValidatorFunc && v.Func != nil && reflect.ValueOf(v.Func).Pointer() == want {
+			return true
+		}
+	}
+	return false
+}
 
 func TestRegisterRejectsDuplicate(t *testing.T) {
 	const armType = "Microsoft.Fake/dupes"
@@ -49,14 +64,8 @@ func TestWebServerFarmCustomizerAddsNameIDAndSkuRules(t *testing.T) {
 		t.Fatal("sku.name should be required by customizer")
 	}
 	p := typegraph.FindProperty(def, "properties.hostingEnvironmentProfile.id")
-	hasSharedID := false
-	for _, v := range p.Validators {
-		if v.Kind == typegraph.ValidatorShared && v.Call == "AzureResourceID()" {
-			hasSharedID = true
-		}
-	}
-	if !hasSharedID {
-		t.Fatalf("ASE ID validators = %#v, want AzureResourceID shared validator", p.Validators)
+	if !refsValidator(p.Validators, validators.AzureResourceID) {
+		t.Fatalf("ASE ID validators = %#v, want AzureResourceID validator", p.Validators)
 	}
 }
 
@@ -91,8 +100,8 @@ func TestWebSiteCustomizerAddsValidatorsAndClearsSiteConfigDefaults(t *testing.T
 	}
 	for _, path := range []string{"properties.serverFarmId", "properties.virtualNetworkSubnetId"} {
 		p := typegraph.FindProperty(def, path)
-		if len(p.Validators) != 1 || p.Validators[0].Kind != typegraph.ValidatorShared || p.Validators[0].Call != "AzureResourceID()" {
-			t.Fatalf("%s validators = %#v, want AzureResourceID shared validator", path, p.Validators)
+		if len(p.Validators) != 1 || !refsValidator(p.Validators, validators.AzureResourceID) {
+			t.Fatalf("%s validators = %#v, want single AzureResourceID validator", path, p.Validators)
 		}
 	}
 	for _, path := range []string{"properties.siteConfig.ftpsState", "properties.siteConfig.nested.enabled"} {

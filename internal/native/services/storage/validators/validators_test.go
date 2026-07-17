@@ -9,6 +9,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+func runStringValidator(v validator.String, val types.String) *validator.StringResponse {
+	req := validator.StringRequest{Path: path.Root("field"), ConfigValue: val}
+	resp := &validator.StringResponse{}
+	v.ValidateString(context.Background(), req, resp)
+	return resp
+}
+
 func TestStorageAccountIPRule(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -29,15 +36,11 @@ func TestStorageAccountIPRule(t *testing.T) {
 		{"null skipped", types.StringNull(), false},
 		{"unknown skipped", types.StringUnknown(), false},
 	}
-
 	v := StorageAccountIPRule()
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := validator.StringRequest{Path: path.Root("value"), ConfigValue: tc.value}
-			resp := &validator.StringResponse{}
-			v.ValidateString(context.Background(), req, resp)
-			if got := resp.Diagnostics.HasError(); got != tc.wantErr {
-				t.Errorf("HasError() = %v, want %v (diags: %v)", got, tc.wantErr, resp.Diagnostics)
+			if got := runStringValidator(v, tc.value).Diagnostics.HasError(); got != tc.wantErr {
+				t.Errorf("HasError() = %v, want %v", got, tc.wantErr)
 			}
 		})
 	}

@@ -1,8 +1,3 @@
-// Package validators holds hand-written schema validators for the Microsoft.Storage
-// generated resources. A customizer attaches one via
-// generator.CustomValidator("StorageAccountIPRule()") and the emitter bakes a
-// qualified call (validators.StorageAccountIPRule()) into the generated schema in
-// the sibling storage package. One validator per file.
 package validators
 
 import (
@@ -64,6 +59,7 @@ func (storageAccountIPRule) ValidateString(_ context.Context, req validator.Stri
 // StorageAccountIPRule returns a string validator for storage account
 // network_acls ip_rules values: a public IPv4 address or CIDR range (prefix
 // 0-30), rejecting the private ranges. Ported from AzureRM's StorageAccountIpRule.
+// Resource-specific to Microsoft.Storage/storageAccounts.
 func StorageAccountIPRule() validator.String {
 	return storageAccountIPRule{}
 }

@@ -35,7 +35,7 @@ func TestIsolateArrayElementUnshares(t *testing.T) {
 	if elem == nil {
 		t.Fatal("IsolateArrayElement returned nil")
 	}
-	elem.Properties["value"].Validators = append(elem.Properties["value"].Validators, CustomValidator("StorageAccountIPRule()"))
+	elem.Properties["value"].Validators = append(elem.Properties["value"].Validators, Validator(func() {}))
 
 	// ipRules.value carries the validator; ipv6Rules.value (still the shared type)
 	// does not.

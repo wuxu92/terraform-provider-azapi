@@ -7,6 +7,7 @@ import (
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -337,7 +338,7 @@ func AzapiServicePlanSchema() schema.Schema {
 										regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.Web/hostingEnvironments/[^/]+$`),
 										"must be an App Service Environment resource ID",
 									),
-									nativeschema.AzureResourceID(),
+									validators.AzureResourceID(),
 								},
 							},
 							"name": schema.StringAttribute{

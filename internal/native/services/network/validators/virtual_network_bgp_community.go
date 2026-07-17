@@ -1,8 +1,3 @@
-// Package validators holds hand-written schema validators for the Microsoft.Network
-// generated resources. A customizer attaches one via
-// generator.CustomValidator("VirtualNetworkBgpCommunity()") and the emitter bakes a
-// qualified call (validators.VirtualNetworkBgpCommunity()) into the generated schema
-// in the sibling network package. One validator per file.
 package validators
 
 import (
@@ -80,7 +75,8 @@ func (virtualNetworkBgpCommunity) ValidateString(_ context.Context, req validato
 // VirtualNetworkBgpCommunity returns a string validator for a virtual network's
 // bgp_community (properties.bgpCommunities.virtualNetworkCommunity): "asn:community"
 // notation with each value in the open range (0, 65535). Ported from AzureRM's
-// validate.VirtualNetworkBgpCommunity.
+// validate.VirtualNetworkBgpCommunity. Resource-specific to
+// Microsoft.Network/virtualNetworks.
 func VirtualNetworkBgpCommunity() validator.String {
 	return virtualNetworkBgpCommunity{}
 }

@@ -4,7 +4,7 @@ package authorization
 import (
 	"time"
 
-	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -25,7 +25,7 @@ func AzapiRoleDefinitionSchema() schema.Schema {
 				Required:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 				Validators: []validator.String{
-					nativeschema.UUID(),
+					validators.UUID(),
 				},
 				MarkdownDescription: "Specifies the name of the Azure resource.",
 			},

@@ -323,18 +323,29 @@ an unresolved/invalid ARM path — a customizer authors paths by hand, so a typo
 must fail generation rather than be silently skipped.
 
 For a semantic rule a regex/length/enum cannot express, attach a hand-written
-`validator.String`. Two placements, by reusability:
+`validator.String` and reference its constructor by its real Go symbol through
+`typegraph.Validator(<ctor>)` — e.g. `typegraph.Validator(validators.UUID)`, where
+`validators.UUID` is the uncalled `func() validator.String`. Passing the symbol
+(not a string) means a rename or deletion of the constructor is a compile error at
+the customizer callsite. Validators live in two homes by scope, one per file:
 
-- **Resource-specific** → `generator.CustomValidator("<Call>()")`. Emitted qualified
-  with the service's `validators` package, so the constructor lives in
-  `internal/native/services/<service>/validators/`, one validator per file (e.g.
-  `services/storage/validators/ip_rules.go` defining `StorageAccountIPRule()`,
-  emitted as `validators.StorageAccountIPRule()`).
-- **Generic / cross-resource** → `generator.SharedValidator("<Call>()")`. Emitted as
-  `nativeschema.<Call>()`, so the constructor lives once in the shared
-  `internal/native/schema` package (e.g. `UUID()`, `AzureResourceID()` — ports of
+- **Generic / cross-resource** — `internal/native/schema/validators` (package
+  `validators`): `validators.UUID`, `validators.AzureResourceID` (ports of
   AzureRM's `validation.IsUUID` / `azure.ValidateResourceID`). Reuse these across
   resources instead of re-implementing per service.
+- **Service-specific** — `internal/native/services/<service>/validators` (also
+  package `validators`): `storagevalidators.StorageAccountIPRule`,
+  `networkvalidators.VirtualNetworkBgpCommunity`, etc. — a rule tied to one
+  service lives with that service, imported under a `<svc>validators` alias.
+
+Add a new validator by writing just the `validator.String` constructor in the
+package that matches its scope and referencing it from the customizer — no
+registration, no catalog. The generator never imports either package: the emitter
+reflects the passed func value (`runtime.FuncForPC`) to recover the import path,
+then derives the call qualifier and import alias from it (bare `validators` for the
+shared package, `<svc>validators` for a service-local one, so two packages that
+share the base name `validators` never collide), and bakes them into the generated
+schema, which is what actually links against the constructor.
 
 When attaching a validator to one array's elements where sibling arrays share the
 same deduplicated bicep element type (e.g. `ipRules` vs `ipv6Rules`), call
@@ -470,8 +481,9 @@ file as machine-generated. The path convention is centralized in
 `generator.FileName`. Each service package self-registers into `services.Registry`
 via `services.Register` in `init()`; the `services/all` package blank-imports
 every service package so importing it populates the registry (add a line there per
-new service). Per-service custom validators live in
-`services/<service>/validators/`.
+new service). Generic hand-written validators live in
+`internal/native/schema/validators/`; service-specific ones live in
+`internal/native/services/<service>/validators/`.
 
 Example output for `azapi_storage_account` (simplified):
 
@@ -483,7 +495,8 @@ import (
     "regexp"
 
     "github.com/Azure/terraform-provider-azapi/internal/native/services"
-    "github.com/Azure/terraform-provider-azapi/internal/native/services/storage/validators"
+    "github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
+    storagevalidators "github.com/Azure/terraform-provider-azapi/internal/native/services/storage/validators"
     nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
     "github.com/hashicorp/terraform-plugin-framework/resource/schema"
     "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"

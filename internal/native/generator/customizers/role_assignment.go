@@ -1,6 +1,9 @@
 package customizers
 
-import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+import (
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+)
 
 // customizeRoleAssignment applies role-assignment-specific schema rules that the
 // bicep type graph and azwise overlay cannot express:
@@ -9,8 +12,8 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //   - delegatedManagedIdentityResourceId is an ARM resource ID string; AzureRM uses
 //     azure.ValidateResourceID, so attach the shared native resource-id validator.
 func customizeRoleAssignment(def *typegraph.ResourceDefinition) {
-	def.SetNameValidators(typegraph.SharedValidator("UUID()"))
+	def.SetNameValidators(typegraph.Validator(validators.UUID))
 	def.SetParent("scope_id", "The scope ID where this role assignment applies.")
 
-	def.AddValidatorsFor("properties.delegatedManagedIdentityResourceId", typegraph.SharedValidator("AzureResourceID()"))
+	def.AddValidatorsFor("properties.delegatedManagedIdentityResourceId", typegraph.Validator(validators.AzureResourceID))
 }

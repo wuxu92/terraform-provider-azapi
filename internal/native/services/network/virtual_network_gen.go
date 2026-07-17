@@ -7,8 +7,9 @@ import (
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
-	"github.com/Azure/terraform-provider-azapi/internal/native/services/network/validators"
+	networkvalidators "github.com/Azure/terraform-provider-azapi/internal/native/services/network/validators"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -177,7 +178,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 								Description: "The BGP community associated with the virtual network.",
 								Required:    true,
 								Validators: []validator.String{
-									validators.VirtualNetworkBgpCommunity(),
+									networkvalidators.VirtualNetworkBgpCommunity(),
 								},
 							},
 						},
@@ -194,7 +195,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 								Description: "Resource ID.",
 								Required:    true,
 								Validators: []validator.String{
-									nativeschema.AzureResourceID(),
+									validators.AzureResourceID(),
 								},
 							},
 						},
@@ -210,7 +211,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 								Description: "Resource ID.",
 								Required:    true,
 								Validators: []validator.String{
-									nativeschema.AzureResourceID(),
+									validators.AzureResourceID(),
 								},
 							},
 						},
@@ -526,7 +527,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 									Description: "Resource ID.",
 									Required:    true,
 									Validators: []validator.String{
-										nativeschema.AzureResourceID(),
+										validators.AzureResourceID(),
 									},
 								},
 							},
@@ -670,7 +671,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																		Description: "Resource ID.",
 																		Required:    true,
 																		Validators: []validator.String{
-																			nativeschema.AzureResourceID(),
+																			validators.AzureResourceID(),
 																		},
 																	},
 																},
@@ -780,7 +781,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 														Description: "Resource ID.",
 														Required:    true,
 														Validators: []validator.String{
-															nativeschema.AzureResourceID(),
+															validators.AzureResourceID(),
 														},
 													},
 												},
@@ -910,7 +911,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 													Description: "Resource ID.",
 													Required:    true,
 													Validators: []validator.String{
-														nativeschema.AzureResourceID(),
+														validators.AzureResourceID(),
 													},
 												},
 											},
@@ -1731,7 +1732,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																						Description: "Resource ID.",
 																						Required:    true,
 																						Validators: []validator.String{
-																							nativeschema.AzureResourceID(),
+																							validators.AzureResourceID(),
 																						},
 																					},
 																				},
@@ -2691,7 +2692,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																	Description: "Resource ID.",
 																																	Required:    true,
 																																	Validators: []validator.String{
-																																		nativeschema.AzureResourceID(),
+																																		validators.AzureResourceID(),
 																																	},
 																																},
 																															},
@@ -2710,7 +2711,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																															Description: "Resource ID.",
 																															Required:    true,
 																															Validators: []validator.String{
-																																nativeschema.AzureResourceID(),
+																																validators.AzureResourceID(),
 																															},
 																														},
 																													},
@@ -2727,7 +2728,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																Description: "Resource ID.",
 																																Required:    true,
 																																Validators: []validator.String{
-																																	nativeschema.AzureResourceID(),
+																																	validators.AzureResourceID(),
 																																},
 																															},
 																														},
@@ -2745,7 +2746,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																Description: "Resource ID.",
 																																Required:    true,
 																																Validators: []validator.String{
-																																	nativeschema.AzureResourceID(),
+																																	validators.AzureResourceID(),
 																																},
 																															},
 																														},
@@ -2763,7 +2764,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																Description: "Resource ID.",
 																																Required:    true,
 																																Validators: []validator.String{
-																																	nativeschema.AzureResourceID(),
+																																	validators.AzureResourceID(),
 																																},
 																															},
 																														},
@@ -2781,7 +2782,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																Description: "Resource ID.",
 																																Required:    true,
 																																Validators: []validator.String{
-																																	nativeschema.AzureResourceID(),
+																																	validators.AzureResourceID(),
 																																},
 																															},
 																														},
@@ -2847,7 +2848,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																															Description: "Resource ID.",
 																															Required:    true,
 																															Validators: []validator.String{
-																																nativeschema.AzureResourceID(),
+																																validators.AzureResourceID(),
 																															},
 																														},
 																													},
@@ -3757,7 +3758,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																					Description: "Resource ID.",
 																																					Required:    true,
 																																					Validators: []validator.String{
-																																						nativeschema.AzureResourceID(),
+																																						validators.AzureResourceID(),
 																																					},
 																																				},
 																																			},
@@ -3776,7 +3777,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																			Description: "Resource ID.",
 																																			Required:    true,
 																																			Validators: []validator.String{
-																																				nativeschema.AzureResourceID(),
+																																				validators.AzureResourceID(),
 																																			},
 																																		},
 																																	},
@@ -3793,7 +3794,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																				Description: "Resource ID.",
 																																				Required:    true,
 																																				Validators: []validator.String{
-																																					nativeschema.AzureResourceID(),
+																																					validators.AzureResourceID(),
 																																				},
 																																			},
 																																		},
@@ -3811,7 +3812,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																				Description: "Resource ID.",
 																																				Required:    true,
 																																				Validators: []validator.String{
-																																					nativeschema.AzureResourceID(),
+																																					validators.AzureResourceID(),
 																																				},
 																																			},
 																																		},
@@ -3829,7 +3830,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																				Description: "Resource ID.",
 																																				Required:    true,
 																																				Validators: []validator.String{
-																																					nativeschema.AzureResourceID(),
+																																					validators.AzureResourceID(),
 																																				},
 																																			},
 																																		},
@@ -3847,7 +3848,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																				Description: "Resource ID.",
 																																				Required:    true,
 																																				Validators: []validator.String{
-																																					nativeschema.AzureResourceID(),
+																																					validators.AzureResourceID(),
 																																				},
 																																			},
 																																		},
@@ -3913,7 +3914,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																			Description: "Resource ID.",
 																																			Required:    true,
 																																			Validators: []validator.String{
-																																				nativeschema.AzureResourceID(),
+																																				validators.AzureResourceID(),
 																																			},
 																																		},
 																																	},
@@ -4021,7 +4022,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																						Description: "Resource ID.",
 																						Required:    true,
 																						Validators: []validator.String{
-																							nativeschema.AzureResourceID(),
+																							validators.AzureResourceID(),
 																						},
 																					},
 																				},
@@ -5683,7 +5684,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																Description: "Resource ID.",
 																Required:    true,
 																Validators: []validator.String{
-																	nativeschema.AzureResourceID(),
+																	validators.AzureResourceID(),
 																},
 															},
 														},
@@ -5718,7 +5719,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 													Description: "Resource ID.",
 													Required:    true,
 													Validators: []validator.String{
-														nativeschema.AzureResourceID(),
+														validators.AzureResourceID(),
 													},
 												},
 											},
@@ -6123,7 +6124,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 													Description: "The BGP community associated with the virtual network.",
 													Required:    true,
 													Validators: []validator.String{
-														validators.VirtualNetworkBgpCommunity(),
+														networkvalidators.VirtualNetworkBgpCommunity(),
 													},
 												},
 											},
@@ -6149,7 +6150,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 													Description: "Resource ID.",
 													Required:    true,
 													Validators: []validator.String{
-														nativeschema.AzureResourceID(),
+														validators.AzureResourceID(),
 													},
 												},
 											},

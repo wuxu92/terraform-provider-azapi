@@ -69,7 +69,7 @@ func TestAddValidatorsForAppends(t *testing.T) {
 	def := fixtureDef()
 	FindProperty(def, "properties.tlsVersion").Validators = []DescriptionValidator{LengthValidator(1, 4)}
 
-	def.AddValidatorsFor("properties.tlsVersion", RegexValidator("^T", "must start with T"), SharedValidator("UUID()"))
+	def.AddValidatorsFor("properties.tlsVersion", RegexValidator("^T", "must start with T"), Validator(func() {}))
 
 	got := FindProperty(def, "properties.tlsVersion").Validators
 	if len(got) != 3 {

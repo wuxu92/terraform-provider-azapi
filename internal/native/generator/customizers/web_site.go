@@ -1,6 +1,9 @@
 package customizers
 
-import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+import (
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+)
 
 // webSiteMaxRestrictionPriority caps access-restriction priority one below Azure's
 // reserved default-rule sentinel (int32 max, 2147483647). ARM tags the implicit
@@ -16,8 +19,8 @@ const webSiteMaxRestrictionPriority = 2147483646
 //   - The site name is an operational-envelope field, not a body property, so the
 //     AzureRM WebAppName rule is attached here.
 //   - The associated App Service plan ID and optional subnet ID are ARM resource
-//     IDs. AzureRM validates them semantically; attach shared resource-ID
-//     validators where the bicep graph only knows "string".
+//     IDs. AzureRM validates them semantically; attach resource-ID validators
+//     where the bicep graph only knows "string".
 //   - siteConfig is a write-only ARM shape. Static child defaults there create
 //     synthetic Terraform plan diffs because Azure read responses cannot reliably
 //     confirm omitted/defaulted children; keep explicit user values only.
@@ -30,8 +33,8 @@ func customizeWebSite(def *typegraph.ResourceDefinition) {
 		),
 	)
 
-	def.AddValidatorsFor("properties.serverFarmId", typegraph.SharedValidator("AzureResourceID()"))
-	def.AddValidatorsFor("properties.virtualNetworkSubnetId", typegraph.SharedValidator("AzureResourceID()"))
+	def.AddValidatorsFor("properties.serverFarmId", typegraph.Validator(validators.AzureResourceID))
+	def.AddValidatorsFor("properties.virtualNetworkSubnetId", typegraph.Validator(validators.AzureResourceID))
 
 	siteConfig := typegraph.FindProperty(def, "properties.siteConfig")
 	clearDefaultValues(siteConfig.Type)

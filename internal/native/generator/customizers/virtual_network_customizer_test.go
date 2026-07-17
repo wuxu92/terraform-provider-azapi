@@ -1,10 +1,13 @@
 package customizers_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure"
 	"github.com/Azure/terraform-provider-azapi/internal/native/generator/customizers"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
+	networkvalidators "github.com/Azure/terraform-provider-azapi/internal/native/services/network/validators"
 	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
 
@@ -113,18 +116,19 @@ func TestVirtualNetworkCustomizerLeavesBgpAndDdos(t *testing.T) {
 	def := virtualNetworkDef(t)
 
 	bgp := typegraph.FindProperty(def, "properties.bgpCommunities.virtualNetworkCommunity")
-	if !hasValidatorCall(bgp.Validators, typegraph.ValidatorCustom, "VirtualNetworkBgpCommunity()") {
+	if !hasValidatorFunc(bgp.Validators, networkvalidators.VirtualNetworkBgpCommunity) {
 		t.Errorf("bgpCommunities.virtualNetworkCommunity missing VirtualNetworkBgpCommunity validator: %#v", bgp.Validators)
 	}
 	ddos := typegraph.FindProperty(def, "properties.ddosProtectionPlan.id")
-	if !hasValidatorCall(ddos.Validators, typegraph.ValidatorShared, "AzureResourceID()") {
+	if !hasValidatorFunc(ddos.Validators, validators.AzureResourceID) {
 		t.Errorf("ddosProtectionPlan.id missing AzureResourceID validator: %#v", ddos.Validators)
 	}
 }
 
-func hasValidatorCall(vs []typegraph.DescriptionValidator, kind typegraph.ValidatorKind, call string) bool {
+func hasValidatorFunc(vs []typegraph.DescriptionValidator, fn any) bool {
+	want := reflect.ValueOf(fn).Pointer()
 	for _, v := range vs {
-		if v.Kind == kind && v.Call == call {
+		if v.Kind == typegraph.ValidatorFunc && v.Func != nil && reflect.ValueOf(v.Func).Pointer() == want {
 			return true
 		}
 	}

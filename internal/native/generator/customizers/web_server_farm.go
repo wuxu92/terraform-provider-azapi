@@ -1,6 +1,9 @@
 package customizers
 
-import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+import (
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+)
 
 // customizeWebServerFarm applies Microsoft.Web/serverfarms schema rules that the
 // bicep type graph cannot express:
@@ -11,8 +14,8 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //     optional. Mark sku and sku.name required so native users cannot plan a
 //     malformed App Service plan body.
 //   - hostingEnvironmentProfile.id is an ARM resource ID. AzureRM validates the
-//     App Service Environment ID semantically; attach the shared resource-ID
-//     validator where the bicep graph only knows "string".
+//     App Service Environment ID semantically; attach the resource-ID validator
+//     where the bicep graph only knows "string".
 func customizeWebServerFarm(def *typegraph.ResourceDefinition) {
 	def.SetNameValidators(
 		typegraph.LengthValidator(1, 60),
@@ -23,5 +26,5 @@ func customizeWebServerFarm(def *typegraph.ResourceDefinition) {
 	)
 
 	def.Required("sku", "sku.name")
-	def.AddValidatorsFor("properties.hostingEnvironmentProfile.id", typegraph.SharedValidator("AzureResourceID()"))
+	def.AddValidatorsFor("properties.hostingEnvironmentProfile.id", typegraph.Validator(validators.AzureResourceID))
 }

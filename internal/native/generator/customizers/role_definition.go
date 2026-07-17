@@ -1,6 +1,9 @@
 package customizers
 
-import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+import (
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+)
 
 // customizeRoleDefinition applies role-definition-specific schema rules that neither
 // the bicep type graph nor the azwise overlay can express:
@@ -18,7 +21,7 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 // assignable_scopes default (a runtime hook) are handled by the azwise overlay and
 // role_definition_hooks.go respectively; see internal/azure/azwise/role_definition.go.
 func customizeRoleDefinition(def *typegraph.ResourceDefinition) {
-	def.SetNameValidators(typegraph.SharedValidator("UUID()"))
+	def.SetNameValidators(typegraph.Validator(validators.UUID))
 	def.SetParent("scope_id", "The scope ID where this role definition is defined.")
 
 	def.Required("properties.roleName")

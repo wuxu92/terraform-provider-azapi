@@ -62,7 +62,7 @@ func TestRoleAssignmentSchemaEmitsUUIDRequiredForceNewContract(t *testing.T) {
 	}
 
 	name := sourceAttributeBlock(t, src, `"name": schema.StringAttribute{`)
-	for _, want := range []string{"nativeschema.UUID()", "stringplanmodifier.RequiresReplace()"} {
+	for _, want := range []string{"validators.UUID()", "stringplanmodifier.RequiresReplace()"} {
 		if !strings.Contains(name, want) {
 			t.Errorf("name block missing %q", want)
 		}
@@ -90,7 +90,7 @@ func TestRoleAssignmentSchemaEmitsUUIDRequiredForceNewContract(t *testing.T) {
 	}
 
 	delegatedID := sourceAttributeBlock(t, src, `"delegated_managed_identity_resource_id": schema.StringAttribute{`)
-	if !strings.Contains(delegatedID, "nativeschema.AzureResourceID()") {
+	if !strings.Contains(delegatedID, "validators.AzureResourceID()") {
 		t.Error("delegated_managed_identity_resource_id block missing AzureResourceID validator")
 	}
 }

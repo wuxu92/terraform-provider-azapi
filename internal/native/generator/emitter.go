@@ -3,6 +3,9 @@ package generator
 import (
 	"fmt"
 	"go/format"
+	"path"
+	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -41,10 +44,9 @@ func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
 				needs.stringValidator = true
 			case typegraph.ValidatorIntRange:
 				needs.int64Validator = true
-			case typegraph.ValidatorCustom:
-				needs.custom = true
-			case typegraph.ValidatorShared:
-				needs.shared = true
+			case typegraph.ValidatorFunc:
+				needs.validatorFunc = true
+				needs.validatorPkgs[validatorImportPath(v.Func)] = true
 			}
 		}
 	}
@@ -107,18 +109,26 @@ func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault\"\n")
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/attr\"\n")
 	}
-	if needs.stringValidator || needs.int64Validator || needs.custom || needs.shared || needs.listValidator {
+	if needs.stringValidator || needs.int64Validator || needs.validatorFunc || needs.listValidator {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/schema/validator\"\n")
 	}
 	if needs.types {
 		b.WriteString("\t\"github.com/hashicorp/terraform-plugin-framework/types\"\n")
 	}
-	if needs.shared || needs.nativeSchema {
+	if needs.nativeSchema {
 		b.WriteString("\tnativeschema \"github.com/Azure/terraform-provider-azapi/internal/native/schema\"\n")
 	}
 	b.WriteString("\t\"github.com/Azure/terraform-provider-azapi/internal/native/services\"\n")
-	if needs.custom {
-		b.WriteString(fmt.Sprintf("\t\"github.com/Azure/terraform-provider-azapi/internal/native/services/%s/validators\"\n", service))
+	for _, importPath := range sortedImportPaths(needs.validatorPkgs) {
+		// Every validators package shares the base name "validators": the shared
+		// generic package imports bare, while a service-local package imports under
+		// its derived alias (e.g. networkvalidators) so the two never collide in one
+		// file. Emit an explicit alias only when it differs from the base name.
+		if q := validatorQualifier(importPath); q != path.Base(importPath) {
+			b.WriteString(fmt.Sprintf("\t%s %q\n", q, importPath))
+		} else {
+			b.WriteString(fmt.Sprintf("\t%q\n", importPath))
+		}
 	}
 	b.WriteString(")\n\n")
 
@@ -223,28 +233,97 @@ type importNeeds struct {
 	regexp          bool
 	int64Validator  bool
 	stringValidator bool
-	listValidator   bool // for listvalidator.ValueStringsAre on primitive-list element enums
-	types           bool // for types.StringType in ListAttribute
-	defBool         bool // for booldefault.StaticBool
-	defString       bool // for stringdefault.StaticString (string + enum defaults)
-	defInt64        bool // for int64default.StaticInt64
-	defList         bool // for listdefault.StaticValue empty-list defaults (+ attr for the element type literal)
-	planmodifier    bool // for planmodifier.X plan-modifier slices
-	pmString        bool // stringplanmodifier
-	pmBool          bool // boolplanmodifier
-	pmInt64         bool // int64planmodifier
-	pmObject        bool // objectplanmodifier
-	pmList          bool // listplanmodifier
-	pmMap           bool // mapplanmodifier
-	custom          bool // for a service-specific services/<service>/validators reference
-	shared          bool // for a generic nativeschema validator reference (SharedValidator)
-	nativeSchema    bool // for generic native schema helpers that are not validators/defaults
+	listValidator   bool            // for listvalidator.ValueStringsAre on primitive-list element enums
+	types           bool            // for types.StringType in ListAttribute
+	defBool         bool            // for booldefault.StaticBool
+	defString       bool            // for stringdefault.StaticString (string + enum defaults)
+	defInt64        bool            // for int64default.StaticInt64
+	defList         bool            // for listdefault.StaticValue empty-list defaults (+ attr for the element type literal)
+	planmodifier    bool            // for planmodifier.X plan-modifier slices
+	pmString        bool            // stringplanmodifier
+	pmBool          bool            // boolplanmodifier
+	pmInt64         bool            // int64planmodifier
+	pmObject        bool            // objectplanmodifier
+	pmList          bool            // listplanmodifier
+	pmMap           bool            // mapplanmodifier
+	validatorFunc   bool            // any func-referenced validator present (triggers the validator import)
+	validatorPkgs   map[string]bool // import paths of the packages defining func-referenced validators
+	nativeSchema    bool            // for generic native schema helpers that are not validators/defaults
 }
 
 func scanImportNeeds(typ *typegraph.Type) importNeeds {
-	var needs importNeeds
+	needs := importNeeds{validatorPkgs: map[string]bool{}}
 	scanImportNeedsRecurse(typ, &needs)
 	return needs
+}
+
+// reflectValidatorFunc recovers, from a validator constructor func value (e.g.
+// validators.UUID passed as any), the defining package's import path and the
+// function name. typegraph stores the func as any so the generator never imports
+// the validators package; reflection reads the func's symbol name at generation
+// time. Panics on a nil or non-func value — a customizer bug that must fail
+// generation rather than emit garbage.
+func reflectValidatorFunc(fn any) (importPath, funcName string) {
+	rv := reflect.ValueOf(fn)
+	if !rv.IsValid() || rv.Kind() != reflect.Func {
+		panic(fmt.Sprintf("native: typegraph.Validator requires a validator constructor func value, got %T", fn))
+	}
+	// full is "<import path>.<Func>"; the import path itself contains slashes, e.g.
+	// ".../schema/validators.UUID". Split on the final slash first so the dot that
+	// separates the package name from the func name is unambiguous.
+	full := runtime.FuncForPC(rv.Pointer()).Name()
+	slash := strings.LastIndex(full, "/")
+	pkgAndFunc := full[slash+1:]
+	dot := strings.Index(pkgAndFunc, ".")
+	if dot < 0 {
+		panic("native: cannot parse validator func symbol " + full)
+	}
+	pkgName := pkgAndFunc[:dot]
+	funcName = pkgAndFunc[dot+1:]
+	importPath = full[:slash+1] + pkgName
+	return importPath, funcName
+}
+
+// validatorQualifier derives the package qualifier used to reference a validator
+// in generated code from its import path. Every validators package shares the base
+// name "validators", so the shared generic package (.../schema/validators) keeps
+// the bare "validators" qualifier while a service-local package
+// (.../services/<svc>/validators) is qualified — and imported under the alias —
+// "<svc>validators", so two packages with the same base name never collide in one
+// generated file.
+func validatorQualifier(importPath string) string {
+	const svcPrefix = "internal/native/services/"
+	if i := strings.Index(importPath, svcPrefix); i >= 0 {
+		if svc, tail, ok := strings.Cut(importPath[i+len(svcPrefix):], "/"); ok && tail == "validators" {
+			return svc + "validators"
+		}
+	}
+	return "validators"
+}
+
+// validatorCall renders the emitted call expression for a func-referenced
+// validator, qualified by its (possibly aliased) package name, e.g.
+// "validators.UUID()" or "networkvalidators.VirtualNetworkBgpCommunity()".
+func validatorCall(fn any) string {
+	importPath, funcName := reflectValidatorFunc(fn)
+	return validatorQualifier(importPath) + "." + funcName + "()"
+}
+
+// validatorImportPath returns the import path of the package defining a
+// func-referenced validator.
+func validatorImportPath(fn any) string {
+	importPath, _ := reflectValidatorFunc(fn)
+	return importPath
+}
+
+// sortedImportPaths returns the map keys sorted, for deterministic import output.
+func sortedImportPaths(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
@@ -291,10 +370,9 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 				needs.stringValidator = true
 			case typegraph.ValidatorIntRange:
 				needs.int64Validator = true
-			case typegraph.ValidatorCustom:
-				needs.custom = true
-			case typegraph.ValidatorShared:
-				needs.shared = true
+			case typegraph.ValidatorFunc:
+				needs.validatorFunc = true
+				needs.validatorPkgs[validatorImportPath(v.Func)] = true
 			case typegraph.ValidatorListSizeAtLeast, typegraph.ValidatorListSizeAtMost:
 				needs.listValidator = true
 			}
@@ -959,13 +1037,9 @@ func stringValidatorItems(validators []typegraph.DescriptionValidator, tabs stri
 			case v.Max != nil:
 				items = append(items, fmt.Sprintf("%s\t\tstringvalidator.LengthAtMost(%d)", tabs, *v.Max))
 			}
-		case typegraph.ValidatorCustom:
-			if v.Call != "" {
-				items = append(items, fmt.Sprintf("%s\t\tvalidators.%s", tabs, v.Call))
-			}
-		case typegraph.ValidatorShared:
-			if v.Call != "" {
-				items = append(items, fmt.Sprintf("%s\t\tnativeschema.%s", tabs, v.Call))
+		case typegraph.ValidatorFunc:
+			if v.Func != nil {
+				items = append(items, fmt.Sprintf("%s\t\t%s", tabs, validatorCall(v.Func)))
 			}
 		}
 	}

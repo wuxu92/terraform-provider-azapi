@@ -1,15 +1,19 @@
 package customizers
 
-import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+import (
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
+	networkvalidators "github.com/Azure/terraform-provider-azapi/internal/native/services/network/validators"
+	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
+)
 
 // customizeVirtualNetwork applies virtual-network-specific schema rules that the
 // bicep type graph and azwise overlay cannot express:
 //   - bgp_community (properties.bgpCommunities.virtualNetworkCommunity) must be in
-//     AzureRM's "asn:community" notation with each value in (0, 65535). Ported as a
-//     resource-specific validator in services/network/validators.
+//     AzureRM's "asn:community" notation with each value in (0, 65535)
+//     (networkvalidators.VirtualNetworkBgpCommunity).
 //   - ddos_protection_plan.id (properties.ddosProtectionPlan.id) is an ARM resource
 //     ID (AzureRM ddosprotectionplans.ValidateDdosProtectionPlanID); the generic
-//     AzureResourceID shared validator covers the ID shape.
+//     AzureResourceID validator covers the ID shape.
 //   - An ipam_pool_prefix_allocations element must reference a pool and specify how
 //     many addresses to allocate. The ARM IpamPoolPrefixAllocation swagger declares
 //     no required fields, so the generator lowers both to Optional+Computed; but ARM
@@ -28,8 +32,8 @@ import "github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 //     arrays share one bicep element type; IsolateArrayElement un-shares each before
 //     flagging so the rules land independently.
 func customizeVirtualNetwork(def *typegraph.ResourceDefinition) {
-	def.AddValidatorsFor("properties.bgpCommunities.virtualNetworkCommunity", typegraph.CustomValidator("VirtualNetworkBgpCommunity()"))
-	def.AddValidatorsFor("properties.ddosProtectionPlan.id", typegraph.SharedValidator("AzureResourceID()"))
+	def.AddValidatorsFor("properties.bgpCommunities.virtualNetworkCommunity", typegraph.Validator(networkvalidators.VirtualNetworkBgpCommunity))
+	def.AddValidatorsFor("properties.ddosProtectionPlan.id", typegraph.Validator(validators.AzureResourceID))
 
 	for _, path := range []string{
 		"properties.addressSpace.ipamPoolPrefixAllocations",

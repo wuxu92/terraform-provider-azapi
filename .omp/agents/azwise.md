@@ -79,25 +79,27 @@ by what it does and route it to the right home:
 | AzureRM validator | Kind | Where it goes |
 | --- | --- | --- |
 | `StringInSlice` (enum), `IntBetween`/`FloatBetween` (range), `StringLenBetween` (length), `StringMatch` (regex) | declarative | azwise `StringRules`/`IntRules`/`FloatRules` (often already baked as `stringvalidator.OneOf` etc.) |
-| `validation.IsUUID`, `azure.ValidateResourceID`/`commonids.Validate*ID` | generic semantic | a **shared** validator in `internal/native/schema` (e.g. `UUID()`, `AzureResourceID()`), attached with `generator.SharedValidator("UUID()")` |
-| resource-specific semantic, e.g. `storage/validate.StorageAccountIpRule` (regex + public-vs-private IP) | resource-specific semantic | a validator in `internal/native/services/<service>/validators/<rule>.go` (package `validators`), attached with `generator.CustomValidator("StorageAccountIPRule()")` |
+| `validation.IsUUID`, `azure.ValidateResourceID`/`commonids.Validate*ID` | generic semantic | a validator in `internal/native/schema/validators` (e.g. `UUID`, `AzureResourceID`), attached with `typegraph.Validator(validators.UUID)` |
+| resource-specific semantic, e.g. `storage/validate.StorageAccountIpRule` (regex + public-vs-private IP) | resource-specific semantic | a `validator.String` in `internal/native/services/<service>/validators/<rule>.go`, attached with `typegraph.Validator(storagevalidators.StorageAccountIPRule)` |
 | sub-service validator (e.g. `BlobPropertiesDefaultServiceVersion` on `blob_properties`) | sub-service | the sub-service resource's customizer, NOT the parent (see Sub-service API separation) |
 | a check over a representation that has no single ARM body field (e.g. a composite Key Vault key URI that ARM splits into keyName/keyVaultUri/keyVersion, or a map-key validator) | non-mappable | skip, and note why in the customizer |
 
 Workflow for the semantic ones (generic and resource-specific):
 
-1. **Reuse first.** If a shared validator already exists in `internal/native/schema`
-   (`UUID`, `AzureResourceID`, …), use `generator.SharedValidator(...)`. Only add a
-   new shared validator there when the rule is genuinely cross-resource.
-2. **Otherwise write it** as a `validator.String` (or the matching typed validator):
-   generic → `internal/native/schema/validator_<rule>.go` (package `schema`);
-   resource-specific → `internal/native/services/<service>/validators/<rule>.go`
-   (package `validators`). One validator per file, exported constructor, mirroring
-   the AzureRM logic exactly and citing the source file/line.
+1. **Reuse first.** If a validator already exists — generic in
+   `internal/native/schema/validators` (`UUID`, `AzureResourceID`, …) or
+   service-specific in `internal/native/services/<service>/validators` — reference it
+   with `typegraph.Validator(validators.UUID)`. Only add a new one when needed.
+2. **Otherwise write it** as a `validator.String`, one per file, exported constructor,
+   mirroring the AzureRM logic exactly and citing the source file/line. Put a generic,
+   cross-resource rule in `internal/native/schema/validators/<rule>.go`; put a rule
+   tied to one service in `internal/native/services/<service>/validators/<rule>.go`.
+   Both packages are named `validators`; the emitter aliases the service one
+   (`<svc>validators`) so they never collide in a generated file.
 3. **Attach it** in the resource customizer
    (`internal/native/generator/customizers/<resource>.go`) by mapping the AzureRM
-   field to its ARM body path and setting `p.Validators = append(p.Validators, ...)`
-   via `generator.FindProperty(def, "<arm.path>")`. For a value inside an array
+   field to its ARM body path via `def.AddValidatorsFor("<arm.path>", typegraph.Validator(validators.<Ctor>))`.
+   For a value inside an array
    whose element type may be shared with a sibling array (e.g. `ipRules`/`ipv6Rules`,
    `resourceAccessRules`), call `generator.IsolateArrayElement(def, "<array path>")`
    first so the rule does not leak.

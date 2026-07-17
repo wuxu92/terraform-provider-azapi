@@ -153,6 +153,18 @@ func RegexValidator(pattern, message string) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorRegex, Pattern: pattern, Message: message}
 }
 
+// Validator references a hand-written schema validator by its constructor
+// function value — e.g. Validator(validators.UUID), where fn is the uncalled
+// func() validator.String from internal/native/schema/validators. Attaching a
+// validator this way means a rename or deletion of the constructor is a compile
+// error at the customizer callsite instead of a silently wrong string. typegraph
+// never calls fn or imports its package; it stores the func value as any, and the
+// emitter reflects it (runtime.FuncForPC) to bake the qualified call
+// (validators.UUID()) and the package import into the generated schema.
+func Validator(fn any) DescriptionValidator {
+	return DescriptionValidator{Kind: ValidatorFunc, Func: fn}
+}
+
 // LengthValidator builds a string-length validator. A negative bound means
 // unbounded on that side (e.g. LengthValidator(3, -1) is "at least 3").
 func LengthValidator(min, max int) DescriptionValidator {
@@ -196,22 +208,4 @@ func ListSizeAtLeastValidator(min int64) DescriptionValidator {
 // a fixed number of elements (e.g. n=2 for a dual-stack IPv4/IPv6 pool pair).
 func ListSizeAtMostValidator(max int64) DescriptionValidator {
 	return DescriptionValidator{Kind: ValidatorListSizeAtMost, Max: &max}
-}
-
-// CustomValidator builds a reference to a resource-/service-specific validator
-// that lives with the generated schema in services/<service>/validators. The
-// call is emitted qualified with that package (validators.<call>), so it must name
-// an exported constructor there returning a validator.String. Use it for a
-// semantic rule unique to one resource, e.g. CustomValidator("StorageAccountIPRule()").
-func CustomValidator(call string) DescriptionValidator {
-	return DescriptionValidator{Kind: ValidatorCustom, Call: call}
-}
-
-// SharedValidator builds a reference to a generic, cross-resource validator in the
-// shared native schema package (internal/native/schema). The call is emitted
-// qualified as nativeschema.<call>, so it must name an exported constructor there
-// returning a validator.String. Use it for reusable rules like
-// SharedValidator("UUID()") or SharedValidator("AzureResourceID()").
-func SharedValidator(call string) DescriptionValidator {
-	return DescriptionValidator{Kind: ValidatorShared, Call: call}
 }
