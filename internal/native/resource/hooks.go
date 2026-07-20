@@ -150,9 +150,13 @@ type Hooks struct {
 	// only when the logic is not worth expressing as a validator object.
 	ConfigValidators []resource.ConfigValidator
 
-	// Full overrides of the framework lifecycle methods. When set, the base
-	// invokes these after its own default work (for ModifyPlan/ValidateConfig)
-	// or instead of nothing (ImportState extension).
+	// Full overrides of the framework lifecycle methods. When set, the base invokes
+	// these after its own default work. Cross-property config validation that is not a
+	// clean ConfigValidator object goes in ValidateConfig; conditional plan changes
+	// (e.g. value-dependent ForceNew) go in ModifyPlan. Framework extension interfaces
+	// that a single shared Base cannot advertise per-resource (identity, state/identity
+	// upgraders, move-state, a bespoke ImportState) are not hooks — use RegisterOverride
+	// to wrap Base in a resource-specific type that implements them (see RESOURCE.md).
 	ValidateConfig func(context.Context, resource.ValidateConfigRequest, *resource.ValidateConfigResponse)
 	ModifyPlan     func(context.Context, resource.ModifyPlanRequest, *resource.ModifyPlanResponse)
 }
@@ -170,6 +174,31 @@ type SingletonDefault struct {
 
 // hookRegistry holds hand-written runtime hooks keyed by Terraform resource name.
 var hookRegistry = map[string]*Hooks{}
+
+// overrideRegistry holds per-resource wrappers that decorate the shared Base with a
+// resource-specific type. It is the escape hatch for framework extension interfaces a
+// single generic Base cannot advertise for every resource — resource identity
+// (ResourceWithIdentity), state/identity upgraders (ResourceWithUpgradeState /
+// ResourceWithUpgradeIdentity), cross-type state moves (ResourceWithMoveState), or a
+// wholesale-different lifecycle method (a bespoke ImportState/Create/…). Go interface
+// satisfaction is static, so these must be added on a per-resource type, not toggled
+// by a data field on Base.
+var overrideRegistry = map[string]func(*Base) resource.Resource{}
+
+// RegisterOverride wraps a resource's Base in a resource-specific type. Call from a
+// generated service package's <resource>_hooks.go init(). The returned type embeds
+// *Base (so it inherits every default method) and implements the extra framework
+// interface(s) the resource needs; the embedded method is promoted unless the outer
+// type shadows it. New applies the wrapper, so the provider stays oblivious.
+//
+//	type siteWithIdentity struct{ *nativeresource.Base }
+//	func (r *siteWithIdentity) IdentitySchema(ctx context.Context, _ resource.IdentitySchemaRequest, resp *resource.IdentitySchemaResponse) { ... }
+//	func init() {
+//	    nativeresource.RegisterOverride("azapi_web_site", func(b *nativeresource.Base) resource.Resource {
+//	        return &siteWithIdentity{Base: b}
+//	    })
+//	}
+func RegisterOverride(name string, wrap func(*Base) resource.Resource) { overrideRegistry[name] = wrap }
 
 // RegisterHooks attaches customization hooks to a generated resource. Call from
 // a generated service package's <resource>_hooks.go init().

@@ -318,21 +318,31 @@ flows above are a summary of it.
 
 ### 2. Method override (code-driven, escape hatch)
 
-For wholesale-different behavior, a resource defines its own type embedding the base
-and shadows a method:
+For behavior a data hook cannot express, a resource wraps the shared `Base` in its
+own type and registers the wrapper with `RegisterOverride`. `New` applies it, so the
+provider stays oblivious (it always calls `nativeresource.New(name)`):
 
 ```go
-type StorageAccountResource struct{ *nativeresource.Base }
-func (r *StorageAccountResource) Create(ctx, req, resp) { /* bespoke */ }
-func newStorageAccount() resource.Resource {
-    return &StorageAccountResource{Base: nativeresource.New("azapi_storage_account")}
+type storageAccountResource struct{ *nativeresource.Base }
+func (r *storageAccountResource) Create(ctx, req, resp) { /* bespoke */ }
+func init() {
+    nativeresource.RegisterOverride("azapi_storage_account", func(b *nativeresource.Base) resource.Resource {
+        return &storageAccountResource{Base: b}
+    })
 }
 ```
 
-Go promotes the base methods; the override wins via the outer type's method set.
-The provider registers the constructor for resources that need this. Hooks cover
-the common cases; this is reserved for the rare resource that needs to bypass the
-unified flow entirely.
+Go promotes the embedded `*Base` methods; the override wins via the outer type's
+method set. This is also the **only** way to add the framework extension interfaces a
+single shared `Base` cannot advertise for every resource — because Go interface
+satisfaction is static, `Base` implementing e.g. `ResourceWithIdentity` would force
+identity onto *every* native resource. Add these on the wrapper type instead:
+`ResourceWithIdentity` / `ResourceWithUpgradeIdentity` (resource identity),
+`ResourceWithUpgradeState` (state-version upgraders), `ResourceWithMoveState`
+(cross-type `moved` blocks), or a wholesale-different `ImportState`. Hooks cover the
+common runtime seams (CRUD, `ConfigValidators`/`Relational`, `ValidateConfig`,
+`ModifyPlan`); this is reserved for the rare resource that needs a framework
+interface Base does not implement, or that must bypass the unified flow entirely.
 
 ## ForceNew, Computed, Defaults
 

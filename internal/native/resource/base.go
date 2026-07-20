@@ -57,10 +57,14 @@ func New(name string) resource.Resource {
 		// in normal operation.
 		panic(fmt.Sprintf("native: no generated descriptor for %q", name))
 	}
-	return &Base{
+	base := &Base{
 		desc:  d,
 		hooks: hookRegistry[name],
 	}
+	if wrap := overrideRegistry[name]; wrap != nil {
+		return wrap(base)
+	}
+	return base
 }
 
 func (b *Base) typeAndVersion() string { return b.desc.ARMType + "@" + b.desc.APIVersion }
