@@ -32,6 +32,21 @@ per-resource work. The runtime converts the generated resource schema into a
 data-source schema (`name` + parent Required, all else Computed) and reads via GET;
 see RESOURCE.md "Data Source".
 
+**Customizer vs hook — know which knob you're turning.** These are the two per-resource
+extension points and they never overlap:
+- **Customizer = generation-time, shapes the *schema*.** It runs inside the generator and
+  mutates the intermediate `typegraph.ResourceDefinition` (the parsed type graph + envelope)
+  *before* emission. Whatever it changes is baked into `<name>_gen.go` and frozen — flags
+  (Required/Computed/ForceNew/Sensitive), validators, defaults, collection kind, envelope
+  name/parent, meta attributes. If it alters what the attribute *looks like* in the
+  Terraform schema, it's a customizer.
+- **Hook = runtime, shapes *behavior*.** It runs in the provider at CRUD/plan time and never
+  touches the schema — body massaging before PUT, read-side normalization, conditional
+  `RequiresReplace`, cross-property validation, singleton/override wiring. If it changes what
+  the resource *does* with a value (not how the value is declared), it's a hook.
+
+A schema concern in a hook, or a behavior in a customizer, is always the wrong layer.
+
 Two failure modes to internalize:
 - **Customizer paths panic.** `FindProperty` / `IsolateArrayElement` crash generation
   on an unresolvable ARM path — a typo or renamed property can't ship silently.
@@ -343,43 +358,76 @@ Version + `types.json` path resolve from `index.json`; you name only the bare AR
 
 ### Step 4 — Add a customizer (only if needed)
 
-Skip when bicep + azwise suffice. Add a customizer for rules **neither can express**.
-One file per resource; `register.go` owns the single `init()`:
+Skip when bicep + azwise suffice. A customizer is generation-time code that mutates the
+intermediate `*typegraph.ResourceDefinition` for rules **neither bicep nor azwise can
+express** — it is the last layer and wins over both. One file per resource; `register.go`
+owns the single `init()` that wires it by ARM type:
 
 ```go
 // internal/native/generator/customizers/storage_account_blob_service.go
-func customizeStorageAccountBlobService(def *generator.ResourceDefinition) {
+func customizeStorageAccountBlobService(def *typegraph.ResourceDefinition) {
     // blobServices name is always "default" and isn't in the body graph → pin on envelope.
-    def.Envelope.Name.Validators = []generator.DescriptionValidator{
-        generator.OneOfValidator(`blob service name must be "default"`, "default"),
-    }
+    def.SetNameValidators(
+        typegraph.OneOfValidator(`blob service name must be "default"`, "default"),
+    )
 }
 // register.go init(): Register(armtype.StorageAccountBlobService, customizeStorageAccountBlobService)
 ```
 
-Customizers mutate `*Property` by ARM dot path and run **last** (win over azwise +
-description-mining). Common moves:
-- **Body property** — `FindProperty(def, "properties.minimumTlsVersion").DefaultValue = "TLS1_2"`
-  (also sets `ForceNew` / `Sensitive` / `Validators`).
-- **Envelope name** — `def.Envelope.Name.Validators = …` (name isn't in the body).
-- **Semantic validator** — `def.AddValidatorsFor("<path>", typegraph.Validator(validators.UUID))`,
-  referencing the constructor by symbol (rename/delete → compile error). Reuse the
-  generic `validators.UUID` / `validators.AzureResourceID` from
-  `internal/native/schema/validators` before adding one; a rule tied to a single
-  service (e.g. `storagevalidators.StorageAccountIPRule`) lives in
-  `internal/native/services/<service>/validators`, imported under a `<svc>validators`
-  alias. A new validator is just a `validator.String` ctor in the package matching its
-  scope — no catalog, no registration; the emitter reflects the func to derive the
-  call qualifier + import alias.
-- **Array element shared with a sibling** (`ipRules` vs `ipv6Rules`) — call
-  `IsolateArrayElement(def, "<path>")` **first** so the validator doesn't leak to the sibling.
-- **Behavior-only Meta attribute** — `def.Envelope.Meta = append(def.Envelope.Meta, typegraph.MetaAttr{Name: "purge_on_destroy", Description: …})`
-  for a top-level flag that is *not* in the ARM body and drives provider-side
-  behavior only (emitted as an `Optional` bool; read by a runtime hook). Pair it with
-  the hook that consumes it — schema flag and behavior ship together. See GENERATOR.md
-  Rule 9c "Meta attributes".
+**The fluent vocabulary.** `*typegraph.ResourceDefinition` exposes intent-named,
+path-variadic methods (in `internal/native/typegraph/customize.go`) that collapse the raw
+`FindProperty(def, path)` + flip-a-flag dance into one call. Every method returns `def`, so
+calls chain (`def.Required("sku", "sku.name").Default("properties.minimumTlsVersion", "TLS1_2")`).
+Each targets **body properties by ARM dot path** (camelCase, the same paths `FindProperty`
+understands) or the **operational envelope**. Prefer these over hand-mutating `*Property`
+fields — the whole codebase uses them, and they carry the panic-on-typo guarantee.
 
-`FindProperty` / `IsolateArrayElement` **panic** on a bad path — fix the path, don't suppress.
+Scenario → helper (body-property methods take one or more ARM paths, `paths ...string`):
+
+| I need to… | Call | Under the hood |
+|---|---|---|
+| Attach a semantic validator (ID shape, regex, element enum) | `def.AddValidatorsFor(path, vs…)` | appends to `Property.Validators` |
+| Promote a field AzureRM requires but bicep left optional | `def.Required(paths…)` | sets `FlagRequired` |
+| Force a server-owned field to Computed-only | `def.Computed(paths…)` | `ForceComputed = true` |
+| Mark an immutable field for replacement | `def.ForceNew(paths…)` | emits `RequiresReplace` |
+| Mark a secret field sensitive | `def.Sensitive(paths…)` | emits `Sensitive: true` |
+| Emit an unordered primitive array as a Set (kill reorder drift) | `def.AsSet(paths…)` | `UseSet` → `SetAttribute` |
+| Default an omitted Optional+Computed list to `[]` (ARM echoes `[]`) | `def.WithEmptyListDefault(paths…)` | `DefaultEmptyList` |
+| Let a null computed field plan as unknown so the server may fill it | `def.NonNullStateForUnknown(paths…)` | `UseNonNullStateForUnknown` |
+| Override a description-mined default | `def.Default(path, value)` | sets schema default |
+| Constrain the resource **name** (not in the body graph) | `def.SetNameValidators(vs…)` | envelope name validators |
+| Rename/redescribe the **parent** ref (e.g. `parent_id`→`scope_id`) | `def.SetParent(name, desc)` | envelope parent attr |
+| Add a behavior-only top-level flag a hook reads (not sent to ARM) | `def.AddMetaAttr(attrs…)` | envelope Meta (Optional bool) |
+
+Validator constructors (also `typegraph.*`, in `envelope.go`): `RegexValidator`,
+`LengthValidator(min,max)` (negative bound = unbounded), `OneOfValidator`,
+`OneOfCaseInsensitiveValidator`, `IntRangeValidator`, `ListSizeAtLeastValidator`,
+`ListSizeAtMostValidator`, and `Validator(fn)` — which references a hand-written schema
+validator **by its constructor symbol** (e.g. `typegraph.Validator(validators.UUID)`) so a
+rename/delete is a compile error, not a silently wrong string. Reuse the generic
+`validators.UUID` / `validators.AzureResourceID` from `internal/native/schema/validators`
+before adding one; a rule tied to a single service (e.g.
+`storagevalidators.StorageAccountIPRule`) lives in
+`internal/native/services/<service>/validators`, imported under a `<svc>validators` alias. A
+new validator is just a `validator.String` ctor in the package matching its scope — no
+catalog, no registration; the emitter reflects the func to derive the call qualifier + import
+alias.
+
+**Array element shared with a sibling** (`ipRules` vs `ipv6Rules` dedupe to one bicep element
+type) — call `typegraph.IsolateArrayElement(def, "<array-path>")` **first**, then address the
+element property by its full path, otherwise the change leaks to the sibling array.
+
+**A behavior-only Meta attribute pairs with its hook.** `def.AddMetaAttr` adds a top-level
+flag that is *not* in the ARM body and never travels to ARM (e.g. `purge_on_destroy`); it is
+emitted as an `Optional` bool the runtime hook reads from state. Ship the schema flag and the
+consuming hook together. See GENERATOR.md Rule 9c "Meta attributes".
+
+Everything above shapes the **schema**. If you find yourself wanting to change a value at
+apply time, normalize a read, or gate on another attribute, that's a **hook**, not a
+customizer — see [Runtime behavior hooks](#runtime-behavior-hooks).
+
+`FindProperty` / `IsolateArrayElement` and every path-based method **panic** on a bad path —
+fix the path, don't suppress.
 
 ### Step 5 — Regenerate
 
