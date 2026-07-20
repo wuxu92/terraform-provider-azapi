@@ -142,6 +142,14 @@ type Hooks struct {
 	// AtMostOneOf here — generation no longer synthesizes it.
 	Relational []services.RelationalConstraint
 
+	// ConfigValidators plugs prebuilt, reusable framework resource.ConfigValidator
+	// objects (e.g. from terraform-plugin-framework-validators, or a shared custom
+	// one) into the resource. They run alongside — and after — the validators derived
+	// from Relational. Use this for a complex cross-field rule that is already packaged
+	// as a composable, self-describing ConfigValidator; reach for ValidateConfig below
+	// only when the logic is not worth expressing as a validator object.
+	ConfigValidators []resource.ConfigValidator
+
 	// Full overrides of the framework lifecycle methods. When set, the base
 	// invokes these after its own default work (for ModifyPlan/ValidateConfig)
 	// or instead of nothing (ImportState extension).

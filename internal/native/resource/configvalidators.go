@@ -15,20 +15,26 @@ import (
 
 var _ resource.ResourceWithConfigValidators = &Base{}
 
-// ConfigValidators returns resource-level cross-property validators (ConflictsWith /
-// RequiredWith / ExactlyOneOf / AtLeastOneOf / AtMostOneOf) declared by the resource's
-// hand-written Hooks.Relational. Single-attribute validators (enum, range, length)
-// stay in the generated schema; these relational rules span multiple attributes and
-// therefore live at resource scope, analogous to the runtime-added timeouts block
-// (see composeSchema). They are hook-owned, not generated, so they can be tuned
-// without regenerating the resource.
+// ConfigValidators returns resource-level cross-property validators declared by the
+// resource's hand-written hooks. Two sources, in order: (1) the declarative
+// Hooks.Relational constraints (ConflictsWith / RequiredWith / ExactlyOneOf /
+// AtLeastOneOf / AtMostOneOf), each lowered to a framework ConfigValidator, then
+// (2) any prebuilt Hooks.ConfigValidator objects verbatim. Single-attribute
+// validators (enum, range, length) stay in the generated schema; these span
+// multiple attributes and so live at resource scope, analogous to the runtime-added
+// timeouts block (see composeSchema). Both sources are hook-owned, not generated, so
+// they can be tuned without regenerating the resource.
 func (b *Base) ConfigValidators(context.Context) []resource.ConfigValidator {
-	if b.hooks == nil || len(b.hooks.Relational) == 0 {
+	if b.hooks == nil {
 		return nil
 	}
-	out := make([]resource.ConfigValidator, 0, len(b.hooks.Relational))
+	out := make([]resource.ConfigValidator, 0, len(b.hooks.Relational)+len(b.hooks.ConfigValidators))
 	for _, rc := range b.hooks.Relational {
 		out = append(out, relationalValidator{constraint: rc})
+	}
+	out = append(out, b.hooks.ConfigValidators...)
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

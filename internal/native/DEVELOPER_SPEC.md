@@ -413,6 +413,7 @@ type Hooks struct {
     Delete        func(*CrudCtx) // optional replacement for the default ARM DELETE
     Singleton     *SingletonDefault // fixed-named default child: skip create existence check, reset-via-PUT on destroy (no delete hooks)
     Relational    []services.RelationalConstraint // resource-level cross-property constraints (ConflictsWith/RequiredWith/ExactlyOneOf/AtLeastOneOf/AtMostOneOf) → framework ConfigValidators; hand-owned, not generated
+    ConfigValidators []resource.ConfigValidator // prebuilt/reusable framework validator objects, appended after the Relational-derived ones; for complex rules already packaged as a ConfigValidator
     ValidateConfig func(ctx, req, resp)
     ModifyPlan     func(ctx, req, resp)
 }
