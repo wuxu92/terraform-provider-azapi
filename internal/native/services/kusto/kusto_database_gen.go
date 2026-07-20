@@ -461,9 +461,6 @@ var KustoDatabase = services.Descriptor{
 	Schema:         AzapiKustoDatabaseSchema,
 	WritableScopes: 8,
 	ParentAttr:     "cluster_id",
-	Relational: []services.RelationalConstraint{
-		{Kind: services.ExactlyOneOf, Paths: [][]string{{"read_only_following"}, {"read_write"}}, Message: "exactly one variant of the discriminated block must be set"},
-	},
 	Timeouts: services.Timeouts{
 		Create: 60 * time.Minute,
 		Read:   5 * time.Minute,

@@ -5,6 +5,7 @@ import (
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
 	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -18,6 +19,11 @@ import (
 func init() {
 	nativeresource.RegisterHooks(StorageAccount.Name, &nativeresource.Hooks{
 		ModifyPlan: storageAccountModifyPlan,
+		// Customer-managed key encryption requires the account to carry the referenced
+		// user-assigned identity.
+		Relational: []services.RelationalConstraint{
+			{Kind: services.RequiredWith, Paths: []string{"properties.encryption.identity.user_assigned_identity", "identity.user_assigned_identities"}, Message: "customer-managed key encryption requires the account to carry the referenced user-assigned identity"},
+		},
 	})
 }
 

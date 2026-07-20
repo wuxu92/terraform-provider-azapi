@@ -116,37 +116,3 @@ func TestPromoteSingleOptionalWalksVariant(t *testing.T) {
 		t.Error("a discriminated block's lone base property must not be promoted (variants are the real content)")
 	}
 }
-
-// TestSynthesizeDiscriminatorConstraintsRoot confirms a discriminated ROOT body
-// (the resource itself) synthesizes an ExactlyOneOf over its top-level variant
-// blocks: creating the resource requires selecting exactly one variant.
-// walkDiscriminated only reaches discriminated *properties*, so the root must be
-// handled explicitly.
-func TestSynthesizeDiscriminatorConstraintsRoot(t *testing.T) {
-	def := &ResourceDefinition{Body: &Type{
-		Kind: KindDiscriminated, Name: "DeploymentScript", Discriminator: "kind",
-		Properties: map[string]*Property{"location": {Name: "location", Type: &Type{Kind: KindString}}},
-		Variants: map[string]*Type{
-			"AzureCLI":        {Kind: KindObject, Name: "AzureCLI", Properties: map[string]*Property{}},
-			"AzurePowerShell": {Kind: KindObject, Name: "AzurePowerShell", Properties: map[string]*Property{}},
-		},
-	}}
-	synthesizeDiscriminatorConstraints(def)
-	if len(def.Relational) != 1 {
-		t.Fatalf("expected 1 relational constraint, got %d: %+v", len(def.Relational), def.Relational)
-	}
-	c := def.Relational[0]
-	if c.Kind != "ExactlyOneOf" {
-		t.Errorf("root discriminated body must be ExactlyOneOf, got %q", c.Kind)
-	}
-	if len(c.Paths) != 2 {
-		t.Fatalf("expected 2 variant paths, got %+v", c.Paths)
-	}
-	// Paths are single top-level segments (no prefix), snake_cased and sorted.
-	if got := c.Paths[0]; len(got) != 1 || got[0] != "azure_cli" {
-		t.Errorf("path[0]: got %v, want [azure_cli]", got)
-	}
-	if got := c.Paths[1]; len(got) != 1 || got[0] != "azure_power_shell" {
-		t.Errorf("path[1]: got %v, want [azure_power_shell]", got)
-	}
-}

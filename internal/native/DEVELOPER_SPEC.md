@@ -401,7 +401,6 @@ type Descriptor struct {
     Schema         func() schema.Schema // generated body + operational envelope
     WritableScopes int                  // bicep scope bitmask (metadata)
     ParentAttr     string               // generated parent-reference attr, e.g. "resource_group_id"
-    Relational     []RelationalConstraint // azwise cross-property constraints → framework ConfigValidators
     Timeouts       Timeouts               // per-op timeout defaults baked in from azwise; zero field → runtime fallback
 }
 var Registry = map[string]Descriptor{} // each generated init() calls Register; services/all blank-imports every service package to populate it
@@ -413,6 +412,7 @@ type Hooks struct {
     BeforeRead, AfterRead, BeforeDelete func(*CrudCtx)
     Delete        func(*CrudCtx) // optional replacement for the default ARM DELETE
     Singleton     *SingletonDefault // fixed-named default child: skip create existence check, reset-via-PUT on destroy (no delete hooks)
+    Relational    []services.RelationalConstraint // resource-level cross-property constraints (ConflictsWith/RequiredWith/ExactlyOneOf/AtLeastOneOf/AtMostOneOf) → framework ConfigValidators; hand-owned, not generated
     ValidateConfig func(ctx, req, resp)
     ModifyPlan     func(ctx, req, resp)
 }

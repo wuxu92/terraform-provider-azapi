@@ -1,6 +1,9 @@
 package storage
 
-import nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
+import (
+	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
+)
 
 // Storage account blob service hooks model the ARM lifecycle of the singleton
 // Microsoft.Storage/storageAccounts/blobServices/default child: it comes into being
@@ -19,6 +22,10 @@ func init() {
 					"deleteRetentionPolicy": map[string]interface{}{"allowPermanentDelete": false, "enabled": false},
 				},
 			},
+		},
+		// A restore policy is only valid alongside a delete-retention policy.
+		Relational: []services.RelationalConstraint{
+			{Kind: services.RequiredWith, Paths: []string{"properties.restore_policy", "properties.delete_retention_policy"}},
 		},
 	})
 }

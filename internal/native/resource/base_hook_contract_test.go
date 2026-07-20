@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
-	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -107,13 +106,15 @@ func resourceGroupPlanState(ctx context.Context, b *Base) tfsdk.State {
 // resourceGroupDescriptor is the simplest native driver: subscription-scoped, no
 // singleton. Built inline (not via New) so the test needs no registry import,
 // which would cycle back through the generated hook packages into this package.
+// The schema is the test-local fixture (see testfixture_test.go) for the same
+// reason — importing a concrete services/* package would form that cycle.
 func resourceGroupDescriptor() services.Descriptor {
 	return services.Descriptor{
 		Name:       "azapi_resource_group",
 		ARMType:    "Microsoft.Resources/resourceGroups",
 		APIVersion: "2025-04-01",
 		ParentAttr: "subscription_id",
-		Schema:     resources.AzapiResourceGroupSchema,
+		Schema:     testResourceGroupSchema,
 	}
 }
 

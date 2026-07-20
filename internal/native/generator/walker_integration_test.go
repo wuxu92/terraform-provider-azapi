@@ -223,16 +223,4 @@ func TestParseDiscriminatedObjectType(t *testing.T) {
 			t.Errorf("expected emitted schema to contain %q", want)
 		}
 	}
-
-	// A mutual-exclusion constraint over the two variant blocks is synthesized.
-	if len(defs[0].Relational) != 1 {
-		t.Fatalf("expected 1 synthesized relational constraint, got %d", len(defs[0].Relational))
-	}
-	rc := defs[0].Relational[0]
-	if rc.Kind != "AtMostOneOf" {
-		t.Errorf("expected AtMostOneOf for an optional discriminated block, got %q", rc.Kind)
-	}
-	if len(rc.Paths) != 2 {
-		t.Errorf("expected 2 variant paths, got %d", len(rc.Paths))
-	}
 }

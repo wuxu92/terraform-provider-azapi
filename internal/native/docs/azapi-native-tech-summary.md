@@ -59,12 +59,15 @@
    the output.
 
 6. **Relational cross-property constraints.**
-   `ConflictsWith / RequiredWith / ExactlyOneOf / AtLeastOneOf` lowered from
-   azwise into the generated descriptor and enforced at runtime as framework
-   `ConfigValidators` over nested snake_case paths.
-   **Why:** the cross-field rules are declared once in the knowledge layer and
-   enforced by framework-native `ConfigValidators`, so they survive regeneration
-   and need no hand-written per-resource validation Go.
+   `ConflictsWith / RequiredWith / ExactlyOneOf / AtLeastOneOf / AtMostOneOf`
+   declared per resource in the hand-written `<resource>_hooks.go` as
+   `Hooks.Relational` and enforced at runtime as framework `ConfigValidators`
+   over nested snake_case paths.
+   **Why:** cross-field rules are true runtime validation behavior, not schema
+   shape, so they belong with the other hand-owned runtime hooks rather than
+   baked into the generated descriptor. Keeping them out of `_gen.go` leaves the
+   generated output minimal and lets a constraint be added or tuned without a
+   regeneration cycle.
 
 7. **Operational envelope synthesis.**
    `name`, parent reference, `id`, and per-operation `timeouts` are synthesized

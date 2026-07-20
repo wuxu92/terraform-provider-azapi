@@ -15,18 +15,19 @@ import (
 
 var _ resource.ResourceWithConfigValidators = &Base{}
 
-// ConfigValidators returns resource-level cross-property validators lowered from
-// azwise (ConflictsWith / RequiredWith / ExactlyOneOf / AtLeastOneOf), baked into
-// the generated Descriptor at generation time. Single-attribute validators (enum,
-// range, length) stay in the generated schema; these relational rules span
-// multiple attributes and therefore must live at resource scope, analogous to the
-// runtime-added timeouts block (see composeSchema).
+// ConfigValidators returns resource-level cross-property validators (ConflictsWith /
+// RequiredWith / ExactlyOneOf / AtLeastOneOf / AtMostOneOf) declared by the resource's
+// hand-written Hooks.Relational. Single-attribute validators (enum, range, length)
+// stay in the generated schema; these relational rules span multiple attributes and
+// therefore live at resource scope, analogous to the runtime-added timeouts block
+// (see composeSchema). They are hook-owned, not generated, so they can be tuned
+// without regenerating the resource.
 func (b *Base) ConfigValidators(context.Context) []resource.ConfigValidator {
-	if len(b.desc.Relational) == 0 {
+	if b.hooks == nil || len(b.hooks.Relational) == 0 {
 		return nil
 	}
-	out := make([]resource.ConfigValidator, 0, len(b.desc.Relational))
-	for _, rc := range b.desc.Relational {
+	out := make([]resource.ConfigValidator, 0, len(b.hooks.Relational))
+	for _, rc := range b.hooks.Relational {
 		out = append(out, relationalValidator{constraint: rc})
 	}
 	return out
@@ -60,8 +61,8 @@ func (v relationalValidator) ValidateResource(ctx context.Context, req resource.
 		return
 	}
 	set := make([]bool, len(v.constraint.Paths))
-	for i, segs := range v.constraint.Paths {
-		isSet, unknown, diags := attrIsSet(ctx, req.Config, segs)
+	for i, p := range v.constraint.Paths {
+		isSet, unknown, diags := attrIsSet(ctx, req.Config, p)
 		resp.Diagnostics.Append(diags...)
 		if diags.HasError() {
 			return
@@ -83,7 +84,7 @@ func (v relationalValidator) ValidateResource(ctx context.Context, req resource.
 				resp.Diagnostics.Append(diag.NewAttributeErrorDiagnostic(subject,
 					"Invalid Attribute Combination",
 					relationalDetail(v.constraint.Message,
-						fmt.Sprintf("%q cannot be set together with %q.", joinSeg(v.constraint.Paths[0]), joinSeg(v.constraint.Paths[i])))))
+						fmt.Sprintf("%q cannot be set together with %q.", v.constraint.Paths[0], v.constraint.Paths[i]))))
 			}
 		}
 	case services.RequiredWith:
@@ -95,7 +96,7 @@ func (v relationalValidator) ValidateResource(ctx context.Context, req resource.
 				resp.Diagnostics.Append(diag.NewAttributeErrorDiagnostic(subject,
 					"Invalid Attribute Combination",
 					relationalDetail(v.constraint.Message,
-						fmt.Sprintf("%q must be set when %q is set.", joinSeg(v.constraint.Paths[i]), joinSeg(v.constraint.Paths[0])))))
+						fmt.Sprintf("%q must be set when %q is set.", v.constraint.Paths[i], v.constraint.Paths[0]))))
 			}
 		}
 	case services.ExactlyOneOf:
@@ -123,15 +124,15 @@ func (v relationalValidator) ValidateResource(ctx context.Context, req resource.
 	}
 }
 
-// attrIsSet reports whether the config value at the given snake_case segment path
-// is present (non-null, known). unknown is true when the value is still unknown,
-// signalling the caller to defer validation.
-func attrIsSet(ctx context.Context, cfg tfsdk.Config, segs []string) (set, unknown bool, diags diag.Diagnostics) {
-	if len(segs) == 0 {
+// attrIsSet reports whether the config value at the given dot-separated snake_case
+// path is present (non-null, known). unknown is true when the value is still
+// unknown, signalling the caller to defer validation.
+func attrIsSet(ctx context.Context, cfg tfsdk.Config, dotted string) (set, unknown bool, diags diag.Diagnostics) {
+	if dotted == "" {
 		return false, false, nil
 	}
 	var v attr.Value
-	diags = cfg.GetAttribute(ctx, subjectPath(segs), &v)
+	diags = cfg.GetAttribute(ctx, subjectPath(dotted), &v)
 	if diags.HasError() || v == nil {
 		return false, false, diags
 	}
@@ -141,7 +142,11 @@ func attrIsSet(ctx context.Context, cfg tfsdk.Config, segs []string) (set, unkno
 	return !v.IsNull(), false, diags
 }
 
-func subjectPath(segs []string) path.Path {
+// subjectPath converts a dot-separated snake_case path ("properties.foo.bar") into
+// a framework attribute path. Attribute names never contain a dot, so splitting on
+// "." recovers the segments exactly.
+func subjectPath(dotted string) path.Path {
+	segs := strings.Split(dotted, ".")
 	p := path.Root(segs[0])
 	for _, s := range segs[1:] {
 		p = p.AtName(s)
@@ -166,12 +171,4 @@ func relationalDetail(message, fallback string) string {
 	return fallback
 }
 
-func joinSeg(segs []string) string { return strings.Join(segs, ".") }
-
-func joinPaths(paths [][]string) string {
-	parts := make([]string, len(paths))
-	for i, s := range paths {
-		parts[i] = joinSeg(s)
-	}
-	return strings.Join(parts, ", ")
-}
+func joinPaths(paths []string) string { return strings.Join(paths, ", ") }

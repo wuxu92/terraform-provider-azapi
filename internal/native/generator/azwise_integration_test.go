@@ -545,24 +545,11 @@ func TestApplyAzwiseVirtualNetwork(t *testing.T) {
 		t.Errorf("properties.privateEndpointVNetPolicies default = %q, want Disabled", p.DefaultValue)
 	}
 
-	// address_space and ip_address_pool are mutually exclusive (ExactlyOneOf),
-	// lowered from the azwise overlay onto the resource definition.
-	var exactlyOne *typegraph.RelationalConstraintDef
-	for i := range vnet.Relational {
-		if vnet.Relational[i].Kind == "ExactlyOneOf" {
-			exactlyOne = &vnet.Relational[i]
-			break
-		}
-	}
-	if exactlyOne == nil {
-		t.Fatal("expected an ExactlyOneOf relational constraint from azwise")
-	}
-	if len(exactlyOne.Paths) != 2 {
-		t.Errorf("ExactlyOneOf Paths = %v, want 2 paths", exactlyOne.Paths)
-	}
-
-	// Both ExactlyOneOf members must opt out of UseStateForUnknown so that dropping
-	// one side from config clears it (server re-owns) rather than pinning stale state.
+	// address_space and ip_address_pool are mutually exclusive: both ExactlyOneOf
+	// members must opt out of UseStateForUnknown so that dropping one side from config
+	// clears it (server re-owns) rather than pinning stale state. This SuppressStateReuse
+	// side-effect stays in generation even though the relational validator itself is now
+	// hand-declared in the resource's Hooks.Relational (see virtual_network_hooks.go).
 	for _, path := range []string{
 		"properties.addressSpace.addressPrefixes",
 		"properties.addressSpace.ipamPoolPrefixAllocations",

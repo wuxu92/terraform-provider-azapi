@@ -302,6 +302,7 @@ type Hooks struct {
     Delete                    func(*CrudCtx) // optional replacement for default ARM DELETE
     AfterDelete               func(*CrudCtx)
     Singleton                 *SingletonDefault // fixed-named default child (reset-on-destroy)
+    Relational                []services.RelationalConstraint // resource-level cross-property constraints -> framework ConfigValidators
     ValidateConfig            func(context.Context, resource.ValidateConfigRequest, *resource.ValidateConfigResponse)
     ModifyPlan                func(context.Context, resource.ModifyPlanRequest, *resource.ModifyPlanResponse)
 }
@@ -415,10 +416,12 @@ A data source is read-only, so it runs no hooks; the lookup is by `name` +
 - **Schema customizers** — `internal/native/generator/customizers`: generation-time, per-ARM-type
   Go hooks that bake validators/defaults/parent-name into the generated schema
   (see GENERATOR.md Rule 9d). Not part of the provider runtime.
-- **Generated descriptor** — `services.Descriptor{Name, ARMType, APIVersion, Schema, WritableScopes, ParentAttr, Relational, Timeouts}`
+- **Generated descriptor** — `services.Descriptor{Name, ARMType, APIVersion, Schema, WritableScopes, ParentAttr, Timeouts}`
   registered via each generated file's `init()`. `Timeouts` carries the per-op
   timeout defaults baked in from azwise at gen time (the runtime reads them, not the
-  azwise registry).
+  azwise registry). Resource-level cross-property constraints are **not** in the
+  descriptor — they are hand-declared in `Hooks.Relational` (see below), keeping the
+  generated `_gen.go` minimal and letting them be tuned without regeneration.
 - **Provider** — `Resources()` appends `nativeresource.New(name)` and
   `DataSources()` appends `nativeresource.NewDataSource(name)` for every
   `services.Registry` entry.

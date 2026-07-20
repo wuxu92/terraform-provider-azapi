@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/Azure/terraform-provider-azapi/internal/services/parse"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -130,6 +131,16 @@ type Hooks struct {
 	// BeforeDelete: BeforeDelete does NOT run for a Singleton resource. BeforeCreate/
 	// AfterCreate/BeforeUpdate/AfterUpdate/BeforeRead/AfterRead still run as usual.
 	Singleton *SingletonDefault
+
+	// Relational declares resource-level cross-property constraints (ConflictsWith /
+	// RequiredWith / ExactlyOneOf / AtLeastOneOf / AtMostOneOf) enforced at runtime as
+	// framework ConfigValidators over nested snake_case attribute paths. Unlike
+	// single-attribute validators (which live in the generated schema), these span
+	// multiple attributes and are hand-owned here rather than generated, so they can be
+	// tuned without regenerating the resource (the generated _gen.go stays minimal).
+	// Discriminated-body resources must declare their own variant ExactlyOneOf /
+	// AtMostOneOf here — generation no longer synthesizes it.
+	Relational []services.RelationalConstraint
 
 	// Full overrides of the framework lifecycle methods. When set, the base
 	// invokes these after its own default work (for ModifyPlan/ValidateConfig)

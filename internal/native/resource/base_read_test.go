@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
-	"github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -80,7 +79,7 @@ func TestReadFiresBeforeReadHookBeforeGet(t *testing.T) {
 		ARMType:    "Microsoft.Resources/resourceGroups",
 		APIVersion: "2025-04-01",
 		ParentAttr: "subscription_id",
-		Schema:     resources.AzapiResourceGroupSchema,
+		Schema:     testResourceGroupSchema,
 	}
 	const armID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/acctest-rg"
 

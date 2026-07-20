@@ -171,28 +171,6 @@ func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
 		b.WriteString(fmt.Sprintf("\tWritableScopes: %d,\n", def.WritableScopes))
 	}
 	b.WriteString(fmt.Sprintf("\tParentAttr: %q,\n", def.Envelope.Parent.Name))
-	if len(def.Relational) > 0 {
-		b.WriteString("\tRelational: []services.RelationalConstraint{\n")
-		for _, rc := range def.Relational {
-			b.WriteString(fmt.Sprintf("\t\t{Kind: services.%s, Paths: [][]string{", rc.Kind))
-			for _, segs := range rc.Paths {
-				b.WriteString("{")
-				for j, s := range segs {
-					if j > 0 {
-						b.WriteString(", ")
-					}
-					b.WriteString(fmt.Sprintf("%q", s))
-				}
-				b.WriteString("}, ")
-			}
-			b.WriteString("}")
-			if rc.Message != "" {
-				b.WriteString(fmt.Sprintf(", Message: %q", rc.Message))
-			}
-			b.WriteString("},\n")
-		}
-		b.WriteString("\t},\n")
-	}
 	if hasTimeouts {
 		b.WriteString("\tTimeouts: services.Timeouts{\n")
 		if d := def.Timeouts.Create; d > 0 {

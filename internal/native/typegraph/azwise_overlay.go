@@ -112,50 +112,42 @@ func ApplyAzwise(def *ResourceDefinition) {
 		}
 	}
 
-	// Relational cross-property constraints → lowered onto the ResourceDefinition
-	// for emission as resource-level ConfigValidators. Paths that do not resolve to
-	// object-level attributes (missing, array-element, scalar mid-path) are skipped.
-	// suppressStateReuse marks whether a constraint kind lets a member be toggled
-	// off by omission (a switch between mutually-exclusive or optional-choice sides).
-	// RequiredWith is co-presence, not a switch, so its members keep state reuse.
-	suppressStateReuse := map[string]bool{
-		"ConflictsWith": true,
-		"ExactlyOneOf":  true,
-		"AtLeastOneOf":  true,
-	}
-	lower := func(kind string, rules []azwise.RelationalRule) {
+	// Mutual-exclusion / optional-choice members opt out of UseStateForUnknown so
+	// that dropping one side from config clears it (the server re-owns it) instead of
+	// pinning stale prior state. This is a SCHEMA concern (a per-attribute plan
+	// modifier baked into the generated _gen.go), so it stays in generation. The
+	// relational VALIDATORS themselves (ConflictsWith / RequiredWith / ExactlyOneOf /
+	// AtLeastOneOf / AtMostOneOf) are no longer generated — they are hand-declared in
+	// each resource's Hooks.Relational (see internal/native/resource/hooks.go), so a
+	// developer can tune them without regenerating. RequiredWith is co-presence, not a
+	// switch, so its members keep state reuse and are not suppressed here.
+	suppress := func(rules []azwise.RelationalRule) {
 		for _, r := range rules {
 			if len(r.Paths) < 2 {
 				continue
 			}
-			segsList := make([][]string, 0, len(r.Paths))
 			props := make([]*Property, 0, len(r.Paths))
 			ok := true
 			for _, p := range r.Paths {
-				segs, good := resolveObjectPathSegments(def.Body, p)
-				if !good {
+				if _, good := resolveObjectPathSegments(def.Body, p); !good {
 					ok = false
 					break
 				}
-				segsList = append(segsList, segs)
 				props = append(props, Navigate(def.Body, p))
 			}
-			if ok {
-				def.Relational = append(def.Relational, RelationalConstraintDef{Kind: kind, Paths: segsList, Message: r.Message})
-				if suppressStateReuse[kind] {
-					for _, prop := range props {
-						if prop != nil {
-							prop.SuppressStateReuse = true
-						}
-					}
+			if !ok {
+				continue
+			}
+			for _, prop := range props {
+				if prop != nil {
+					prop.SuppressStateReuse = true
 				}
 			}
 		}
 	}
-	lower("ConflictsWith", sk.GetConflictsWith())
-	lower("RequiredWith", sk.GetRequiredWith())
-	lower("ExactlyOneOf", sk.GetExactlyOneOf())
-	lower("AtLeastOneOf", sk.GetAtLeastOneOf())
+	suppress(sk.GetConflictsWith())
+	suppress(sk.GetExactlyOneOf())
+	suppress(sk.GetAtLeastOneOf())
 }
 
 // Navigate resolves an ARM dot path (e.g. "properties.networkAcls.defaultAction")

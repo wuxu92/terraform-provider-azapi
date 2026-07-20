@@ -501,9 +501,6 @@ var StorageAccountBlobService = services.Descriptor{
 	Schema:         AzapiStorageAccountBlobServiceSchema,
 	WritableScopes: 8,
 	ParentAttr:     "storage_account_id",
-	Relational: []services.RelationalConstraint{
-		{Kind: services.RequiredWith, Paths: [][]string{{"properties", "restore_policy"}, {"properties", "delete_retention_policy"}}},
-	},
 	Timeouts: services.Timeouts{
 		Create: 30 * time.Minute,
 		Read:   5 * time.Minute,

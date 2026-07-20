@@ -5,8 +5,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
 )
 
 // PostProcess applies semantic rules to a parsed type graph that can't be
@@ -36,7 +34,6 @@ func PostProcess(defs []*ResourceDefinition) {
 			markTopLevelLocationForceNew(def)
 			demoteDefaultedRequired(def.Body)
 			applyEnvelopeDefaults(def)
-			synthesizeDiscriminatorConstraints(def)
 		}
 	}
 }
@@ -50,81 +47,6 @@ func markTopLevelLocationForceNew(def *ResourceDefinition) {
 		return
 	}
 	loc.ForceNew = true
-}
-
-// synthesizeDiscriminatorConstraints walks the body for discriminated properties
-// reachable by an object-only path and appends a mutual-exclusion constraint over
-// their variant blocks: ExactlyOneOf when the discriminated block is Required,
-// AtMostOneOf otherwise. The runtime enforces these as resource-level
-// ConfigValidators (see resource/configvalidators.go), the same machinery azwise
-// relational rules use. A discriminated type nested inside an array/map is skipped
-// because the config-path addressing is object-only (matches resolveObjectPathSegments).
-func synthesizeDiscriminatorConstraints(def *ResourceDefinition) {
-	if def == nil || def.Body == nil {
-		return
-	}
-	emit := func(disc *Type, required bool, prefix []string) {
-		if len(disc.Variants) < 2 {
-			return // one (or zero) variant: nothing is mutually exclusive
-		}
-		values := make([]string, 0, len(disc.Variants))
-		for value := range disc.Variants {
-			values = append(values, value)
-		}
-		sort.Strings(values)
-		paths := make([][]string, 0, len(values))
-		for _, value := range values {
-			path := make([]string, 0, len(prefix)+1)
-			path = append(path, prefix...)
-			paths = append(paths, append(path, naming.CamelToSnake(value)))
-		}
-		kind := "AtMostOneOf"
-		msg := "at most one variant of the discriminated block may be set"
-		if required {
-			kind = "ExactlyOneOf"
-			msg = "exactly one variant of the discriminated block must be set"
-		}
-		def.Relational = append(def.Relational, RelationalConstraintDef{Kind: kind, Paths: paths, Message: msg})
-	}
-	// A discriminated root body is the resource itself: creating it requires
-	// selecting exactly one variant, so emit an ExactlyOneOf over the top-level
-	// variant blocks. walkDiscriminated only reaches discriminated *properties*,
-	// never the body node, so the root is handled here explicitly.
-	if def.Body.Kind == KindDiscriminated {
-		emit(def.Body, true, nil)
-	}
-	walkDiscriminated(def.Body, nil, emit)
-}
-
-// walkDiscriminated visits every discriminated type reachable from typ by an
-// object-only path, invoking fn with the discriminated type, whether the property
-// holding it is Required, and the snake_case path prefix to the block. It descends
-// object properties (and into each discriminated block's base properties and
-// variants) but not arrays or maps, whose elements cannot be addressed by the
-// object-only relational config-path walker.
-func walkDiscriminated(typ *Type, prefix []string, fn func(disc *Type, required bool, prefix []string)) {
-	if typ == nil {
-		return
-	}
-	switch typ.Kind {
-	case KindObject, KindDiscriminated:
-		for armName, prop := range typ.Properties {
-			if prop == nil || prop.Flags.IsSystemManaged() {
-				continue
-			}
-			childPrefix := append(append([]string{}, prefix...), naming.CamelToSnake(armName))
-			if prop.Type != nil && prop.Type.Kind == KindDiscriminated {
-				fn(prop.Type, prop.Flags.IsRequired(), childPrefix)
-			}
-			walkDiscriminated(prop.Type, childPrefix, fn)
-		}
-		// A discriminated block's variants are addressed as nested blocks; descend
-		// them so a variant that itself holds a discriminated property is covered.
-		for _, value := range sortedKeys(typ.Variants) {
-			variantPrefix := append(append([]string{}, prefix...), naming.CamelToSnake(value))
-			walkDiscriminated(typ.Variants[value], variantPrefix, fn)
-		}
-	}
 }
 
 func sortedKeys(m map[string]*Type) []string {

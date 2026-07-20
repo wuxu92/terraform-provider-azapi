@@ -241,7 +241,6 @@ func TestEmitDiscriminatedRootBody(t *testing.T) {
 		`"azure_cli": schema.SingleNestedAttribute{`,
 		`"azure_power_shell": schema.SingleNestedAttribute{`,
 		`"script_content": schema.StringAttribute{`,
-		`services.ExactlyOneOf`,
 		// Each variant carries the DiscriminatedVariant plan modifier naming its
 		// sibling, so an unselected variant reuses prior state instead of planning
 		// as "(known after apply)".

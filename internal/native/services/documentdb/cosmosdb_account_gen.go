@@ -1344,9 +1344,6 @@ var CosmosdbAccount = services.Descriptor{
 	Schema:         AzapiCosmosdbAccountSchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",
-	Relational: []services.RelationalConstraint{
-		{Kind: services.AtMostOneOf, Paths: [][]string{{"properties", "backup_policy", "continuous"}, {"properties", "backup_policy", "periodic"}}, Message: "at most one variant of the discriminated block may be set"},
-	},
 	Timeouts: services.Timeouts{
 		Create: 180 * time.Minute,
 		Read:   5 * time.Minute,

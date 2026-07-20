@@ -890,9 +890,6 @@ var ResourcesDeploymentScript = services.Descriptor{
 	Schema:         AzapiResourcesDeploymentScriptSchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",
-	Relational: []services.RelationalConstraint{
-		{Kind: services.ExactlyOneOf, Paths: [][]string{{"azure_cli"}, {"azure_power_shell"}}, Message: "exactly one variant of the discriminated block must be set"},
-	},
 	Timeouts: services.Timeouts{
 		Create: 30 * time.Minute,
 		Read:   5 * time.Minute,

@@ -5,6 +5,7 @@ import (
 
 	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
 	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
+	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
@@ -20,6 +21,11 @@ import (
 func init() {
 	nativeresource.RegisterHooks(CosmosdbAccount.Name, &nativeresource.Hooks{
 		ModifyPlan: cosmosDBModifyPlan,
+		// backup_policy is a discriminated block: at most one variant (continuous /
+		// periodic) may be set.
+		Relational: []services.RelationalConstraint{
+			{Kind: services.AtMostOneOf, Paths: []string{"properties.backup_policy.continuous", "properties.backup_policy.periodic"}, Message: "at most one variant of the discriminated block may be set"},
+		},
 	})
 }
 

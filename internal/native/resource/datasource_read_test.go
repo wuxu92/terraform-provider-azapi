@@ -13,10 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-
-	// Blank import so resources.init() registers azapi_resource_group in
-	// services.Registry, which NewDataSource("azapi_resource_group") reads.
-	_ "github.com/Azure/terraform-provider-azapi/internal/native/services/resources"
 )
 
 const (

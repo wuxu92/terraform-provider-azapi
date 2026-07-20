@@ -2275,9 +2275,6 @@ var StorageAccount = services.Descriptor{
 	Schema:         AzapiStorageAccountSchema,
 	WritableScopes: 8,
 	ParentAttr:     "resource_group_id",
-	Relational: []services.RelationalConstraint{
-		{Kind: services.RequiredWith, Paths: [][]string{{"properties", "encryption", "identity", "user_assigned_identity"}, {"identity", "user_assigned_identities"}}, Message: "customer-managed key encryption requires the account to carry the referenced user-assigned identity"},
-	},
 	Timeouts: services.Timeouts{
 		Create: 60 * time.Minute,
 		Read:   5 * time.Minute,
