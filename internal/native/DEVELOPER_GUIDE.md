@@ -125,7 +125,9 @@ field — means "use the base behavior".
 | `BeforeDelete` | delete, before the delete operation | preflight/guard using `ctx.State` |
 | `Delete` | delete, instead of the default ARM DELETE | route destroy through a service-specific endpoint when ARM has no DELETE |
 | `AfterDelete` | delete, after the delete operation succeeds | destroy-time orchestration once the resource is gone (e.g. purge a Key Vault's soft-deleted shadow) using `ctx.State` |
-| `ValidateConfig` | config validation (plan-time; values may be unknown) | cross-field rules one validator can't express |
+| `Relational` (data) | config validation (plan-time) | declarative cross-property constraints (`ExactlyOneOf` / `RequiredWith` / `ConflictsWith` / `AtLeastOneOf` / `AtMostOneOf`) over dot-path lists → framework `ConfigValidators` (see [Cross-property validation](#cross-property-validation)) |
+| `ConfigValidators` (data) | config validation (plan-time) | plug prebuilt/reusable `resource.ConfigValidator` objects (e.g. from `terraform-plugin-framework-validators`) |
+| `ValidateConfig` | config validation (plan-time; values may be unknown) | imperative cross-field rules not worth expressing as a validator object |
 | `ModifyPlan` | plan, **after** the base's default work | conditional `RequiresReplace`, plan-time derivation |
 | `Singleton` (data) | create/delete of a fixed-named default child ARM never creates or deletes | skip the create existence check + reset to `DefaultBody` via PUT on destroy (e.g. `blobServices/default`); the reset path runs none of the delete hooks |
 
@@ -204,6 +206,68 @@ resource.RegisterHooks(ExampleResource.Name, &resource.Hooks{
   default access rule), the schema must **forbid a user from configuring that value** via a
   customizer validator/cap — otherwise every plan that sets it drifts. The read-side filter
   and the schema cap are one feature; ship them together.
+
+### Cross-property validation
+
+Rules that span **multiple** attributes (single-attribute validators — enum, range,
+length — belong in the generated schema, not here). Three tiers, cheapest first:
+
+**1. `Relational` (declarative, preferred).** A slice of `services.RelationalConstraint`,
+each a kind plus a list of **dot-separated snake_case attribute paths** absolute from the
+schema root. Lowered to framework `ConfigValidators` at runtime. Kinds: `ExactlyOneOf`,
+`AtMostOneOf`, `AtLeastOneOf`, `RequiredWith` / `ConflictsWith` (path[0] is the subject).
+
+```go
+resource.RegisterHooks(VirtualNetwork.Name, &resource.Hooks{
+    Relational: []services.RelationalConstraint{
+        {Kind: services.ExactlyOneOf, Paths: []string{
+            "properties.address_space.address_prefixes",
+            "properties.address_space.ipam_pool_prefix_allocations",
+        }, Message: "exactly one of address_space or ip_address_pool must be set"},
+    },
+})
+```
+
+> **Discriminated bodies must declare their own variant constraint here** — generation no
+> longer synthesizes it. A required discriminated block → `ExactlyOneOf` over the variant
+> paths; an optional one → `AtMostOneOf`.
+
+Paths are plain strings the compiler can't check against the schema. A typo would surface
+only when a practitioner validates that resource's config, so
+`TestRelationalPathsResolveInSchema` (`services/all`) walks **every** registered resource's
+relational paths against its schema — a bad path fails that test in CI, not at apply.
+
+**2. `ConfigValidators` (reusable objects).** Plug prebuilt `resource.ConfigValidator`
+values (e.g. from `terraform-plugin-framework-validators`, or a shared custom one). They
+run after the `Relational`-derived validators. Use this when a rule is already packaged as
+a composable, self-describing validator object.
+
+**3. `ValidateConfig` (imperative).** A full framework `ValidateConfig` method for logic not
+worth expressing as a validator object (e.g. Kusto's SKU-tier check). Runs after the base's
+own work; values may be unknown at plan time, so guard for null/unknown before reading.
+
+### Escape hatch — a framework interface `Base` doesn't implement
+
+Hooks cover the common runtime seams (CRUD, the validation tiers above, `ModifyPlan`). Four
+optional framework interfaces are **not** hooks — `ResourceWithIdentity`,
+`ResourceWithUpgradeIdentity`, `ResourceWithUpgradeState`, `ResourceWithMoveState` (plus a
+wholesale-different `ImportState`/`Create`/…). Go interface satisfaction is static, so a
+single shared `Base` implementing e.g. `ResourceWithIdentity` would force identity onto
+*every* native resource. Add them per-resource by wrapping `Base` and registering the
+wrapper — `New` applies it, so the provider stays oblivious:
+
+```go
+type siteWithIdentity struct{ *resource.Base }
+func (r *siteWithIdentity) IdentitySchema(ctx context.Context, _ fwresource.IdentitySchemaRequest, resp *fwresource.IdentitySchemaResponse) { /* … */ }
+func init() {
+    resource.RegisterOverride(WebSite.Name, func(b *resource.Base) fwresource.Resource {
+        return &siteWithIdentity{Base: b}
+    })
+}
+```
+
+The embedded `*Base` methods stay promoted; the outer type's method set wins. Reserved for
+the rare resource needing an interface `Base` lacks or a wholesale-different lifecycle method.
 
 ---
 
@@ -456,6 +520,7 @@ Golden rule: **never hand-edit `<name>_gen.go`** (it carries
 | A name constraint, semantic validator, or rule bicep+azwise can't express | customizer `<resource>.go` | regenerate |
 | A cross-resource validator | `internal/native/schema/validator_<rule>.go` | regenerate |
 | Runtime behavior (mutate body before PUT, normalize on read) | `services/<service>/<name>_hooks.go` (`resource.RegisterHooks`) | no regenerate (runtime) |
+| A cross-property constraint (`ExactlyOneOf`, `RequiredWith`, …) or complex validator | `services/<service>/<name>_hooks.go` (`Hooks.Relational` / `ConfigValidators` / `ValidateConfig`) | no regenerate (runtime) |
 
 1. Edit the source layer.
 2. Regenerate: `go run ./internal/native/generator/cmd/generate_poc.go`.
