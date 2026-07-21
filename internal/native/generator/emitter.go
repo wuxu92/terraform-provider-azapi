@@ -49,6 +49,9 @@ func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
 				needs.validatorPkgs[validatorImportPath(v.Func)] = true
 			}
 		}
+		if len(a.PlanModifiers) > 0 {
+			recordPlanModifierImports(a.PlanModifiers, &needs)
+		}
 	}
 
 	hasTimeouts := def.Timeouts != (typegraph.Timeouts{})
@@ -125,6 +128,17 @@ func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
 		// its derived alias (e.g. networkvalidators) so the two never collide in one
 		// file. Emit an explicit alias only when it differs from the base name.
 		if q := validatorQualifier(importPath); q != path.Base(importPath) {
+			b.WriteString(fmt.Sprintf("\t%s %q\n", q, importPath))
+		} else {
+			b.WriteString(fmt.Sprintf("\t%q\n", importPath))
+		}
+	}
+	for _, importPath := range sortedImportPaths(needs.planModifierPkgs) {
+		// Service-local plan-modifier packages share the base name "planmodifiers";
+		// import each under its derived alias (e.g. storageplanmodifiers) so two
+		// same-base-name packages never collide. (The generic native/schema package
+		// reuses the nativeschema import above and never lands in this map.)
+		if q := planModifierQualifier(importPath); q != path.Base(importPath) {
 			b.WriteString(fmt.Sprintf("\t%s %q\n", q, importPath))
 		} else {
 			b.WriteString(fmt.Sprintf("\t%q\n", importPath))
@@ -208,43 +222,44 @@ func FileName(def *typegraph.ResourceDefinition) string {
 }
 
 type importNeeds struct {
-	regexp          bool
-	int64Validator  bool
-	stringValidator bool
-	listValidator   bool            // for listvalidator.ValueStringsAre on primitive-list element enums
-	types           bool            // for types.StringType in ListAttribute
-	defBool         bool            // for booldefault.StaticBool
-	defString       bool            // for stringdefault.StaticString (string + enum defaults)
-	defInt64        bool            // for int64default.StaticInt64
-	defList         bool            // for listdefault.StaticValue empty-list defaults (+ attr for the element type literal)
-	planmodifier    bool            // for planmodifier.X plan-modifier slices
-	pmString        bool            // stringplanmodifier
-	pmBool          bool            // boolplanmodifier
-	pmInt64         bool            // int64planmodifier
-	pmObject        bool            // objectplanmodifier
-	pmList          bool            // listplanmodifier
-	pmMap           bool            // mapplanmodifier
-	validatorFunc   bool            // any func-referenced validator present (triggers the validator import)
-	validatorPkgs   map[string]bool // import paths of the packages defining func-referenced validators
-	nativeSchema    bool            // for generic native schema helpers that are not validators/defaults
+	regexp           bool
+	int64Validator   bool
+	stringValidator  bool
+	listValidator    bool            // for listvalidator.ValueStringsAre on primitive-list element enums
+	types            bool            // for types.StringType in ListAttribute
+	defBool          bool            // for booldefault.StaticBool
+	defString        bool            // for stringdefault.StaticString (string + enum defaults)
+	defInt64         bool            // for int64default.StaticInt64
+	defList          bool            // for listdefault.StaticValue empty-list defaults (+ attr for the element type literal)
+	planmodifier     bool            // for planmodifier.X plan-modifier slices
+	pmString         bool            // stringplanmodifier
+	pmBool           bool            // boolplanmodifier
+	pmInt64          bool            // int64planmodifier
+	pmObject         bool            // objectplanmodifier
+	pmList           bool            // listplanmodifier
+	pmMap            bool            // mapplanmodifier
+	validatorFunc    bool            // any func-referenced validator present (triggers the validator import)
+	validatorPkgs    map[string]bool // import paths of the packages defining func-referenced validators
+	planModifierPkgs map[string]bool // import paths of packages defining func-referenced custom plan modifiers
+	nativeSchema     bool            // for generic native schema helpers that are not validators/defaults
 }
 
 func scanImportNeeds(typ *typegraph.Type) importNeeds {
-	needs := importNeeds{validatorPkgs: map[string]bool{}}
+	needs := importNeeds{validatorPkgs: map[string]bool{}, planModifierPkgs: map[string]bool{}}
 	scanImportNeedsRecurse(typ, &needs)
 	return needs
 }
 
-// reflectValidatorFunc recovers, from a validator constructor func value (e.g.
-// validators.UUID passed as any), the defining package's import path and the
-// function name. typegraph stores the func as any so the generator never imports
-// the validators package; reflection reads the func's symbol name at generation
-// time. Panics on a nil or non-func value — a customizer bug that must fail
-// generation rather than emit garbage.
-func reflectValidatorFunc(fn any) (importPath, funcName string) {
+// reflectFuncSymbol recovers, from a constructor func value passed as any, the
+// defining package's import path and the function name. typegraph stores such
+// funcs as any so the generator never imports the referenced package; reflection
+// reads the symbol name at generation time. Panics on a nil or non-func value — a
+// customizer bug that must fail generation rather than emit garbage. `what` names
+// the caller for the panic message (e.g. "typegraph.Validator").
+func reflectFuncSymbol(fn any, what string) (importPath, funcName string) {
 	rv := reflect.ValueOf(fn)
 	if !rv.IsValid() || rv.Kind() != reflect.Func {
-		panic(fmt.Sprintf("native: typegraph.Validator requires a validator constructor func value, got %T", fn))
+		panic(fmt.Sprintf("native: %s requires a constructor func value, got %T", what, fn))
 	}
 	// full is "<import path>.<Func>"; the import path itself contains slashes, e.g.
 	// ".../schema/validators.UUID". Split on the final slash first so the dot that
@@ -254,12 +269,18 @@ func reflectValidatorFunc(fn any) (importPath, funcName string) {
 	pkgAndFunc := full[slash+1:]
 	dot := strings.Index(pkgAndFunc, ".")
 	if dot < 0 {
-		panic("native: cannot parse validator func symbol " + full)
+		panic("native: cannot parse func symbol " + full)
 	}
 	pkgName := pkgAndFunc[:dot]
 	funcName = pkgAndFunc[dot+1:]
 	importPath = full[:slash+1] + pkgName
 	return importPath, funcName
+}
+
+// reflectValidatorFunc recovers the import path and function name of a validator
+// constructor func value (e.g. validators.UUID passed as any).
+func reflectValidatorFunc(fn any) (importPath, funcName string) {
+	return reflectFuncSymbol(fn, "typegraph.Validator")
 }
 
 // validatorQualifier derives the package qualifier used to reference a validator
@@ -292,6 +313,57 @@ func validatorCall(fn any) string {
 func validatorImportPath(fn any) string {
 	importPath, _ := reflectValidatorFunc(fn)
 	return importPath
+}
+
+// planModifierQualifier derives the package qualifier for a func-referenced custom
+// plan modifier from its import path. The shared generic package
+// (.../native/schema) is imported under the "nativeschema" alias (matching the
+// emitter's existing nativeschema import), while a service-local plan-modifier
+// package (.../services/<svc>/planmodifiers) is qualified — and aliased —
+// "<svc>planmodifiers" so two same-base-name packages never collide in one file.
+func planModifierQualifier(importPath string) string {
+	const svcPrefix = "internal/native/services/"
+	if i := strings.Index(importPath, svcPrefix); i >= 0 {
+		if svc, tail, ok := strings.Cut(importPath[i+len(svcPrefix):], "/"); ok && tail == "planmodifiers" {
+			return svc + "planmodifiers"
+		}
+	}
+	return "nativeschema"
+}
+
+// planModifierCall renders the emitted call expression for a func-referenced
+// custom plan modifier, qualified by its (possibly aliased) package name, e.g.
+// "nativeschema.NormalizeResourceID()".
+func planModifierCall(ref typegraph.PlanModifierRef) string {
+	importPath, funcName := reflectFuncSymbol(ref.Func, "typegraph.PlanModifier")
+	return planModifierQualifier(importPath) + "." + funcName + "()"
+}
+
+// planModifierImportPath returns the import path of the package defining a
+// func-referenced custom plan modifier.
+func planModifierImportPath(ref typegraph.PlanModifierRef) string {
+	importPath, _ := reflectFuncSymbol(ref.Func, "typegraph.PlanModifier")
+	return importPath
+}
+
+// nativeSchemaImportPath is the generic native-schema package, imported under the
+// "nativeschema" alias. Custom plan modifiers defined there reuse that single
+// import rather than an extra aliased one.
+const nativeSchemaImportPath = "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+
+// recordPlanModifierImports routes each custom plan modifier's defining package to
+// the right import: the generic native/schema package reuses the shared
+// nativeschema import; any other (service-local) package is collected for an
+// aliased import.
+func recordPlanModifierImports(mods []typegraph.PlanModifierRef, needs *importNeeds) {
+	for _, ref := range mods {
+		p := planModifierImportPath(ref)
+		if p == nativeSchemaImportPath {
+			needs.nativeSchema = true
+		} else {
+			needs.planModifierPkgs[p] = true
+		}
+	}
 }
 
 // sortedImportPaths returns the map keys sorted, for deterministic import output.
@@ -394,6 +466,14 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 					needs.pmList = true
 				}
 			}
+		}
+		// Hand-written custom plan modifiers need the base planmodifier import (the
+		// []planmodifier.X slice type) plus their defining package. The generic
+		// native/schema package reuses the existing nativeschema import; a
+		// service-local planmodifiers package gets its own aliased import.
+		if len(prop.PlanModifiers) > 0 {
+			needs.planmodifier = true
+			recordPlanModifierImports(prop.PlanModifiers, needs)
 		}
 		if prop.Type.Kind == typegraph.KindObject {
 			scanImportNeedsRecurse(prop.Type, needs)
@@ -734,6 +814,8 @@ func emitPlanModifiers(b *strings.Builder, prop *typegraph.Property, computed bo
 	// make null prior state unknown for Azure-populated values. Members of a
 	// mutual-exclusion / choice constraint opt out (SuppressStateReuse) so an omitted
 	// side plans as unknown and the server re-owns it, instead of pinning stale state.
+	// Hand-written custom modifiers (prop.PlanModifiers) are appended AFTER the
+	// built-ins in the same typed slice.
 	if len(prop.VariantSiblings) > 0 {
 		// A discriminated variant block: an unselected variant reuses prior state
 		// but clears when a sibling variant is selected (see nativeschema
@@ -749,18 +831,25 @@ func emitPlanModifiers(b *strings.Builder, prop *typegraph.Property, computed bo
 			b.WriteString(fmt.Sprintf("%q", sib))
 		}
 		b.WriteString("),\n")
+		emitCustomPlanModifiers(b, prop.PlanModifiers, tabs)
 		b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
 		return
 	}
 	useState := !prop.Flags.IsRequired() && prop.DefaultValue == "" && !prop.DefaultEmptyList && !prop.SuppressStateReuse
 	forceNew := prop.ForceNew && !computed
 	location := usesLocationPlanModifier(prop, computed)
-	if !useState && !forceNew && !location {
+	custom := len(prop.PlanModifiers) > 0
+	if !useState && !forceNew && !location && !custom {
 		return
 	}
 	pkg, typ := planModifierFor(prop)
 	if pkg == "" {
-		return // type has no plan-modifier package (e.g. dynamic)
+		// No typed plan-modifier package (e.g. dynamic). A custom modifier cannot be
+		// attached to an untyped attribute; fail loudly rather than drop it silently.
+		if custom {
+			panic(fmt.Sprintf("native: custom plan modifier on %q has no typed plan-modifier package (kind %v)", prop.Name, prop.Type.Kind))
+		}
+		return
 	}
 	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.%s{\n", tabs, typ))
 	if location {
@@ -776,7 +865,16 @@ func emitPlanModifiers(b *strings.Builder, prop *typegraph.Property, computed bo
 	if forceNew {
 		b.WriteString(fmt.Sprintf("%s\t\t%s.RequiresReplace(),\n", tabs, pkg))
 	}
+	emitCustomPlanModifiers(b, prop.PlanModifiers, tabs)
 	b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+}
+
+// emitCustomPlanModifiers writes each hand-written plan modifier as a qualified
+// constructor call, one per line, inside an already-open PlanModifiers slice.
+func emitCustomPlanModifiers(b *strings.Builder, mods []typegraph.PlanModifierRef, tabs string) {
+	for _, ref := range mods {
+		b.WriteString(fmt.Sprintf("%s\t\t%s,\n", tabs, planModifierCall(ref)))
+	}
 }
 
 func usesLocationPlanModifier(prop *typegraph.Property, computed bool) bool {
@@ -1122,7 +1220,15 @@ func emitEnvelopeIDAttr(b *strings.Builder, tabs string) {
 func emitEnvelopeStringAttr(b *strings.Builder, a typegraph.EnvelopeAttr, tabs string) {
 	b.WriteString(fmt.Sprintf("%s%q: schema.StringAttribute{\n", tabs, a.Name))
 	b.WriteString(fmt.Sprintf("%s\tRequired: true,\n", tabs))
-	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},\n", tabs))
+	if len(a.PlanModifiers) == 0 {
+		b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},\n", tabs))
+	} else {
+		// Built-in RequiresReplace first, then the hand-written custom modifiers.
+		b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.String{\n", tabs))
+		b.WriteString(fmt.Sprintf("%s\t\tstringplanmodifier.RequiresReplace(),\n", tabs))
+		emitCustomPlanModifiers(b, a.PlanModifiers, tabs)
+		b.WriteString(fmt.Sprintf("%s\t},\n", tabs))
+	}
 	emitStringValidators(b, a.Validators, tabs)
 	b.WriteString(fmt.Sprintf("%s\tMarkdownDescription: %q,\n", tabs, a.Description))
 	b.WriteString(fmt.Sprintf("%s},\n", tabs))

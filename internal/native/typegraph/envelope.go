@@ -18,6 +18,12 @@ type EnvelopeAttr struct {
 	Name        string
 	Description string
 	Validators  []DescriptionValidator
+	// PlanModifiers holds hand-written plan modifiers a customizer attaches to this
+	// envelope attribute by constructor func reference, appended AFTER the built-in
+	// stringplanmodifier.RequiresReplace() every envelope string attr carries. Each
+	// ref's Func must return a planmodifier.String (envelope attrs are always
+	// strings); a mismatch is a compile error in the regenerated _gen.go.
+	PlanModifiers []PlanModifierRef
 }
 
 // MetaAttr describes one synthetic, behavior-only top-level attribute that is NOT

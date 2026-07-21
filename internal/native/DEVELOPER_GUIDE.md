@@ -394,6 +394,8 @@ Scenario → helper (body-property methods take one or more ARM paths, `paths ..
 | Emit an unordered primitive array as a Set (kill reorder drift) | `def.AsSet(paths…)` | `UseSet` → `SetAttribute` |
 | Default an omitted Optional+Computed list to `[]` (ARM echoes `[]`) | `def.WithEmptyListDefault(paths…)` | `DefaultEmptyList` |
 | Let a null computed field plan as unknown so the server may fill it | `def.NonNullStateForUnknown(paths…)` | `UseNonNullStateForUnknown` |
+| Attach an arbitrary plan modifier the built-ins can't express (drift normalization, conditional replace, bespoke) | `def.AddPlanModifiersFor(path, mods…)` | appends to `Property.PlanModifiers` |
+| Same, on the resource **name** / **parent** ref | `def.AddNamePlanModifiers(mods…)` / `def.AddParentPlanModifiers(mods…)` | envelope attr `PlanModifiers` |
 | Override a description-mined default | `def.Default(path, value)` | sets schema default |
 | Constrain the resource **name** (not in the body graph) | `def.SetNameValidators(vs…)` | envelope name validators |
 | Rename/redescribe the **parent** ref (e.g. `parent_id`→`scope_id`) | `def.SetParent(name, desc)` | envelope parent attr |
@@ -421,6 +423,24 @@ element property by its full path, otherwise the change leaks to the sibling arr
 flag that is *not* in the ARM body and never travels to ARM (e.g. `purge_on_destroy`); it is
 emitted as an `Optional` bool the runtime hook reads from state. Ship the schema flag and the
 consuming hook together. See GENERATOR.md Rule 9c "Meta attributes".
+
+**Custom plan modifiers — by symbol, like validators.** The generator emits a *closed*
+built-in set of plan modifiers (`UseStateForUnknown` / `UseNonNullStateForUnknown`,
+`RequiresReplace`, the location and discriminated-variant modifiers). For anything else —
+**drift normalization** (suppress a perpetual diff when Azure echoes a value in different
+form, e.g. resource-ID casing), **conditional replace** on a custom predicate, or a bespoke
+modifier — attach a hand-written one with `def.AddPlanModifiersFor(path, typegraph.PlanModifier(fn))`.
+Like `Validator(fn)`, `PlanModifier(fn)` references the constructor **by symbol** (rename/delete
+→ compile error); the emitter reflects it to the qualified call + import, and appends it **after**
+the built-ins in the same typed `PlanModifiers` slice. The constructor must return the framework
+plan-modifier type matching the attribute's kind (`planmodifier.String` for a string attr, `.Object`
+for an object, …) — a mismatch is a compile error in the regenerated `_gen.go`. Reusable generic
+modifiers (e.g. `nativeschema.UseStateForEquivalentResourceID`) live in `internal/native/schema`
+(imported as `nativeschema`); a service-specific one goes in
+`internal/native/services/<service>/planmodifiers`, imported under a `<svc>planmodifiers` alias.
+This is a **schema** modifier baked into `_gen.go`; a *value-dependent* replace decision
+(comparing old vs new, e.g. storage SKU zone-migration) is not a static modifier — it stays in a
+`ModifyPlan` hook consulting `azwise.CheckForceNew`.
 
 Everything above shapes the **schema**. If you find yourself wanting to change a value at
 apply time, normalize a read, or gate on another attribute, that's a **hook**, not a

@@ -118,3 +118,50 @@ func TestHelperPanicsOnUnknownPath(t *testing.T) {
 	}()
 	def.Required("properties.doesNotExist")
 }
+
+// dummyPlanModifier is a stand-in constructor referenced by func value; the
+// builder never calls it, so its return can be nil for the typegraph-level test.
+func dummyPlanModifier() any { return nil }
+
+func TestAddPlanModifiersFor(t *testing.T) {
+	def := fixtureDef()
+	ret := def.AddPlanModifiersFor("properties.tlsVersion",
+		PlanModifier(dummyPlanModifier), PlanModifier(dummyPlanModifier))
+	if ret != def {
+		t.Error("AddPlanModifiersFor should return the definition for chaining")
+	}
+	mods := FindProperty(def, "properties.tlsVersion").PlanModifiers
+	if len(mods) != 2 {
+		t.Fatalf("PlanModifiers = %d, want 2", len(mods))
+	}
+	if mods[0].Func == nil {
+		t.Error("PlanModifier(fn) must store the constructor func value")
+	}
+	// Empty variadic is a no-op that must not touch the property.
+	def.AddPlanModifiersFor("properties.probe")
+	if len(FindProperty(def, "properties.probe").PlanModifiers) != 0 {
+		t.Error("AddPlanModifiersFor with no mods must be a no-op")
+	}
+}
+
+func TestAddPlanModifiersForPanicsOnUnknownPath(t *testing.T) {
+	def := fixtureDef()
+	defer func() {
+		if recover() == nil {
+			t.Error("AddPlanModifiersFor on an unknown path should panic")
+		}
+	}()
+	def.AddPlanModifiersFor("properties.nope", PlanModifier(dummyPlanModifier))
+}
+
+func TestEnvelopePlanModifierHelpers(t *testing.T) {
+	def := fixtureDef()
+	def.AddNamePlanModifiers(PlanModifier(dummyPlanModifier)).
+		AddParentPlanModifiers(PlanModifier(dummyPlanModifier), PlanModifier(dummyPlanModifier))
+	if len(def.Envelope.Name.PlanModifiers) != 1 {
+		t.Errorf("name PlanModifiers = %d, want 1", len(def.Envelope.Name.PlanModifiers))
+	}
+	if len(def.Envelope.Parent.PlanModifiers) != 2 {
+		t.Errorf("parent PlanModifiers = %d, want 2", len(def.Envelope.Parent.PlanModifiers))
+	}
+}

@@ -33,6 +33,41 @@ func (def *ResourceDefinition) AddValidatorsFor(armPath string, validators ...De
 	return def
 }
 
+// AddPlanModifiersFor appends hand-written plan modifiers to the body property at
+// armPath, for schema-level plan behavior the built-in vocabulary (state reuse,
+// ForceNew, location, discriminated-variant) cannot express — value normalization
+// / drift suppression, conditional replace, or a bespoke modifier. Each modifier
+// is a PlanModifier(fn) reference whose constructor must return the framework
+// plan-modifier type matching the attribute's kind; a mismatch surfaces as a
+// compile error in the regenerated _gen.go. The modifiers are emitted after the
+// built-ins in the same typed PlanModifiers slice. Panics if armPath does not
+// resolve.
+func (def *ResourceDefinition) AddPlanModifiersFor(armPath string, mods ...PlanModifierRef) *ResourceDefinition {
+	if len(mods) == 0 {
+		return def
+	}
+	p := FindProperty(def, armPath)
+	p.PlanModifiers = append(p.PlanModifiers, mods...)
+	return def
+}
+
+// AddNamePlanModifiers appends hand-written plan modifiers to the operational
+// envelope name attribute, after its built-in RequiresReplace. Each constructor
+// must return a planmodifier.String. Use for name-normalization drift suppression
+// the body graph cannot carry (name is not a body property).
+func (def *ResourceDefinition) AddNamePlanModifiers(mods ...PlanModifierRef) *ResourceDefinition {
+	def.Envelope.Name.PlanModifiers = append(def.Envelope.Name.PlanModifiers, mods...)
+	return def
+}
+
+// AddParentPlanModifiers appends hand-written plan modifiers to the operational
+// envelope parent-reference attribute, after its built-in RequiresReplace. Each
+// constructor must return a planmodifier.String.
+func (def *ResourceDefinition) AddParentPlanModifiers(mods ...PlanModifierRef) *ResourceDefinition {
+	def.Envelope.Parent.PlanModifiers = append(def.Envelope.Parent.PlanModifiers, mods...)
+	return def
+}
+
 // Required promotes every body property at the given ARM paths to Required
 // (FlagRequired). Use it when AzureRM requires a field the bicep graph leaves
 // optional (azwise RequiredFields is planner metadata, not a schema flag), so a

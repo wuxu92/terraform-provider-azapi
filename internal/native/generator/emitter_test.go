@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
 	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
 
@@ -182,6 +183,93 @@ func TestEmitPlanModifiersHonorsNonNullStateForUnknown(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEmitPlanModifiersAppendsCustomAfterBuiltins(t *testing.T) {
+	prop := &typegraph.Property{
+		Name:          "some_id",
+		Type:          &typegraph.Type{Kind: typegraph.KindString},
+		PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(nativeschema.UseStateForEquivalentResourceID)},
+	}
+	var b strings.Builder
+	emitPlanModifiers(&b, prop, true, "")
+	got := b.String()
+	// Built-in state reuse first, custom modifier after — in one typed slice.
+	assertSourceOrder(t, got,
+		"PlanModifiers: []planmodifier.String{",
+		"stringplanmodifier.UseStateForUnknown()",
+		"nativeschema.UseStateForEquivalentResourceID()",
+	)
+}
+
+func TestEmitPlanModifiersCustomOnly(t *testing.T) {
+	// A required attribute has no built-in state-reuse/ForceNew modifier; a custom
+	// modifier must still emit a typed slice containing only the custom call.
+	prop := &typegraph.Property{
+		Name:          "some_id",
+		Type:          &typegraph.Type{Kind: typegraph.KindString},
+		Flags:         typegraph.FlagRequired,
+		PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(nativeschema.UseStateForEquivalentResourceID)},
+	}
+	var b strings.Builder
+	emitPlanModifiers(&b, prop, false, "")
+	got := b.String()
+	if !strings.Contains(got, "PlanModifiers: []planmodifier.String{") {
+		t.Errorf("custom-only modifier must emit a typed slice: %q", got)
+	}
+	if !strings.Contains(got, "nativeschema.UseStateForEquivalentResourceID()") {
+		t.Errorf("custom modifier call missing: %q", got)
+	}
+	if strings.Contains(got, "UseStateForUnknown") {
+		t.Errorf("required attr must not carry state reuse: %q", got)
+	}
+}
+
+func TestEmitPlanModifiersImportsInjected(t *testing.T) {
+	// End-to-end through EmitSchema: a custom modifier on a body property must pull
+	// in the base planmodifier import and the nativeschema import.
+	def := &typegraph.ResourceDefinition{
+		Name:       "Microsoft.Fake/things@2024-01-01",
+		APIVersion: "2024-01-01",
+		Body: &typegraph.Type{Kind: typegraph.KindObject, Properties: map[string]*typegraph.Property{
+			"someId": {
+				Name:          "someId",
+				Type:          &typegraph.Type{Kind: typegraph.KindString},
+				PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(nativeschema.UseStateForEquivalentResourceID)},
+			},
+		}},
+	}
+	typegraph.PostProcess([]*typegraph.ResourceDefinition{def})
+	src, err := EmitSchema(def)
+	if err != nil {
+		t.Fatalf("EmitSchema: %v", err)
+	}
+	for _, want := range []string{
+		`"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"`,
+		`nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"`,
+		"nativeschema.UseStateForEquivalentResourceID()",
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("emitted source missing %q\n%s", want, src)
+		}
+	}
+}
+
+func TestEmitPlanModifiersPanicsOnUntypedAttr(t *testing.T) {
+	// A custom modifier on a dynamic (untyped) attribute cannot form a typed slice;
+	// it must fail loudly rather than be silently dropped.
+	defer func() {
+		if recover() == nil {
+			t.Error("custom modifier on an untyped attribute should panic")
+		}
+	}()
+	prop := &typegraph.Property{
+		Name:          "blob",
+		Type:          &typegraph.Type{Kind: typegraph.KindAny},
+		PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(nativeschema.UseStateForEquivalentResourceID)},
+	}
+	var b strings.Builder
+	emitPlanModifiers(&b, prop, false, "")
 }
 
 func TestListSizeValidatorItems(t *testing.T) {

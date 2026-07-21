@@ -125,6 +125,18 @@ type Property struct {
 	// semantics an omitted mutual-exclusion member needs. Set by the emitter's
 	// variantProperty; mutually exclusive with SuppressStateReuse.
 	VariantSiblings []string
+	// PlanModifiers holds hand-written plan modifiers a customizer attaches to
+	// this property by constructor func reference (see PlanModifier / the
+	// AddPlanModifiersFor customizer method). They are appended AFTER the built-in
+	// modifiers the emitter derives from flags (UseStateForUnknown / RequiresReplace
+	// / the location and discriminated-variant modifiers), in the same typed
+	// PlanModifiers slice. Use for schema-level plan behavior the built-in
+	// vocabulary cannot express — value normalization / drift suppression,
+	// conditional replace, or a bespoke modifier. Each ref's Func must be an
+	// uncalled constructor returning the framework plan-modifier type matching this
+	// attribute's kind (planmodifier.String for a string attr, .Object for an
+	// object, …); a mismatch is a compile error in the regenerated _gen.go.
+	PlanModifiers []PlanModifierRef
 }
 
 // DescriptionValidator is a validation rule extracted from a property description
@@ -142,6 +154,26 @@ type DescriptionValidator struct {
 	// emitter reflects it (runtime.FuncForPC) to recover the qualified call and
 	// the package import. Set only for ValidatorFunc.
 	Func any
+}
+
+// PlanModifierRef references a hand-written plan-modifier constructor by func
+// value, e.g. nativeschema.NormalizeResourceID (an uncalled func returning a
+// planmodifier.String). It mirrors DescriptionValidator's ValidatorFunc: the Func
+// is stored as any so typegraph stays free of the terraform-plugin-framework
+// dependency, and the emitter reflects it (runtime.FuncForPC) to recover the
+// qualified call and the package import. Build one with PlanModifier(fn).
+type PlanModifierRef struct {
+	Func any
+}
+
+// PlanModifier builds a PlanModifierRef from a plan-modifier constructor func
+// value — e.g. PlanModifier(nativeschema.NormalizeResourceID), where fn is the
+// uncalled constructor. Referencing the constructor by symbol means a rename or
+// deletion is a compile error at the customizer callsite instead of a silently
+// wrong string. The func must return the framework plan-modifier type matching
+// the target attribute's kind; typegraph never calls fn or imports its package.
+func PlanModifier(fn any) PlanModifierRef {
+	return PlanModifierRef{Func: fn}
 }
 
 // ValidatorKind identifies the type of validator.
