@@ -6,7 +6,7 @@ import (
 
 	"regexp"
 
-	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -51,7 +51,7 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 				Description: "Resource location.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					nativeschema.UseStateForEquivalentLocation(),
+					planmodifiers.UseStateForEquivalentLocation(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
@@ -133,7 +133,7 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Object{
-					nativeschema.DiscriminatedVariant("read_write"),
+					planmodifiers.DiscriminatedVariant("read_write"),
 				},
 				Attributes: map[string]schema.Attribute{
 					"properties": schema.SingleNestedAttribute{
@@ -315,7 +315,7 @@ func AzapiKustoDatabaseSchema() schema.Schema {
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Object{
-					nativeschema.DiscriminatedVariant("read_only_following"),
+					planmodifiers.DiscriminatedVariant("read_only_following"),
 				},
 				Attributes: map[string]schema.Attribute{
 					"properties": schema.SingleNestedAttribute{

@@ -1,4 +1,4 @@
-package schema
+package planmodifiers
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 // Attach it from a customizer:
 //
 //	def.AddPlanModifiersFor("properties.someResourceId",
-//	    typegraph.PlanModifier(nativeschema.UseStateForEquivalentResourceID))
+//	    typegraph.PlanModifier(planmodifiers.UseStateForEquivalentResourceID))
 func UseStateForEquivalentResourceID() planmodifier.String {
 	return equivalentResourceIDPlanModifier{}
 }

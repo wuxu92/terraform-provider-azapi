@@ -134,10 +134,10 @@ func EmitSchema(def *typegraph.ResourceDefinition) (string, error) {
 		}
 	}
 	for _, importPath := range sortedImportPaths(needs.planModifierPkgs) {
-		// Service-local plan-modifier packages share the base name "planmodifiers";
-		// import each under its derived alias (e.g. storageplanmodifiers) so two
-		// same-base-name packages never collide. (The generic native/schema package
-		// reuses the nativeschema import above and never lands in this map.)
+		// Every plan-modifier package shares the base name "planmodifiers": the
+		// generic package (.../schema/planmodifiers) imports bare, while a service-
+		// local package imports under its derived alias (e.g. storageplanmodifiers)
+		// so the two never collide in one file. Emit an alias only when it differs.
 		if q := planModifierQualifier(importPath); q != path.Base(importPath) {
 			b.WriteString(fmt.Sprintf("\t%s %q\n", q, importPath))
 		} else {
@@ -315,12 +315,13 @@ func validatorImportPath(fn any) string {
 	return importPath
 }
 
-// planModifierQualifier derives the package qualifier for a func-referenced custom
-// plan modifier from its import path. The shared generic package
-// (.../native/schema) is imported under the "nativeschema" alias (matching the
-// emitter's existing nativeschema import), while a service-local plan-modifier
-// package (.../services/<svc>/planmodifiers) is qualified — and aliased —
-// "<svc>planmodifiers" so two same-base-name packages never collide in one file.
+// planModifierQualifier derives the package qualifier for a func-referenced plan
+// modifier from its import path, mirroring validatorQualifier. Every plan-modifier
+// package shares the base name "planmodifiers", so the generic package
+// (.../schema/planmodifiers) keeps the bare "planmodifiers" qualifier while a
+// service-local package (.../services/<svc>/planmodifiers) is qualified — and
+// imported under the alias — "<svc>planmodifiers", so two same-base-name packages
+// never collide in one generated file.
 func planModifierQualifier(importPath string) string {
 	const svcPrefix = "internal/native/services/"
 	if i := strings.Index(importPath, svcPrefix); i >= 0 {
@@ -328,41 +329,36 @@ func planModifierQualifier(importPath string) string {
 			return svc + "planmodifiers"
 		}
 	}
-	return "nativeschema"
+	return "planmodifiers"
 }
 
-// planModifierCall renders the emitted call expression for a func-referenced
-// custom plan modifier, qualified by its (possibly aliased) package name, e.g.
-// "nativeschema.NormalizeResourceID()".
+// planModifierCall renders the emitted call expression for a func-referenced plan
+// modifier, qualified by its (possibly aliased) package name, e.g.
+// "planmodifiers.UseStateForEquivalentResourceID()".
 func planModifierCall(ref typegraph.PlanModifierRef) string {
 	importPath, funcName := reflectFuncSymbol(ref.Func, "typegraph.PlanModifier")
 	return planModifierQualifier(importPath) + "." + funcName + "()"
 }
 
 // planModifierImportPath returns the import path of the package defining a
-// func-referenced custom plan modifier.
+// func-referenced plan modifier.
 func planModifierImportPath(ref typegraph.PlanModifierRef) string {
 	importPath, _ := reflectFuncSymbol(ref.Func, "typegraph.PlanModifier")
 	return importPath
 }
 
-// nativeSchemaImportPath is the generic native-schema package, imported under the
-// "nativeschema" alias. Custom plan modifiers defined there reuse that single
-// import rather than an extra aliased one.
-const nativeSchemaImportPath = "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+// genericPlanModifiersImportPath is the shared cross-resource plan-modifier
+// package. The emitter's built-in location and discriminated-variant modifiers
+// come from here, and custom modifiers defined here import bare (qualifier
+// "planmodifiers"); a service-local package gets an aliased import.
+const genericPlanModifiersImportPath = "github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
 
-// recordPlanModifierImports routes each custom plan modifier's defining package to
-// the right import: the generic native/schema package reuses the shared
-// nativeschema import; any other (service-local) package is collected for an
-// aliased import.
+// recordPlanModifierImports collects each plan modifier's defining package so the
+// import block emits it — bare for the generic package, aliased for a service-local
+// one (planModifierQualifier decides), exactly as validators are handled.
 func recordPlanModifierImports(mods []typegraph.PlanModifierRef, needs *importNeeds) {
 	for _, ref := range mods {
-		p := planModifierImportPath(ref)
-		if p == nativeSchemaImportPath {
-			needs.nativeSchema = true
-		} else {
-			needs.planModifierPkgs[p] = true
-		}
+		needs.planModifierPkgs[planModifierImportPath(ref)] = true
 	}
 }
 
@@ -408,7 +404,7 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 			needs.types = true
 		}
 		if usesLocationPlanModifier(prop, computed) {
-			needs.nativeSchema = true
+			needs.planModifierPkgs[genericPlanModifiersImportPath] = true
 			needs.planmodifier = true
 		}
 		for _, v := range prop.Validators {
@@ -468,9 +464,9 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 			}
 		}
 		// Hand-written custom plan modifiers need the base planmodifier import (the
-		// []planmodifier.X slice type) plus their defining package. The generic
-		// native/schema package reuses the existing nativeschema import; a
-		// service-local planmodifiers package gets its own aliased import.
+		// []planmodifier.X slice type) plus their defining package: the generic
+		// planmodifiers package imports bare, a service-local one gets an aliased
+		// import (recordPlanModifierImports collects both).
 		if len(prop.PlanModifiers) > 0 {
 			needs.planmodifier = true
 			recordPlanModifierImports(prop.PlanModifiers, needs)
@@ -489,10 +485,10 @@ func scanImportNeedsRecurse(typ *typegraph.Type, needs *importNeeds) {
 		}
 	}
 	// A discriminated type's variants are emitted as nested object blocks, each
-	// carrying the nativeschema.DiscriminatedVariant plan modifier; scan each so
+	// carrying the planmodifiers.DiscriminatedVariant plan modifier; scan each so
 	// their inner attributes contribute their framework imports.
 	if len(typ.Variants) > 0 {
-		needs.nativeSchema = true
+		needs.planModifierPkgs[genericPlanModifiersImportPath] = true
 		needs.planmodifier = true
 	}
 	for _, variant := range typ.Variants {
@@ -818,12 +814,12 @@ func emitPlanModifiers(b *strings.Builder, prop *typegraph.Property, computed bo
 	// built-ins in the same typed slice.
 	if len(prop.VariantSiblings) > 0 {
 		// A discriminated variant block: an unselected variant reuses prior state
-		// but clears when a sibling variant is selected (see nativeschema
+		// but clears when a sibling variant is selected (see planmodifiers
 		// .DiscriminatedVariant). This replaces the plain UseStateForUnknown, whose
 		// omission (SuppressStateReuse) left the unselected variant perpetually
 		// planning as "(known after apply)".
 		b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.Object{\n", tabs))
-		b.WriteString(fmt.Sprintf("%s\t\tnativeschema.DiscriminatedVariant(", tabs))
+		b.WriteString(fmt.Sprintf("%s\t\tplanmodifiers.DiscriminatedVariant(", tabs))
 		for i, sib := range prop.VariantSiblings {
 			if i > 0 {
 				b.WriteString(", ")
@@ -853,7 +849,7 @@ func emitPlanModifiers(b *strings.Builder, prop *typegraph.Property, computed bo
 	}
 	b.WriteString(fmt.Sprintf("%s\tPlanModifiers: []planmodifier.%s{\n", tabs, typ))
 	if location {
-		b.WriteString(fmt.Sprintf("%s\t\tnativeschema.UseStateForEquivalentLocation(),\n", tabs))
+		b.WriteString(fmt.Sprintf("%s\t\tplanmodifiers.UseStateForEquivalentLocation(),\n", tabs))
 	}
 	if useState {
 		stateMod := "UseStateForUnknown"

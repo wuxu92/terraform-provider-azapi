@@ -13,7 +13,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
-	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 	"github.com/Azure/terraform-provider-azapi/internal/services/dynamic"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -778,7 +778,7 @@ func shouldPreserveEquivalentLocation(prop *typegraph.Property, base attr.Value,
 	if !ok {
 		return false
 	}
-	return nativeschema.NormalizeLocation(baseString.ValueString()) == nativeschema.NormalizeLocation(armString)
+	return planmodifiers.NormalizeLocation(baseString.ValueString()) == planmodifiers.NormalizeLocation(armString)
 }
 
 func shouldPreserveSensitiveValue(prop *typegraph.Property) bool {

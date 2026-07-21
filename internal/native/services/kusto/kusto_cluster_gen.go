@@ -7,6 +7,7 @@ import (
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -56,7 +57,7 @@ func AzapiKustoClusterSchema() schema.Schema {
 				Description: "The geo-location where the resource lives",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					nativeschema.UseStateForEquivalentLocation(),
+					planmodifiers.UseStateForEquivalentLocation(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},

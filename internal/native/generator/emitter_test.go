@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/typegraph"
 )
 
@@ -41,7 +41,7 @@ func TestEmitStorageAccountSchema(t *testing.T) {
 	if !strings.Contains(source, `"location"`) {
 		t.Error("missing location attribute")
 	}
-	if !strings.Contains(source, "nativeschema.UseStateForEquivalentLocation()") {
+	if !strings.Contains(source, "planmodifiers.UseStateForEquivalentLocation()") {
 		t.Error("missing location semantic equality plan modifier")
 	}
 	if !strings.Contains(source, `"properties"`) {
@@ -189,7 +189,7 @@ func TestEmitPlanModifiersAppendsCustomAfterBuiltins(t *testing.T) {
 	prop := &typegraph.Property{
 		Name:          "some_id",
 		Type:          &typegraph.Type{Kind: typegraph.KindString},
-		PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(nativeschema.UseStateForEquivalentResourceID)},
+		PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(planmodifiers.UseStateForEquivalentResourceID)},
 	}
 	var b strings.Builder
 	emitPlanModifiers(&b, prop, true, "")
@@ -198,7 +198,7 @@ func TestEmitPlanModifiersAppendsCustomAfterBuiltins(t *testing.T) {
 	assertSourceOrder(t, got,
 		"PlanModifiers: []planmodifier.String{",
 		"stringplanmodifier.UseStateForUnknown()",
-		"nativeschema.UseStateForEquivalentResourceID()",
+		"planmodifiers.UseStateForEquivalentResourceID()",
 	)
 }
 
@@ -209,7 +209,7 @@ func TestEmitPlanModifiersCustomOnly(t *testing.T) {
 		Name:          "some_id",
 		Type:          &typegraph.Type{Kind: typegraph.KindString},
 		Flags:         typegraph.FlagRequired,
-		PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(nativeschema.UseStateForEquivalentResourceID)},
+		PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(planmodifiers.UseStateForEquivalentResourceID)},
 	}
 	var b strings.Builder
 	emitPlanModifiers(&b, prop, false, "")
@@ -217,7 +217,7 @@ func TestEmitPlanModifiersCustomOnly(t *testing.T) {
 	if !strings.Contains(got, "PlanModifiers: []planmodifier.String{") {
 		t.Errorf("custom-only modifier must emit a typed slice: %q", got)
 	}
-	if !strings.Contains(got, "nativeschema.UseStateForEquivalentResourceID()") {
+	if !strings.Contains(got, "planmodifiers.UseStateForEquivalentResourceID()") {
 		t.Errorf("custom modifier call missing: %q", got)
 	}
 	if strings.Contains(got, "UseStateForUnknown") {
@@ -227,7 +227,7 @@ func TestEmitPlanModifiersCustomOnly(t *testing.T) {
 
 func TestEmitPlanModifiersImportsInjected(t *testing.T) {
 	// End-to-end through EmitSchema: a custom modifier on a body property must pull
-	// in the base planmodifier import and the nativeschema import.
+	// in the base planmodifier import and the planmodifiers package import.
 	def := &typegraph.ResourceDefinition{
 		Name:       "Microsoft.Fake/things@2024-01-01",
 		APIVersion: "2024-01-01",
@@ -235,7 +235,7 @@ func TestEmitPlanModifiersImportsInjected(t *testing.T) {
 			"someId": {
 				Name:          "someId",
 				Type:          &typegraph.Type{Kind: typegraph.KindString},
-				PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(nativeschema.UseStateForEquivalentResourceID)},
+				PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(planmodifiers.UseStateForEquivalentResourceID)},
 			},
 		}},
 	}
@@ -246,8 +246,8 @@ func TestEmitPlanModifiersImportsInjected(t *testing.T) {
 	}
 	for _, want := range []string{
 		`"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"`,
-		`nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"`,
-		"nativeschema.UseStateForEquivalentResourceID()",
+		`"github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"`,
+		"planmodifiers.UseStateForEquivalentResourceID()",
 	} {
 		if !strings.Contains(src, want) {
 			t.Errorf("emitted source missing %q\n%s", want, src)
@@ -266,7 +266,7 @@ func TestEmitPlanModifiersPanicsOnUntypedAttr(t *testing.T) {
 	prop := &typegraph.Property{
 		Name:          "blob",
 		Type:          &typegraph.Type{Kind: typegraph.KindAny},
-		PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(nativeschema.UseStateForEquivalentResourceID)},
+		PlanModifiers: []typegraph.PlanModifierRef{typegraph.PlanModifier(planmodifiers.UseStateForEquivalentResourceID)},
 	}
 	var b strings.Builder
 	emitPlanModifiers(&b, prop, false, "")
@@ -332,8 +332,8 @@ func TestEmitDiscriminatedRootBody(t *testing.T) {
 		// Each variant carries the DiscriminatedVariant plan modifier naming its
 		// sibling, so an unselected variant reuses prior state instead of planning
 		// as "(known after apply)".
-		`nativeschema.DiscriminatedVariant("azure_power_shell")`,
-		`nativeschema.DiscriminatedVariant("azure_cli")`,
+		`planmodifiers.DiscriminatedVariant("azure_power_shell")`,
+		`planmodifiers.DiscriminatedVariant("azure_cli")`,
 	} {
 		if !strings.Contains(source, needle) {
 			t.Errorf("emitted source missing %q:\n%s", needle, source)

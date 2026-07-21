@@ -7,6 +7,7 @@ import (
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -53,7 +54,7 @@ func AzapiDataFactorySchema() schema.Schema {
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					nativeschema.UseStateForEquivalentLocation(),
+					planmodifiers.UseStateForEquivalentLocation(),
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -240,7 +241,7 @@ func AzapiDataFactorySchema() schema.Schema {
 								Optional:    true,
 								Computed:    true,
 								PlanModifiers: []planmodifier.Object{
-									nativeschema.DiscriminatedVariant("factory_vsts_configuration"),
+									planmodifiers.DiscriminatedVariant("factory_vsts_configuration"),
 								},
 								Attributes: map[string]schema.Attribute{
 									"client_id": schema.StringAttribute{
@@ -294,7 +295,7 @@ func AzapiDataFactorySchema() schema.Schema {
 								Optional:    true,
 								Computed:    true,
 								PlanModifiers: []planmodifier.Object{
-									nativeschema.DiscriminatedVariant("factory_git_hub_configuration"),
+									planmodifiers.DiscriminatedVariant("factory_git_hub_configuration"),
 								},
 								Attributes: map[string]schema.Attribute{
 									"project_name": schema.StringAttribute{

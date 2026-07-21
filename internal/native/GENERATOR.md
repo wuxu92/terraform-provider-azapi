@@ -498,6 +498,7 @@ import (
     "github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
     storagevalidators "github.com/Azure/terraform-provider-azapi/internal/native/services/storage/validators"
     nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+    "github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
     "github.com/hashicorp/terraform-plugin-framework/resource/schema"
     "github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
     "github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -602,7 +603,8 @@ The emitter pre-scans the type graph and only includes imports that are actually
 - `int64validator`: only when numeric range validators are emitted
 - `stringvalidator`: only when enum or regex validators are emitted
 - `types`: only when `schema.ListAttribute` with `ElementType` is used
-- `nativeschema`: only when description-extracted default values are emitted
+- `nativeschema`: only when a managed-identity attribute is emitted (`ManagedServiceIdentity`)
+- `planmodifiers`: only when a location or discriminated-variant modifier (or a generic custom plan modifier) is emitted; a service-local `<svc>planmodifiers` is aliased
 
 ## Future Enhancements
 

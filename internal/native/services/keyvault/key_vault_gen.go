@@ -6,7 +6,7 @@ import (
 
 	"regexp"
 
-	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -59,7 +59,7 @@ func AzapiKeyVaultSchema() schema.Schema {
 				Description: "The supported Azure location where the key vault should be created.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					nativeschema.UseStateForEquivalentLocation(),
+					planmodifiers.UseStateForEquivalentLocation(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},

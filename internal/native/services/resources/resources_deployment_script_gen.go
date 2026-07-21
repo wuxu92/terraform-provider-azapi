@@ -6,7 +6,7 @@ import (
 
 	"regexp"
 
-	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -109,7 +109,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 				Description: "The geo-location where the resource lives",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					nativeschema.UseStateForEquivalentLocation(),
+					planmodifiers.UseStateForEquivalentLocation(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
@@ -200,7 +200,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Object{
-					nativeschema.DiscriminatedVariant("azure_power_shell"),
+					planmodifiers.DiscriminatedVariant("azure_power_shell"),
 				},
 				Attributes: map[string]schema.Attribute{
 					"properties": schema.SingleNestedAttribute{
@@ -539,7 +539,7 @@ func AzapiResourcesDeploymentScriptSchema() schema.Schema {
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Object{
-					nativeschema.DiscriminatedVariant("azure_cli"),
+					planmodifiers.DiscriminatedVariant("azure_cli"),
 				},
 				Attributes: map[string]schema.Attribute{
 					"properties": schema.SingleNestedAttribute{

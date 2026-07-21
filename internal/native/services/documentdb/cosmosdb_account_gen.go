@@ -7,6 +7,7 @@ import (
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -58,7 +59,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					nativeschema.UseStateForEquivalentLocation(),
+					planmodifiers.UseStateForEquivalentLocation(),
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -189,7 +190,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 								Optional:    true,
 								Computed:    true,
 								PlanModifiers: []planmodifier.Object{
-									nativeschema.DiscriminatedVariant("periodic"),
+									planmodifiers.DiscriminatedVariant("periodic"),
 								},
 								Attributes: map[string]schema.Attribute{
 									"continuous_mode_properties": schema.SingleNestedAttribute{
@@ -215,7 +216,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 								Optional:    true,
 								Computed:    true,
 								PlanModifiers: []planmodifier.Object{
-									nativeschema.DiscriminatedVariant("continuous"),
+									planmodifiers.DiscriminatedVariant("continuous"),
 								},
 								Attributes: map[string]schema.Attribute{
 									"periodic_mode_properties": schema.SingleNestedAttribute{
@@ -564,7 +565,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
-										nativeschema.UseStateForEquivalentLocation(),
+										planmodifiers.UseStateForEquivalentLocation(),
 										stringplanmodifier.UseStateForUnknown(),
 									},
 								},
@@ -729,7 +730,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
-										nativeschema.UseStateForEquivalentLocation(),
+										planmodifiers.UseStateForEquivalentLocation(),
 										stringplanmodifier.UseStateForUnknown(),
 									},
 								},
@@ -1014,7 +1015,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
-										nativeschema.UseStateForEquivalentLocation(),
+										planmodifiers.UseStateForEquivalentLocation(),
 										stringplanmodifier.UseStateForUnknown(),
 									},
 								},
@@ -1228,7 +1229,7 @@ func AzapiCosmosdbAccountSchema() schema.Schema {
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
-										nativeschema.UseStateForEquivalentLocation(),
+										planmodifiers.UseStateForEquivalentLocation(),
 										stringplanmodifier.UseStateForUnknown(),
 									},
 								},

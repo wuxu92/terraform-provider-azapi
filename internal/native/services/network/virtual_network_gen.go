@@ -7,6 +7,7 @@ import (
 	"regexp"
 
 	nativeschema "github.com/Azure/terraform-provider-azapi/internal/native/schema"
+	"github.com/Azure/terraform-provider-azapi/internal/native/schema/planmodifiers"
 	"github.com/Azure/terraform-provider-azapi/internal/native/schema/validators"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	networkvalidators "github.com/Azure/terraform-provider-azapi/internal/native/services/network/validators"
@@ -52,7 +53,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					nativeschema.UseStateForEquivalentLocation(),
+					planmodifiers.UseStateForEquivalentLocation(),
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -304,7 +305,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 									Optional:    true,
 									Computed:    true,
 									PlanModifiers: []planmodifier.String{
-										nativeschema.UseStateForEquivalentLocation(),
+										planmodifiers.UseStateForEquivalentLocation(),
 										stringplanmodifier.UseStateForUnknown(),
 									},
 								},
@@ -944,7 +945,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 													Optional:    true,
 													Computed:    true,
 													PlanModifiers: []planmodifier.String{
-														nativeschema.UseStateForEquivalentLocation(),
+														planmodifiers.UseStateForEquivalentLocation(),
 														stringplanmodifier.UseStateForUnknown(),
 													},
 												},
@@ -1066,7 +1067,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																							Optional:    true,
 																							Computed:    true,
 																							PlanModifiers: []planmodifier.String{
-																								nativeschema.UseStateForEquivalentLocation(),
+																								planmodifiers.UseStateForEquivalentLocation(),
 																								stringplanmodifier.UseStateForUnknown(),
 																							},
 																						},
@@ -1228,7 +1229,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																							Optional:    true,
 																							Computed:    true,
 																							PlanModifiers: []planmodifier.String{
-																								nativeschema.UseStateForEquivalentLocation(),
+																								planmodifiers.UseStateForEquivalentLocation(),
 																								stringplanmodifier.UseStateForUnknown(),
 																							},
 																						},
@@ -1339,7 +1340,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																		Optional:    true,
 																		Computed:    true,
 																		PlanModifiers: []planmodifier.String{
-																			nativeschema.UseStateForEquivalentLocation(),
+																			planmodifiers.UseStateForEquivalentLocation(),
 																			stringplanmodifier.UseStateForUnknown(),
 																		},
 																	},
@@ -1605,7 +1606,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																		Optional:    true,
 																		Computed:    true,
 																		PlanModifiers: []planmodifier.String{
-																			nativeschema.UseStateForEquivalentLocation(),
+																			planmodifiers.UseStateForEquivalentLocation(),
 																			stringplanmodifier.UseStateForUnknown(),
 																		},
 																	},
@@ -1878,7 +1879,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																						Optional:    true,
 																						Computed:    true,
 																						PlanModifiers: []planmodifier.String{
-																							nativeschema.UseStateForEquivalentLocation(),
+																							planmodifiers.UseStateForEquivalentLocation(),
 																							stringplanmodifier.UseStateForUnknown(),
 																						},
 																					},
@@ -1926,7 +1927,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																											Optional:    true,
 																											Computed:    true,
 																											PlanModifiers: []planmodifier.String{
-																												nativeschema.UseStateForEquivalentLocation(),
+																												planmodifiers.UseStateForEquivalentLocation(),
 																												stringplanmodifier.UseStateForUnknown(),
 																											},
 																										},
@@ -2448,7 +2449,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																						Optional:    true,
 																						Computed:    true,
 																						PlanModifiers: []planmodifier.String{
-																							nativeschema.UseStateForEquivalentLocation(),
+																							planmodifiers.UseStateForEquivalentLocation(),
 																							stringplanmodifier.UseStateForUnknown(),
 																						},
 																					},
@@ -2991,7 +2992,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																															Optional:    true,
 																															Computed:    true,
 																															PlanModifiers: []planmodifier.String{
-																																nativeschema.UseStateForEquivalentLocation(),
+																																planmodifiers.UseStateForEquivalentLocation(),
 																																stringplanmodifier.UseStateForUnknown(),
 																															},
 																														},
@@ -3039,7 +3040,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																																				Optional:    true,
 																																				Computed:    true,
 																																				PlanModifiers: []planmodifier.String{
-																																					nativeschema.UseStateForEquivalentLocation(),
+																																					planmodifiers.UseStateForEquivalentLocation(),
 																																					stringplanmodifier.UseStateForUnknown(),
 																																				},
 																																			},
@@ -3684,7 +3685,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																											Optional:    true,
 																											Computed:    true,
 																											PlanModifiers: []planmodifier.String{
-																												nativeschema.UseStateForEquivalentLocation(),
+																												planmodifiers.UseStateForEquivalentLocation(),
 																												stringplanmodifier.UseStateForUnknown(),
 																											},
 																										},
@@ -4181,7 +4182,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																							Optional:    true,
 																							Computed:    true,
 																							PlanModifiers: []planmodifier.String{
-																								nativeschema.UseStateForEquivalentLocation(),
+																								planmodifiers.UseStateForEquivalentLocation(),
 																								stringplanmodifier.UseStateForUnknown(),
 																							},
 																						},
@@ -4343,7 +4344,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																							Optional:    true,
 																							Computed:    true,
 																							PlanModifiers: []planmodifier.String{
-																								nativeschema.UseStateForEquivalentLocation(),
+																								planmodifiers.UseStateForEquivalentLocation(),
 																								stringplanmodifier.UseStateForUnknown(),
 																							},
 																						},
@@ -4528,7 +4529,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 														Optional:    true,
 														Computed:    true,
 														PlanModifiers: []planmodifier.String{
-															nativeschema.UseStateForEquivalentLocation(),
+															planmodifiers.UseStateForEquivalentLocation(),
 															stringplanmodifier.UseStateForUnknown(),
 														},
 													},
@@ -4576,7 +4577,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																			Optional:    true,
 																			Computed:    true,
 																			PlanModifiers: []planmodifier.String{
-																				nativeschema.UseStateForEquivalentLocation(),
+																				planmodifiers.UseStateForEquivalentLocation(),
 																				stringplanmodifier.UseStateForUnknown(),
 																			},
 																		},
@@ -5170,7 +5171,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 													Optional:    true,
 													Computed:    true,
 													PlanModifiers: []planmodifier.String{
-														nativeschema.UseStateForEquivalentLocation(),
+														planmodifiers.UseStateForEquivalentLocation(),
 														stringplanmodifier.UseStateForUnknown(),
 													},
 												},
@@ -5491,7 +5492,7 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 														Optional:    true,
 														Computed:    true,
 														PlanModifiers: []planmodifier.String{
-															nativeschema.UseStateForEquivalentLocation(),
+															planmodifiers.UseStateForEquivalentLocation(),
 															stringplanmodifier.UseStateForUnknown(),
 														},
 													},

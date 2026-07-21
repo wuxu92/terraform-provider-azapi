@@ -118,7 +118,7 @@ type Property struct {
 	// VariantSiblings, when non-empty, marks this property as a discriminated
 	// variant block and lists the snake_case attribute names of its sibling
 	// variant blocks (every other variant of the same discriminated type). The
-	// emitter renders a nativeschema.DiscriminatedVariant object plan modifier
+	// emitter renders a planmodifiers.DiscriminatedVariant object plan modifier
 	// instead of the plain UseStateForUnknown: an unselected variant reuses prior
 	// state (so it stops planning as "(known after apply)") but clears to null when
 	// a sibling variant is selected in config, preserving the variant-switch

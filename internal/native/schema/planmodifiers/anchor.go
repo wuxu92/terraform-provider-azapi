@@ -1,4 +1,4 @@
-package schema
+package planmodifiers
 
 // Blank imports anchor the type-specific plan-modifier packages used by
 // native-generated resources (RequiresReplace for ForceNew attributes) so that

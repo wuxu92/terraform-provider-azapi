@@ -435,8 +435,9 @@ Like `Validator(fn)`, `PlanModifier(fn)` references the constructor **by symbol*
 the built-ins in the same typed `PlanModifiers` slice. The constructor must return the framework
 plan-modifier type matching the attribute's kind (`planmodifier.String` for a string attr, `.Object`
 for an object, …) — a mismatch is a compile error in the regenerated `_gen.go`. Reusable generic
-modifiers (e.g. `nativeschema.UseStateForEquivalentResourceID`) live in `internal/native/schema`
-(imported as `nativeschema`); a service-specific one goes in
+modifiers (e.g. `planmodifiers.UseStateForEquivalentResourceID`) live in
+`internal/native/schema/planmodifiers` (imported bare as `planmodifiers`, mirroring the generic
+`validators` package); a service-specific one goes in
 `internal/native/services/<service>/planmodifiers`, imported under a `<svc>planmodifiers` alias.
 This is a **schema** modifier baked into `_gen.go`; a *value-dependent* replace decision
 (comparing old vs new, e.g. storage SKU zone-migration) is not a static modifier — it stays in a
