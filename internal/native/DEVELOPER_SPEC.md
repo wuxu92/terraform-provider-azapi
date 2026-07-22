@@ -688,7 +688,7 @@ A generated resource is shippable when:
 
 ```sh
 # regenerate the storage account schema (PoC generator)
-go run ./internal/native/generator/cmd/generate_poc.go
+go run ./internal/native/generator/cmd/
 
 # cross-validate a compiled schema against bicep
 go run ./internal/native/cmd/azapin-validate/ -r azapi_storage_account
@@ -718,12 +718,12 @@ At-a-glance inventory of what exists today (the roadmap lives in §6.3):
 | Schema emitter | ✓ Complete | `generator/emitter.go`, `emitter_test.go` |
 | Runtime defaults | ✓ Complete | `schema/defaults.go` |
 | Generated resources | ✓ `azapi_storage_account`, `azapi_storage_account_blob_service`, `azapi_resource_group`, `azapi_web_server_farm`, `azapi_web_site`, `azapi_user_assigned_identity`, `azapi_key_vault`, `azapi_key_vault_key`, `azapi_role_assignment`, `azapi_role_definition` | `services/{storage,resources,web,managedidentity,keyvault,authorization}/*_gen.go` |
-| Generator command | ✓ Working | `generator/cmd/generate_poc.go` |
+| Generator command | ✓ Working | `generator/cmd/main.go` |
 | CRUD methods | ✓ Complete | `resource/base.go`, `mapper/mapper.go` |
 | Provider registration | ✓ Complete | `internal/provider/provider.go` (`Resources()` + `DataSources()` iterate `services.Registry`) |
 | Schema customization | ✓ Complete | `generator/customizers/` |
 | Data sources | ✓ Complete (read-only, one per resource) | `resource/datasource.go`, `resource/schema_convert.go` |
-| Full generation tool | ◐ PoC (storage + resources services) | `generator/cmd/generate_poc.go` |
+| Full generation tool | ◐ PoC (storage + resources services) | `generator/cmd/main.go` |
 
 ## Appendix A — Generator rule reference
 

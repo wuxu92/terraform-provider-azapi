@@ -63,7 +63,7 @@ Two failure modes to internalize:
 |---|---|
 | ARM type constants | `internal/native/armtype/armtype.go` |
 | azwise knowledge (curated AzureRM) | `github.com/wuxu92/azwise/services/<service>/<resource>.go` (self-registers via `init()`; new service → blank import in that repo's `services/all/all.go`) |
-| Generation targets | `internal/native/generator/cmd/generate_poc.go` |
+| Generation targets | `internal/native/generator/cmd/main.go` |
 | Customizers (generation-time schema) | `internal/native/generator/customizers/<resource>.go` + `register.go` |
 | Schema validators (generic) | `internal/native/schema/validators/<rule>.go` |
 | Schema validators (service-specific) | `internal/native/services/<service>/validators/<rule>.go` |
@@ -85,7 +85,7 @@ go build ./...
 go vet ./internal/native/...
 
 # 2. regenerate (schema is always generated, never hand-edited)
-go run ./internal/native/generator/cmd/generate_poc.go
+go run ./internal/native/generator/cmd/
 
 # 3. schema ↔ bicep parity — must report "0 mismatches" (and no INVARIANT lines)
 go run ./internal/native/cmd/azapin-validate/
@@ -364,7 +364,7 @@ The generator overlays this via `ApplyAzwise` (Rule 9b).
 ### Step 3 — Add a generation target
 
 ```go
-// internal/native/generator/cmd/generate_poc.go
+// internal/native/generator/cmd/main.go
 var targets = []string{
     armtype.StorageAccount,
     armtype.StorageAccountBlobService, // ← add
@@ -470,7 +470,7 @@ fix the path, don't suppress.
 ### Step 5 — Regenerate
 
 ```bash
-go run ./internal/native/generator/cmd/generate_poc.go
+go run ./internal/native/generator/cmd/
 ```
 
 `<name>_gen.go` self-registers via `init()`. A **new service** → add one blank import to
@@ -583,7 +583,7 @@ component's status changed.
 - [ ] ARM type constant in `armtype.go`
 - [ ] azwise `services/<service>/<resource>.go` written with `init(){ azwise.Register(New…()) }` (+ blank import in azwise `services/all` if new service)
 - [ ] Sub-service settings in the sub-service file, not the parent
-- [ ] Target added to `generate_poc.go`
+- [ ] Target added to `main.go`
 - [ ] Customizer added *only if* bicep + azwise can't express the rule
 - [ ] New service → blank import in `services/all/all.go`
 - [ ] Regenerate → `0 mismatches`
@@ -609,7 +609,7 @@ Golden rule: **never hand-edit `<name>_gen.go`** (it carries
 | A cross-property constraint (`ExactlyOneOf`, `RequiredWith`, …) or complex validator | `services/<service>/<name>_hooks.go` (`Hooks.Relational` / `ConfigValidators` / `ValidateConfig`) | no regenerate (runtime) |
 
 1. Edit the source layer.
-2. Regenerate: `go run ./internal/native/generator/cmd/generate_poc.go`.
+2. Regenerate: `go run ./internal/native/generator/cmd/`.
 3. **Sanity-check the diff is intentional** — a *no-op* edit must leave `<name>_gen.go`
    byte-identical: `git diff --stat internal/native/services/`.
 4. Run the verification gate. `azapin-validate` stays at `0 mismatches`; the azwise overlay
@@ -648,7 +648,7 @@ The newest non-preview entry is what generation selects.
 ### Step 3 — Regenerate
 
 ```bash
-go run ./internal/native/generator/cmd/generate_poc.go
+go run ./internal/native/generator/cmd/
 ```
 
 `APIVersion` updates from the resolved tag; added/removed/renamed body properties flow through.

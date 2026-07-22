@@ -1,8 +1,10 @@
-// Command generate-poc generates native static resource schemas from the bicep
+// Command generate generates native static resource schemas from the bicep
 // types.json embedded under internal/azure/generated and writes one Go file per
 // resource into internal/native/services/<service>/.
 //
-//go:build ignore
+// Usage:
+//
+//	go run ./internal/native/generator/cmd/    # regenerate all targets
 
 package main
 

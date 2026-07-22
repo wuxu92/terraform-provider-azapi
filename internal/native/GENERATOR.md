@@ -34,7 +34,7 @@ loses the curated AzureRM validation, defaults, and ForceNew knowledge.
      declarative rules become baked schema validators/defaults/modifiers.
 
 3. **Add a generation target.** Append the ARM type to the target list in
-   `internal/native/generator/cmd/generate_poc.go`.
+   `internal/native/generator/cmd/main.go`.
 
 4. **Add a customizer (only if needed).** For rules neither bicep nor azwise can
    express — a singleton name pinned to `OneOf("default")`, a resource-specific
@@ -42,7 +42,7 @@ loses the curated AzureRM validation, defaults, and ForceNew knowledge.
    `internal/native/generator/customizers/<resource>.go` and register it (Rule 9d).
    Skip when the bicep + azwise knowledge already suffices.
 
-5. **Regenerate.** Run `go run ./internal/native/generator/cmd/generate_poc.go`.
+5. **Regenerate.** Run `go run ./internal/native/generator/cmd/`.
    The generated `<name>_gen.go` self-registers via `init()`, so the provider
    exposes it through `services.Registry` with no provider edits.
 

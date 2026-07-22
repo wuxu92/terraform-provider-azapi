@@ -37,20 +37,20 @@ Each: what it costs today, why, solve complexity/effort `[INFERENCE]`, and depen
 ### P1 — Multi-site manual registration & wiring (mechanical, forget-one hazard)
 **Cost today:** Adding one resource edits **3–4 redundant sites**, all keyed by the same
 ARM type / Terraform name:
-`armtype.go` const → azwise `services/<service>/<resource>.go` `init(){ Register(New…()) }` → `generate_poc.go` target
+`armtype.go` const → azwise `services/<service>/<resource>.go` `init(){ Register(New…()) }` → `main.go` target
 → `customizers/register.go` (when a customizer exists) → `services/all/all.go` blank
 import (only for a *new* service). No single source of truth; the same identifier is
 re-spelled 3–5×.
 **Why it hurts:** Pure boilerplate, but **failure is silent-ish**: add the azwise file
-but forget the `generate_poc` target → no regeneration, schema ships uncurated; add the
+but forget the generator target → no regeneration, schema ships uncurated; add the
 target but forget the azwise `Register` → curation silently absent; forget the
 `services/all` import for a new service → resource compiles but never registers into the
 provider. Each omission is a debugging session, not a compile error.
 **Impact:** Low LOC, but hits **every** add (16/16) and every reviewer.
-**Solve:** *Complexity Low–Med.* A `generate_poc`-adjacent scaffold command
+**Solve:** *Complexity Low–Med.* A generator-adjacent scaffold command
 (`azapin new <ARM-type>`) that: appends the `armtype` const, stubs the azwise file +
 `Register` line, adds the target, and (new service) the blank import — from **one** ARM
-type argument. Or invert it: make `generate_poc` discover targets from the azwise
+type argument. Or invert it: make the generator discover targets from the azwise
 registry / a manifest so the target list stops being a second source of truth.
 **Effort:** ~3–5 days for the scaffold; ~1–2 days for the manifest-driven target list.
 **Leverage: HIGH** (cheap, every-resource, removes a silent-failure class).

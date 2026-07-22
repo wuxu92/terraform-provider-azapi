@@ -45,7 +45,7 @@ Pick one; each names the `DEVELOPER_GUIDE.md` section to execute in full.
 - **Add a resource** → §1. The agent-critical spine:
   1. ARM type constant in `armtype/armtype.go`.
   2. **azwise overlay** — invoke `skill://azwise` (`azwise_extract` schema/automap/validation/relational/timeouts, then `azwise_validate`). Never skip; without it the schema loses curated lifecycle, defaults, validation, sensitive/computed, timeouts.
-  3. Target in `generator/cmd/generate_poc.go`.
+  3. Target in `generator/cmd/main.go`.
   4. Customizer **only** for a rule the overlay cannot express.
   5. Hooks **only** for runtime behavior.
   6. Regenerate; a new service package adds one blank import to `services/all/all.go`.
@@ -77,7 +77,7 @@ Load-bearing where an agent tends to drift:
 Run `DEVELOPER_GUIDE.md`'s verification gate. Focused offline subset an agent runs directly:
 
 ```bash
-go run ./internal/native/generator/cmd/generate_poc.go
+go run ./internal/native/generator/cmd/
 go run ./internal/native/cmd/azapin-validate/            # 0 mismatches, no INVARIANT lines
 go test ./internal/native/generator/ -run TestApplyAzwise -count=1
 go test ./internal/native/resource/ -run Test.*SchemaComposition -count=1
