@@ -245,10 +245,6 @@ func AzapiWebSiteSchema() schema.Schema {
 										regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
 										"must be a valid ARM resource ID",
 									),
-									stringvalidator.RegexMatches(
-										regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
-										"must be a valid ARM resource ID",
-									),
 								},
 							},
 							"source_web_app_location": schema.StringAttribute{
@@ -264,10 +260,6 @@ func AzapiWebSiteSchema() schema.Schema {
 								Optional:    true,
 								Computed:    true,
 								Validators: []validator.String{
-									stringvalidator.RegexMatches(
-										regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
-										"must be a valid ARM resource ID",
-									),
 									stringvalidator.RegexMatches(
 										regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
 										"must be a valid ARM resource ID",
@@ -633,16 +625,15 @@ func AzapiWebSiteSchema() schema.Schema {
 										Description: "Set the amount of memory allocated to each instance of the function app in MB. CPU and network bandwidth are allocated proportionally.",
 										Optional:    true,
 										Computed:    true,
-										PlanModifiers: []planmodifier.Int64{
-											int64planmodifier.UseStateForUnknown(),
-										},
+										Default:     int64default.StaticInt64(2048),
 									},
 									"maximum_instance_count": schema.Int64Attribute{
 										Description: "The maximum number of instances for the function app.",
 										Optional:    true,
 										Computed:    true,
-										PlanModifiers: []planmodifier.Int64{
-											int64planmodifier.UseStateForUnknown(),
+										Default:     int64default.StaticInt64(100),
+										Validators: []validator.Int64{
+											int64validator.Between(1, 1000),
 										},
 									},
 									"triggers": schema.SingleNestedAttribute{
@@ -660,6 +651,9 @@ func AzapiWebSiteSchema() schema.Schema {
 													"per_instance_concurrency": schema.Int64Attribute{
 														Description: "The maximum number of concurrent HTTP trigger invocations per instance.",
 														Required:    true,
+														Validators: []validator.Int64{
+															int64validator.Between(1, 1000),
+														},
 													},
 												},
 											},
@@ -769,13 +763,6 @@ func AzapiWebSiteSchema() schema.Schema {
 							"id": schema.StringAttribute{
 								Description: "Resource ID of the App Service Environment.",
 								Required:    true,
-								Validators: []validator.String{
-									stringvalidator.RegexMatches(
-										regexp.MustCompile(`(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\.Web/hostingEnvironments/[^/]+$`),
-										"must be an App Service Environment resource ID",
-									),
-									validators.AzureResourceID(),
-								},
 							},
 							"name": schema.StringAttribute{
 								Description: "Name of the App Service Environment.",
@@ -864,10 +851,6 @@ func AzapiWebSiteSchema() schema.Schema {
 						Optional:    true,
 						Computed:    true,
 						Validators: []validator.String{
-							stringvalidator.RegexMatches(
-								regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
-								"must be a valid ARM resource ID",
-							),
 							stringvalidator.RegexMatches(
 								regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
 								"must be a valid ARM resource ID",
@@ -1038,10 +1021,6 @@ func AzapiWebSiteSchema() schema.Schema {
 						Optional:    true,
 						Computed:    true,
 						Validators: []validator.String{
-							stringvalidator.RegexMatches(
-								regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
-								"must be a valid ARM resource ID",
-							),
 							stringvalidator.RegexMatches(
 								regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
 								"must be a valid ARM resource ID",
@@ -2814,10 +2793,6 @@ func AzapiWebSiteSchema() schema.Schema {
 						Optional:    true,
 						Computed:    true,
 						Validators: []validator.String{
-							stringvalidator.RegexMatches(
-								regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
-								"must be a valid ARM resource ID",
-							),
 							stringvalidator.RegexMatches(
 								regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/`),
 								"must be a valid ARM resource ID",

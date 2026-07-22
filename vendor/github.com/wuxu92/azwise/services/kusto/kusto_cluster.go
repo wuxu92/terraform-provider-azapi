@@ -53,6 +53,17 @@ import (
 //   - identity is a system/user-assigned block (commonschema) with no cross-property
 //     constraints to encode.
 //   - uri / data_ingestion_uri are server-assigned read-only endpoints; see ComputedFields.
+//   - customer_managed_key (azurerm_kusto_cluster_customer_managed_key,
+//     kusto_cluster_customer_managed_key_resource.go:27-93) is a SEPARATE TF resource
+//     that mutates THIS cluster's body at properties.keyVaultProperties
+//     (keyName/keyVaultUri/keyVersion/userIdentity — clusters model_keyvaultproperties.go:6-11).
+//     Its inputs are a composite Key Vault / Managed HSM key ID that ARM splits into
+//     keyName + keyVaultUri + keyVersion, plus semantic ID validators
+//     (ValidateKeyVaultID, ManagedHSMDataPlane*KeyID, ValidateUserAssignedIdentityID)
+//     and an ExactlyOneOf(key_vault_id, managed_hsm_key_id). None of these lower to a
+//     single ARM body field with a declarative enum/regex/length constraint (the key
+//     values are non-mappable composites), so no rule is emitted; the CMK knowledge is
+//     documented here rather than in a separate file.
 type KustoCluster struct {
 	azwise.BaseKnowledge
 }

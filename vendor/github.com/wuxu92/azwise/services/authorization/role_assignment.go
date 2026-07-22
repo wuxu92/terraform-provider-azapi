@@ -19,6 +19,9 @@ import (
 // Sources:
 //   - terraform-provider-azurerm internal/services/authorization/role_assignment_resource.go
 //     schema + Create/Read/Delete (timeouts 30m/5m/30m; roleAssignment fields ForceNew)
+//   - terraform-provider-azurerm internal/services/authorization/marketplace_role_assignment_resource.go
+//     same Microsoft.Authorization/roleAssignments type (marketplace scope); ForceNew/Required
+//     set is a subset, adds role_definition_id StringIsNotEmpty (marketplace L81)
 //   - Microsoft.Authorization/roleAssignments@2022-04-01 bicep type graph
 //     RoleAssignmentProperties: roleDefinitionId/principalId required; created*/updated*/scope
 //     are read-only in the ARM schema.
@@ -53,6 +56,7 @@ func NewRoleAssignment() *RoleAssignment {
 				Delete: 30 * time.Minute,
 			},
 			StringRules: []azwise.StringRule{
+				{PropertyPath: "properties.roleDefinitionId", MinLength: 1, Message: "role definition id must not be empty"},
 				{PropertyPath: "properties.condition", MinLength: 1, Message: "condition must not be empty"},
 				{PropertyPath: "properties.conditionVersion", AllowedValues: []string{"1.0", "2.0"}, Message: "condition version must be 1.0 or 2.0"},
 				{PropertyPath: "properties.description", MinLength: 1, Message: "description must not be empty"},

@@ -129,6 +129,9 @@ func AzapiRoleAssignmentSchema() schema.Schema {
 					"role_definition_id": schema.StringAttribute{
 						Description: "The role definition ID.",
 						Required:    true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.RequiresReplace(),
 						},

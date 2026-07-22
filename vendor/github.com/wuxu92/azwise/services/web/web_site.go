@@ -19,6 +19,11 @@ import (
 //     (function-app overlap: client certificate, daily memory quota, public network access)
 //   - terraform-provider-azurerm internal/services/appservice/windows_function_app_resource.go:106-319,543-564
 //     (function-app overlap and same API versions/timeouts)
+//   - terraform-provider-azurerm internal/services/appservice/function_app_flex_consumption_resource.go:117-198,367,499-546
+//     (Flex Consumption: properties.functionAppConfig.* value constraints — deployment
+//     storage type/auth enums, runtime name enum, scaleAndConcurrency ranges + defaults.
+//     Flex-kind Required/ForceNew declarations are intentionally NOT unioned into this
+//     shared type; regular web/function apps omit functionAppConfig entirely.)
 //   - terraform-provider-azurerm internal/services/appservice/helpers/linux_web_app_schema.go:59-289
 //   - terraform-provider-azurerm internal/services/appservice/helpers/windows_web_app_schema.go:63-302
 //   - terraform-provider-azurerm internal/services/appservice/helpers/function_app_schema.go:68-356
@@ -208,6 +213,27 @@ func NewWebSite() *WebSite {
 					},
 					Message: "must be a valid Web Apps connection string type",
 				},
+				// --- function_app_flex_consumption (properties.functionAppConfig.*) ---
+				// Flex Consumption sites set the functionAppConfig sub-object; these value
+				// constraints are universally safe to validate (the flex-kind Required/
+				// ForceNew declarations are intentionally NOT unioned — regular web/function
+				// apps omit functionAppConfig entirely).
+				// Source: internal/services/appservice/function_app_flex_consumption_resource.go:125-173
+				{
+					PropertyPath:  "properties.functionAppConfig.deployment.storage.type",
+					AllowedValues: []string{"blobContainer"},
+					Message:       "must be blobContainer",
+				},
+				{
+					PropertyPath:  "properties.functionAppConfig.deployment.storage.authentication.type",
+					AllowedValues: []string{"StorageAccountConnectionString", "SystemAssignedIdentity", "UserAssignedIdentity"},
+					Message:       "must be StorageAccountConnectionString, SystemAssignedIdentity, or UserAssignedIdentity",
+				},
+				{
+					PropertyPath:  "properties.functionAppConfig.runtime.name",
+					AllowedValues: []string{"custom", "dotnet-isolated", "java", "node", "powershell", "python"},
+					Message:       "must be a valid Functions runtime name",
+				},
 			},
 			IntRules: []azwise.IntRule{
 				{
@@ -220,6 +246,20 @@ func NewWebSite() *WebSite {
 					MinValue:     azwise.Ptr(int64(1)),
 					MaxValue:     azwise.Ptr(int64(100)),
 					Message:      "worker count must be between 1 and 100",
+				},
+				// --- function_app_flex_consumption ---
+				// Source: internal/services/appservice/function_app_flex_consumption_resource.go:187-198
+				{
+					PropertyPath: "properties.functionAppConfig.scaleAndConcurrency.maximumInstanceCount",
+					MinValue:     azwise.Ptr(int64(1)),
+					MaxValue:     azwise.Ptr(int64(1000)),
+					Message:      "maximum instance count must be between 1 and 1000",
+				},
+				{
+					PropertyPath: "properties.functionAppConfig.scaleAndConcurrency.triggers.http.perInstanceConcurrency",
+					MinValue:     azwise.Ptr(int64(1)),
+					MaxValue:     azwise.Ptr(int64(1000)),
+					Message:      "http concurrency must be between 1 and 1000",
 				},
 			},
 			SensitiveFields: []string{
@@ -249,6 +289,10 @@ func NewWebSite() *WebSite {
 				{PropertyPath: "properties.siteConfig.minTlsVersion", Value: "1.2"},
 				{PropertyPath: "properties.siteConfig.scmMinTlsVersion", Value: "1.2"},
 				{PropertyPath: "properties.siteConfig.cors.supportCredentials", Value: false},
+				// --- function_app_flex_consumption ---
+				// Source: internal/services/appservice/function_app_flex_consumption_resource.go:181-192
+				{PropertyPath: "properties.functionAppConfig.scaleAndConcurrency.instanceMemoryMB", Value: 2048},
+				{PropertyPath: "properties.functionAppConfig.scaleAndConcurrency.maximumInstanceCount", Value: 100},
 			},
 		},
 	}

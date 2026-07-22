@@ -288,8 +288,6 @@ func ParseTypesJSON(data []byte) ([]*ResourceDefinition, error) {
 		return nil, fmt.Errorf("unmarshal types.json: %w", err)
 	}
 
-	w := &walker{entries: entries, cache: make(map[int]*Type), inProgress: make(map[int]bool)}
-
 	var defs []*ResourceDefinition
 	for _, entry := range entries {
 		if entry.Type != "ResourceType" {
@@ -299,6 +297,14 @@ func ParseTypesJSON(data []byte) ([]*ResourceDefinition, error) {
 		if err != nil {
 			continue
 		}
+		// Fresh cache per resource: Type nodes are deduped WITHIN a resource (DAG
+		// sharing breaks reference cycles) but never shared ACROSS resources. A
+		// shared cache leaks per-resource mutations — PostProcess/ApplyAzwise and
+		// the customizers write onto Property/Type nodes — from one resource onto
+		// another that references the same types.json index (e.g. Microsoft.Web
+		// serverfarms and staticSites share the SkuDescription "sku.name" node, so
+		// staticSites' azwise default would otherwise land on serverfarms).
+		w := &walker{entries: entries, cache: make(map[int]*Type), inProgress: make(map[int]bool)}
 		body := w.resolve(bodyIdx, 0)
 		if body == nil {
 			continue

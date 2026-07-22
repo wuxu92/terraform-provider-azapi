@@ -850,13 +850,747 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 												},
 											},
 										},
-										"ip_configurations": schema.ListAttribute{
+										"ip_configurations": schema.ListNestedAttribute{
 											Description: "An array of references to the network interface IP configurations using subnet.",
 											Computed:    true,
 											PlanModifiers: []planmodifier.List{
 												listplanmodifier.UseStateForUnknown(),
 											},
-											ElementType: types.StringType,
+											NestedObject: schema.NestedAttributeObject{
+												Attributes: map[string]schema.Attribute{
+													"etag": schema.StringAttribute{
+														Description: "A unique read-only string that changes whenever the resource is updated.",
+														Computed:    true,
+														PlanModifiers: []planmodifier.String{
+															stringplanmodifier.UseStateForUnknown(),
+														},
+													},
+													"id": schema.StringAttribute{
+														Description: "Resource ID.",
+														Optional:    true,
+														Computed:    true,
+														PlanModifiers: []planmodifier.String{
+															stringplanmodifier.UseStateForUnknown(),
+														},
+													},
+													"name": schema.StringAttribute{
+														Description: "The name of the resource that is unique within a resource group. This name can be used to access the resource.",
+														Optional:    true,
+														Computed:    true,
+														PlanModifiers: []planmodifier.String{
+															stringplanmodifier.UseStateForUnknown(),
+														},
+													},
+													"properties": schema.SingleNestedAttribute{
+														Description: "Properties of the IP configuration.",
+														Optional:    true,
+														Computed:    true,
+														PlanModifiers: []planmodifier.Object{
+															objectplanmodifier.UseStateForUnknown(),
+														},
+														Attributes: map[string]schema.Attribute{
+															"private_ip_address": schema.StringAttribute{
+																Description: "The private IP address of the IP configuration.",
+																Optional:    true,
+																Computed:    true,
+																PlanModifiers: []planmodifier.String{
+																	stringplanmodifier.UseStateForUnknown(),
+																},
+															},
+															"private_ip_allocation_method": schema.StringAttribute{
+																Description: "The private IP address allocation method.",
+																Optional:    true,
+																Computed:    true,
+																Validators: []validator.String{
+																	stringvalidator.OneOf(
+																		"Static",
+																		"Dynamic",
+																	),
+																},
+																PlanModifiers: []planmodifier.String{
+																	stringplanmodifier.UseStateForUnknown(),
+																},
+															},
+															"provisioning_state": schema.StringAttribute{
+																Description: "The provisioning state of the IP configuration resource.",
+																Computed:    true,
+																PlanModifiers: []planmodifier.String{
+																	stringplanmodifier.UseStateForUnknown(),
+																},
+															},
+															"public_ip_address": schema.SingleNestedAttribute{
+																Description: "The reference to the public IP resource.",
+																Optional:    true,
+																Computed:    true,
+																PlanModifiers: []planmodifier.Object{
+																	objectplanmodifier.UseStateForUnknown(),
+																},
+																Attributes: map[string]schema.Attribute{
+																	"etag": schema.StringAttribute{
+																		Description: "A unique read-only string that changes whenever the resource is updated.",
+																		Computed:    true,
+																		PlanModifiers: []planmodifier.String{
+																			stringplanmodifier.UseStateForUnknown(),
+																		},
+																	},
+																	"extended_location": schema.SingleNestedAttribute{
+																		Description: "The extended location of the public ip address.",
+																		Optional:    true,
+																		Computed:    true,
+																		PlanModifiers: []planmodifier.Object{
+																			objectplanmodifier.UseStateForUnknown(),
+																		},
+																		Attributes: map[string]schema.Attribute{
+																			"name": schema.StringAttribute{
+																				Description: "The name of the extended location.",
+																				Optional:    true,
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																			"type": schema.StringAttribute{
+																				Description: "The type of the extended location.",
+																				Optional:    true,
+																				Computed:    true,
+																				Validators: []validator.String{
+																					stringvalidator.OneOf(
+																						"EdgeZone",
+																					),
+																				},
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																		},
+																	},
+																	"id": schema.StringAttribute{
+																		Description: "Resource ID.",
+																		Optional:    true,
+																		Computed:    true,
+																		PlanModifiers: []planmodifier.String{
+																			stringplanmodifier.UseStateForUnknown(),
+																		},
+																	},
+																	"location": schema.StringAttribute{
+																		Description: "Resource location.",
+																		Optional:    true,
+																		Computed:    true,
+																		PlanModifiers: []planmodifier.String{
+																			planmodifiers.UseStateForEquivalentLocation(),
+																			stringplanmodifier.UseStateForUnknown(),
+																		},
+																	},
+																	"name": schema.StringAttribute{
+																		Description: "Resource name.",
+																		Computed:    true,
+																		PlanModifiers: []planmodifier.String{
+																			stringplanmodifier.UseStateForUnknown(),
+																		},
+																	},
+																	"properties": schema.SingleNestedAttribute{
+																		Description: "Public IP address properties.",
+																		Optional:    true,
+																		Computed:    true,
+																		PlanModifiers: []planmodifier.Object{
+																			objectplanmodifier.UseStateForUnknown(),
+																		},
+																		Attributes: map[string]schema.Attribute{
+																			"ddos_settings": schema.SingleNestedAttribute{
+																				Description: "The DDoS protection custom policy associated with the public IP address.",
+																				Optional:    true,
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.Object{
+																					objectplanmodifier.UseStateForUnknown(),
+																				},
+																				Attributes: map[string]schema.Attribute{
+																					"ddos_custom_policy": schema.SingleNestedAttribute{
+																						Description: "The DDoS custom policy associated with the public IP.",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.Object{
+																							objectplanmodifier.UseStateForUnknown(),
+																						},
+																						Attributes: map[string]schema.Attribute{
+																							"id": schema.StringAttribute{
+																								Description: "Resource ID.",
+																								Required:    true,
+																								Validators: []validator.String{
+																									validators.AzureResourceID(),
+																								},
+																							},
+																						},
+																					},
+																					"ddos_protection_plan": schema.SingleNestedAttribute{
+																						Description: "The DDoS protection plan associated with the public IP. Can only be set if ProtectionMode is Enabled",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.Object{
+																							objectplanmodifier.UseStateForUnknown(),
+																						},
+																						Attributes: map[string]schema.Attribute{
+																							"id": schema.StringAttribute{
+																								Description: "Resource ID.",
+																								Required:    true,
+																								Validators: []validator.String{
+																									validators.AzureResourceID(),
+																								},
+																							},
+																						},
+																					},
+																					"protection_mode": schema.StringAttribute{
+																						Description: "The DDoS protection mode of the public IP",
+																						Optional:    true,
+																						Computed:    true,
+																						Validators: []validator.String{
+																							stringvalidator.OneOf(
+																								"VirtualNetworkInherited",
+																								"Enabled",
+																								"Disabled",
+																							),
+																						},
+																						PlanModifiers: []planmodifier.String{
+																							stringplanmodifier.UseStateForUnknown(),
+																						},
+																					},
+																				},
+																			},
+																			"delete_option": schema.StringAttribute{
+																				Description: "Specify what happens to the public IP address when the VM using it is deleted",
+																				Optional:    true,
+																				Computed:    true,
+																				Validators: []validator.String{
+																					stringvalidator.OneOf(
+																						"Delete",
+																						"Detach",
+																					),
+																				},
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																			"dns_settings": schema.SingleNestedAttribute{
+																				Description: "The FQDN of the DNS record associated with the public IP address.",
+																				Optional:    true,
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.Object{
+																					objectplanmodifier.UseStateForUnknown(),
+																				},
+																				Attributes: map[string]schema.Attribute{
+																					"domain_name_label": schema.StringAttribute{
+																						Description: "The domain name label. The concatenation of the domain name label and the regionalized DNS zone make up the fully qualified domain name associated with the public IP address. If a domain name label is...",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.String{
+																							stringplanmodifier.UseStateForUnknown(),
+																						},
+																					},
+																					"domain_name_label_scope": schema.StringAttribute{
+																						Description: "The domain name label scope. If a domain name label and a domain name label scope are specified, an A DNS record is created for the public IP in the Microsoft Azure DNS system with a hashed value incl...",
+																						Optional:    true,
+																						Computed:    true,
+																						Validators: []validator.String{
+																							stringvalidator.OneOf(
+																								"TenantReuse",
+																								"SubscriptionReuse",
+																								"ResourceGroupReuse",
+																								"NoReuse",
+																							),
+																						},
+																						PlanModifiers: []planmodifier.String{
+																							stringplanmodifier.UseStateForUnknown(),
+																						},
+																					},
+																					"fqdn": schema.StringAttribute{
+																						Description: "The Fully Qualified Domain Name of the A DNS record associated with the public IP. This is the concatenation of the domainNameLabel and the regionalized DNS zone.",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.String{
+																							stringplanmodifier.UseStateForUnknown(),
+																						},
+																					},
+																					"reverse_fqdn": schema.StringAttribute{
+																						Description: "The reverse FQDN. A user-visible, fully qualified domain name that resolves to this public IP address. If the reverseFqdn is specified, then a PTR DNS record is created pointing from the IP address in...",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.String{
+																							stringplanmodifier.UseStateForUnknown(),
+																						},
+																					},
+																				},
+																			},
+																			"idle_timeout_in_minutes": schema.Int64Attribute{
+																				Description: "The idle timeout of the public IP address.",
+																				Optional:    true,
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.Int64{
+																					int64planmodifier.UseStateForUnknown(),
+																				},
+																			},
+																			"ip_address": schema.StringAttribute{
+																				Description: "The IP address associated with the public IP address resource.",
+																				Optional:    true,
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																			"ip_configuration": schema.StringAttribute{
+																				Description: "The IP configuration associated with the public IP address.",
+																				Computed:    true,
+																			},
+																			"ip_tags": schema.ListNestedAttribute{
+																				Description: "The list of tags associated with the public IP address.",
+																				Optional:    true,
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.List{
+																					listplanmodifier.UseStateForUnknown(),
+																				},
+																				NestedObject: schema.NestedAttributeObject{
+																					Attributes: map[string]schema.Attribute{
+																						"ip_tag_type": schema.StringAttribute{
+																							Description: "The IP tag type. Example: FirstPartyUsage.",
+																							Optional:    true,
+																							Computed:    true,
+																							PlanModifiers: []planmodifier.String{
+																								stringplanmodifier.UseStateForUnknown(),
+																							},
+																						},
+																						"tag": schema.StringAttribute{
+																							Description: "The value of the IP tag associated with the public IP. Example: SQL.",
+																							Optional:    true,
+																							Computed:    true,
+																							PlanModifiers: []planmodifier.String{
+																								stringplanmodifier.UseStateForUnknown(),
+																							},
+																						},
+																					},
+																				},
+																			},
+																			"linked_public_ip_address": schema.StringAttribute{
+																				Description: "The linked public IP address of the public IP address resource.",
+																				Optional:    true,
+																				Computed:    true,
+																			},
+																			"migration_phase": schema.StringAttribute{
+																				Description: "Migration phase of Public IP Address.",
+																				Optional:    true,
+																				Computed:    true,
+																				Validators: []validator.String{
+																					stringvalidator.OneOf(
+																						"None",
+																						"Prepare",
+																						"Commit",
+																						"Abort",
+																						"Committed",
+																					),
+																				},
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																			"nat_gateway": schema.SingleNestedAttribute{
+																				Description: "The NatGateway for the Public IP address.",
+																				Optional:    true,
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.Object{
+																					objectplanmodifier.UseStateForUnknown(),
+																				},
+																				Attributes: map[string]schema.Attribute{
+																					"etag": schema.StringAttribute{
+																						Description: "A unique read-only string that changes whenever the resource is updated.",
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.String{
+																							stringplanmodifier.UseStateForUnknown(),
+																						},
+																					},
+																					"id": schema.StringAttribute{
+																						Description: "Resource ID.",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.String{
+																							stringplanmodifier.UseStateForUnknown(),
+																						},
+																					},
+																					"location": schema.StringAttribute{
+																						Description: "Resource location.",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.String{
+																							planmodifiers.UseStateForEquivalentLocation(),
+																							stringplanmodifier.UseStateForUnknown(),
+																						},
+																					},
+																					"name": schema.StringAttribute{
+																						Description: "Resource name.",
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.String{
+																							stringplanmodifier.UseStateForUnknown(),
+																						},
+																					},
+																					"properties": schema.SingleNestedAttribute{
+																						Description: "Nat Gateway properties.",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.Object{
+																							objectplanmodifier.UseStateForUnknown(),
+																						},
+																						Attributes: map[string]schema.Attribute{
+																							"idle_timeout_in_minutes": schema.Int64Attribute{
+																								Description: "The idle timeout of the nat gateway.",
+																								Optional:    true,
+																								Computed:    true,
+																								PlanModifiers: []planmodifier.Int64{
+																									int64planmodifier.UseStateForUnknown(),
+																								},
+																							},
+																							"nat64": schema.StringAttribute{
+																								Description: "Whether Nat64 is enabled for the NAT gateway resource.",
+																								Optional:    true,
+																								Computed:    true,
+																								Validators: []validator.String{
+																									stringvalidator.OneOf(
+																										"None",
+																										"Enabled",
+																										"Disabled",
+																									),
+																								},
+																								PlanModifiers: []planmodifier.String{
+																									stringplanmodifier.UseStateForUnknown(),
+																								},
+																							},
+																							"provisioning_state": schema.StringAttribute{
+																								Description: "The provisioning state of the NAT gateway resource.",
+																								Computed:    true,
+																								PlanModifiers: []planmodifier.String{
+																									stringplanmodifier.UseStateForUnknown(),
+																								},
+																							},
+																							"public_ip_addresses": schema.ListNestedAttribute{
+																								Description: "An array of public ip addresses V4 associated with the nat gateway resource.",
+																								Optional:    true,
+																								Computed:    true,
+																								PlanModifiers: []planmodifier.List{
+																									listplanmodifier.UseStateForUnknown(),
+																								},
+																								NestedObject: schema.NestedAttributeObject{
+																									Attributes: map[string]schema.Attribute{
+																										"id": schema.StringAttribute{
+																											Description: "Resource ID.",
+																											Required:    true,
+																											Validators: []validator.String{
+																												validators.AzureResourceID(),
+																											},
+																										},
+																									},
+																								},
+																							},
+																							"public_ip_addresses_v6": schema.ListNestedAttribute{
+																								Description: "An array of public ip addresses V6 associated with the nat gateway resource.",
+																								Optional:    true,
+																								Computed:    true,
+																								PlanModifiers: []planmodifier.List{
+																									listplanmodifier.UseStateForUnknown(),
+																								},
+																								NestedObject: schema.NestedAttributeObject{
+																									Attributes: map[string]schema.Attribute{
+																										"id": schema.StringAttribute{
+																											Description: "Resource ID.",
+																											Required:    true,
+																											Validators: []validator.String{
+																												validators.AzureResourceID(),
+																											},
+																										},
+																									},
+																								},
+																							},
+																							"public_ip_prefixes": schema.ListNestedAttribute{
+																								Description: "An array of public ip prefixes V4 associated with the nat gateway resource.",
+																								Optional:    true,
+																								Computed:    true,
+																								PlanModifiers: []planmodifier.List{
+																									listplanmodifier.UseStateForUnknown(),
+																								},
+																								NestedObject: schema.NestedAttributeObject{
+																									Attributes: map[string]schema.Attribute{
+																										"id": schema.StringAttribute{
+																											Description: "Resource ID.",
+																											Required:    true,
+																											Validators: []validator.String{
+																												validators.AzureResourceID(),
+																											},
+																										},
+																									},
+																								},
+																							},
+																							"public_ip_prefixes_v6": schema.ListNestedAttribute{
+																								Description: "An array of public ip prefixes V6 associated with the nat gateway resource.",
+																								Optional:    true,
+																								Computed:    true,
+																								PlanModifiers: []planmodifier.List{
+																									listplanmodifier.UseStateForUnknown(),
+																								},
+																								NestedObject: schema.NestedAttributeObject{
+																									Attributes: map[string]schema.Attribute{
+																										"id": schema.StringAttribute{
+																											Description: "Resource ID.",
+																											Required:    true,
+																											Validators: []validator.String{
+																												validators.AzureResourceID(),
+																											},
+																										},
+																									},
+																								},
+																							},
+																							"resource_guid": schema.StringAttribute{
+																								Description: "The resource GUID property of the NAT gateway resource.",
+																								Computed:    true,
+																								PlanModifiers: []planmodifier.String{
+																									stringplanmodifier.UseStateForUnknown(),
+																								},
+																							},
+																							"service_gateway": schema.SingleNestedAttribute{
+																								Description: "Reference to an existing service gateway.",
+																								Optional:    true,
+																								Computed:    true,
+																								PlanModifiers: []planmodifier.Object{
+																									objectplanmodifier.UseStateForUnknown(),
+																								},
+																								Attributes: map[string]schema.Attribute{
+																									"id": schema.StringAttribute{
+																										Description: "Resource ID.",
+																										Required:    true,
+																										Validators: []validator.String{
+																											validators.AzureResourceID(),
+																										},
+																									},
+																								},
+																							},
+																							"source_virtual_network": schema.SingleNestedAttribute{
+																								Description: "A reference to the source virtual network using this nat gateway resource.",
+																								Optional:    true,
+																								Computed:    true,
+																								PlanModifiers: []planmodifier.Object{
+																									objectplanmodifier.UseStateForUnknown(),
+																								},
+																								Attributes: map[string]schema.Attribute{
+																									"id": schema.StringAttribute{
+																										Description: "Resource ID.",
+																										Required:    true,
+																										Validators: []validator.String{
+																											validators.AzureResourceID(),
+																										},
+																									},
+																								},
+																							},
+																							"subnets": schema.ListNestedAttribute{
+																								Description: "An array of references to the subnets using this nat gateway resource.",
+																								Computed:    true,
+																								PlanModifiers: []planmodifier.List{
+																									listplanmodifier.UseStateForUnknown(),
+																								},
+																								NestedObject: schema.NestedAttributeObject{
+																									Attributes: map[string]schema.Attribute{
+																										"id": schema.StringAttribute{
+																											Description: "Resource ID.",
+																											Required:    true,
+																											Validators: []validator.String{
+																												validators.AzureResourceID(),
+																											},
+																										},
+																									},
+																								},
+																							},
+																						},
+																					},
+																					"sku": schema.SingleNestedAttribute{
+																						Description: "The nat gateway SKU.",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.Object{
+																							objectplanmodifier.UseStateForUnknown(),
+																						},
+																						Attributes: map[string]schema.Attribute{
+																							"name": schema.StringAttribute{
+																								Description: "Name of Nat Gateway SKU.",
+																								Required:    true,
+																								Validators: []validator.String{
+																									stringvalidator.OneOf(
+																										"Standard",
+																										"StandardV2",
+																									),
+																								},
+																							},
+																						},
+																					},
+																					"tags": schema.MapAttribute{
+																						Description: "Resource tags.",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.Map{
+																							mapplanmodifier.UseStateForUnknown(),
+																						},
+																						ElementType: types.StringType,
+																					},
+																					"type": schema.StringAttribute{
+																						Description: "Resource type.",
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.String{
+																							stringplanmodifier.UseStateForUnknown(),
+																						},
+																					},
+																					"zones": schema.ListAttribute{
+																						Description: "A list of availability zones denoting the zone in which Nat Gateway should be deployed.",
+																						Optional:    true,
+																						Computed:    true,
+																						PlanModifiers: []planmodifier.List{
+																							listplanmodifier.UseStateForUnknown(),
+																						},
+																						ElementType: types.StringType,
+																					},
+																				},
+																			},
+																			"provisioning_state": schema.StringAttribute{
+																				Description: "The provisioning state of the public IP address resource.",
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																			"public_ip_address_version": schema.StringAttribute{
+																				Description: "The public IP address version.",
+																				Optional:    true,
+																				Computed:    true,
+																				Validators: []validator.String{
+																					stringvalidator.OneOf(
+																						"IPv4",
+																						"IPv6",
+																					),
+																				},
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																			"public_ip_allocation_method": schema.StringAttribute{
+																				Description: "The public IP address allocation method.",
+																				Optional:    true,
+																				Computed:    true,
+																				Validators: []validator.String{
+																					stringvalidator.OneOf(
+																						"Static",
+																						"Dynamic",
+																					),
+																				},
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																			"public_ip_prefix": schema.SingleNestedAttribute{
+																				Description: "The Public IP Prefix this Public IP Address should be allocated from.",
+																				Optional:    true,
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.Object{
+																					objectplanmodifier.UseStateForUnknown(),
+																				},
+																				Attributes: map[string]schema.Attribute{
+																					"id": schema.StringAttribute{
+																						Description: "Resource ID.",
+																						Required:    true,
+																						Validators: []validator.String{
+																							validators.AzureResourceID(),
+																						},
+																					},
+																				},
+																			},
+																			"resource_guid": schema.StringAttribute{
+																				Description: "The resource GUID property of the public IP address resource.",
+																				Computed:    true,
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																			"service_public_ip_address": schema.StringAttribute{
+																				Description: "The service public IP address of the public IP address resource.",
+																				Optional:    true,
+																				Computed:    true,
+																			},
+																		},
+																	},
+																	"sku": schema.SingleNestedAttribute{
+																		Description: "The public IP address SKU.",
+																		Optional:    true,
+																		Computed:    true,
+																		PlanModifiers: []planmodifier.Object{
+																			objectplanmodifier.UseStateForUnknown(),
+																		},
+																		Attributes: map[string]schema.Attribute{
+																			"name": schema.StringAttribute{
+																				Description: "Name of a public IP address SKU.",
+																				Optional:    true,
+																				Computed:    true,
+																				Validators: []validator.String{
+																					stringvalidator.OneOf(
+																						"Basic",
+																						"Standard",
+																						"StandardV2",
+																					),
+																				},
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																			"tier": schema.StringAttribute{
+																				Description: "Tier of a public IP address SKU.",
+																				Optional:    true,
+																				Computed:    true,
+																				Validators: []validator.String{
+																					stringvalidator.OneOf(
+																						"Regional",
+																						"Global",
+																					),
+																				},
+																				PlanModifiers: []planmodifier.String{
+																					stringplanmodifier.UseStateForUnknown(),
+																				},
+																			},
+																		},
+																	},
+																	"tags": schema.MapAttribute{
+																		Description: "Resource tags.",
+																		Optional:    true,
+																		Computed:    true,
+																		PlanModifiers: []planmodifier.Map{
+																			mapplanmodifier.UseStateForUnknown(),
+																		},
+																		ElementType: types.StringType,
+																	},
+																	"type": schema.StringAttribute{
+																		Description: "Resource type.",
+																		Computed:    true,
+																		PlanModifiers: []planmodifier.String{
+																			stringplanmodifier.UseStateForUnknown(),
+																		},
+																	},
+																	"zones": schema.ListAttribute{
+																		Description: "A list of availability zones denoting the IP allocated for the resource needs to come from.",
+																		Optional:    true,
+																		Computed:    true,
+																		PlanModifiers: []planmodifier.List{
+																			listplanmodifier.UseStateForUnknown(),
+																		},
+																		ElementType: types.StringType,
+																	},
+																},
+															},
+															"subnet": schema.StringAttribute{
+																Description: "The reference to the subnet resource.",
+																Optional:    true,
+																Computed:    true,
+															},
+														},
+													},
+												},
+											},
 										},
 										"ipam_pool_prefix_allocations": schema.ListNestedAttribute{
 											Description: "A list of IPAM Pools for allocating IP address prefixes.",
@@ -1151,14 +1885,6 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																				Description: "The priority of the rule. The value can be between 100 and 4096. The priority number must be unique for each rule in the collection. The lower the priority number, the higher the priority of the rule.",
 																				Required:    true,
 																				Validators: []validator.Int64{
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
 																					int64validator.Between(100, 4096),
 																				},
 																			},
@@ -1762,14 +2488,2631 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																				},
 																				ElementType: types.StringType,
 																			},
-																			"ip_configurations": schema.ListAttribute{
+																			"ip_configurations": schema.ListNestedAttribute{
 																				Description: "A list of IPConfigurations of the network interface.",
 																				Optional:    true,
 																				Computed:    true,
 																				PlanModifiers: []planmodifier.List{
 																					listplanmodifier.UseStateForUnknown(),
 																				},
-																				ElementType: types.StringType,
+																				NestedObject: schema.NestedAttributeObject{
+																					Attributes: map[string]schema.Attribute{
+																						"etag": schema.StringAttribute{
+																							Description: "A unique read-only string that changes whenever the resource is updated.",
+																							Computed:    true,
+																							PlanModifiers: []planmodifier.String{
+																								stringplanmodifier.UseStateForUnknown(),
+																							},
+																						},
+																						"id": schema.StringAttribute{
+																							Description: "Resource ID.",
+																							Optional:    true,
+																							Computed:    true,
+																							PlanModifiers: []planmodifier.String{
+																								stringplanmodifier.UseStateForUnknown(),
+																							},
+																						},
+																						"name": schema.StringAttribute{
+																							Description: "Name of the resource.",
+																							Optional:    true,
+																							Computed:    true,
+																							PlanModifiers: []planmodifier.String{
+																								stringplanmodifier.UseStateForUnknown(),
+																							},
+																						},
+																						"properties": schema.SingleNestedAttribute{
+																							Description: "Network interface IP configuration properties.",
+																							Optional:    true,
+																							Computed:    true,
+																							PlanModifiers: []planmodifier.Object{
+																								objectplanmodifier.UseStateForUnknown(),
+																							},
+																							Attributes: map[string]schema.Attribute{
+																								"application_gateway_backend_address_pools": schema.ListNestedAttribute{
+																									Description: "The reference to ApplicationGatewayBackendAddressPool resource.",
+																									Optional:    true,
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.List{
+																										listplanmodifier.UseStateForUnknown(),
+																									},
+																									NestedObject: schema.NestedAttributeObject{
+																										Attributes: map[string]schema.Attribute{
+																											"etag": schema.StringAttribute{
+																												Description: "A unique read-only string that changes whenever the resource is updated.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"id": schema.StringAttribute{
+																												Description: "Resource ID.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"name": schema.StringAttribute{
+																												Description: "Name of the backend address pool that is unique within an Application Gateway.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"properties": schema.SingleNestedAttribute{
+																												Description: "Properties of the application gateway backend address pool.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.Object{
+																													objectplanmodifier.UseStateForUnknown(),
+																												},
+																												Attributes: map[string]schema.Attribute{
+																													"backend_addresses": schema.ListNestedAttribute{
+																														Description: "Backend addresses.",
+																														Required:    true,
+																														NestedObject: schema.NestedAttributeObject{
+																															Attributes: map[string]schema.Attribute{
+																																"fqdn": schema.StringAttribute{
+																																	Description: "Fully qualified domain name (FQDN).",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"ip_address": schema.StringAttribute{
+																																	Description: "IP address.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																															},
+																														},
+																													},
+																													"backend_ip_configurations": schema.ListAttribute{
+																														Description: "Collection of references to IPs defined in network interfaces.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.List{
+																															listplanmodifier.UseStateForUnknown(),
+																														},
+																														ElementType: types.StringType,
+																													},
+																													"provisioning_state": schema.StringAttribute{
+																														Description: "The provisioning state of the backend address pool resource.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.String{
+																															stringplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																												},
+																											},
+																											"type": schema.StringAttribute{
+																												Description: "Type of the resource.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																										},
+																									},
+																								},
+																								"application_security_groups": schema.ListNestedAttribute{
+																									Description: "Application security groups in which the IP configuration is included.",
+																									Optional:    true,
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.List{
+																										listplanmodifier.UseStateForUnknown(),
+																									},
+																									NestedObject: schema.NestedAttributeObject{
+																										Attributes: map[string]schema.Attribute{
+																											"etag": schema.StringAttribute{
+																												Description: "A unique read-only string that changes whenever the resource is updated.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"id": schema.StringAttribute{
+																												Description: "Resource ID.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"location": schema.StringAttribute{
+																												Description: "Resource location.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													planmodifiers.UseStateForEquivalentLocation(),
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"name": schema.StringAttribute{
+																												Description: "Resource name.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"properties": schema.SingleNestedAttribute{
+																												Description: "Properties of the application security group.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.Object{
+																													objectplanmodifier.UseStateForUnknown(),
+																												},
+																												Attributes: map[string]schema.Attribute{
+																													"provisioning_state": schema.StringAttribute{
+																														Description: "The provisioning state of the application security group resource.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.String{
+																															stringplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"resource_guid": schema.StringAttribute{
+																														Description: "The resource GUID property of the application security group resource. It uniquely identifies a resource, even if the user changes its name or migrate the resource across subscriptions or resource gro...",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.String{
+																															stringplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																												},
+																											},
+																											"tags": schema.MapAttribute{
+																												Description: "Resource tags.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.Map{
+																													mapplanmodifier.UseStateForUnknown(),
+																												},
+																												ElementType: types.StringType,
+																											},
+																											"type": schema.StringAttribute{
+																												Description: "Resource type.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																										},
+																									},
+																								},
+																								"gateway_load_balancer": schema.SingleNestedAttribute{
+																									Description: "The reference to gateway load balancer frontend IP.",
+																									Optional:    true,
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.Object{
+																										objectplanmodifier.UseStateForUnknown(),
+																									},
+																									Attributes: map[string]schema.Attribute{
+																										"id": schema.StringAttribute{
+																											Description: "Resource ID.",
+																											Required:    true,
+																											Validators: []validator.String{
+																												validators.AzureResourceID(),
+																											},
+																										},
+																									},
+																								},
+																								"load_balancer_backend_address_pools": schema.ListNestedAttribute{
+																									Description: "The reference to LoadBalancerBackendAddressPool resource.",
+																									Optional:    true,
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.List{
+																										listplanmodifier.UseStateForUnknown(),
+																									},
+																									NestedObject: schema.NestedAttributeObject{
+																										Attributes: map[string]schema.Attribute{
+																											"etag": schema.StringAttribute{
+																												Description: "A unique read-only string that changes whenever the resource is updated.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"id": schema.StringAttribute{
+																												Description: "Resource ID.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"name": schema.StringAttribute{
+																												Description: "Name of the resource.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"properties": schema.SingleNestedAttribute{
+																												Description: "Properties of load balancer backend address pool.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.Object{
+																													objectplanmodifier.UseStateForUnknown(),
+																												},
+																												Attributes: map[string]schema.Attribute{
+																													"backend_ip_configurations": schema.ListAttribute{
+																														Description: "An array of references to IP addresses defined in network interfaces.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.List{
+																															listplanmodifier.UseStateForUnknown(),
+																														},
+																														ElementType: types.StringType,
+																													},
+																													"drain_period_in_seconds": schema.Int64Attribute{
+																														Description: "Amount of seconds Load Balancer waits for before sending RESET to client and backend address.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Int64{
+																															int64planmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"inbound_nat_rules": schema.ListNestedAttribute{
+																														Description: "An array of references to inbound NAT rules that use this backend address pool.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.List{
+																															listplanmodifier.UseStateForUnknown(),
+																														},
+																														NestedObject: schema.NestedAttributeObject{
+																															Attributes: map[string]schema.Attribute{
+																																"id": schema.StringAttribute{
+																																	Description: "Resource ID.",
+																																	Required:    true,
+																																	Validators: []validator.String{
+																																		validators.AzureResourceID(),
+																																	},
+																																},
+																															},
+																														},
+																													},
+																													"load_balancer_backend_addresses": schema.ListNestedAttribute{
+																														Description: "An array of backend addresses.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.List{
+																															listplanmodifier.UseStateForUnknown(),
+																														},
+																														NestedObject: schema.NestedAttributeObject{
+																															Attributes: map[string]schema.Attribute{
+																																"name": schema.StringAttribute{
+																																	Description: "Name of the backend address.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"properties": schema.SingleNestedAttribute{
+																																	Description: "Properties of load balancer backend address pool.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Object{
+																																		objectplanmodifier.UseStateForUnknown(),
+																																	},
+																																	Attributes: map[string]schema.Attribute{
+																																		"admin_state": schema.StringAttribute{
+																																			Description: "A list of administrative states which once set can override health probe so that Load Balancer will always forward new connections to backend, or deny new connections and reset existing connections.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			Validators: []validator.String{
+																																				stringvalidator.OneOf(
+																																					"None",
+																																					"Up",
+																																					"Down",
+																																				),
+																																			},
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"inbound_nat_rules_port_mapping": schema.ListNestedAttribute{
+																																			Description: "Collection of inbound NAT rule port mappings.",
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.List{
+																																				listplanmodifier.UseStateForUnknown(),
+																																			},
+																																			NestedObject: schema.NestedAttributeObject{
+																																				Attributes: map[string]schema.Attribute{
+																																					"backend_port": schema.Int64Attribute{
+																																						Description: "Backend port.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.Int64{
+																																							int64planmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"frontend_port": schema.Int64Attribute{
+																																						Description: "Frontend port.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.Int64{
+																																							int64planmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"inbound_nat_rule_name": schema.StringAttribute{
+																																						Description: "Name of inbound NAT rule.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																				},
+																																			},
+																																		},
+																																		"ip_address": schema.StringAttribute{
+																																			Description: "IP Address belonging to the referenced virtual network.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"load_balancer_frontend_ip_configuration": schema.SingleNestedAttribute{
+																																			Description: "Reference to the frontend ip address configuration defined in regional loadbalancer.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.Object{
+																																				objectplanmodifier.UseStateForUnknown(),
+																																			},
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						validators.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																		"network_interface_ip_configuration": schema.SingleNestedAttribute{
+																																			Description: "Reference to IP address defined in network interfaces.",
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.Object{
+																																				objectplanmodifier.UseStateForUnknown(),
+																																			},
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						validators.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																		"subnet": schema.SingleNestedAttribute{
+																																			Description: "Reference to an existing subnet.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.Object{
+																																				objectplanmodifier.UseStateForUnknown(),
+																																			},
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						validators.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																		"virtual_network": schema.SingleNestedAttribute{
+																																			Description: "Reference to an existing virtual network.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.Object{
+																																				objectplanmodifier.UseStateForUnknown(),
+																																			},
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						validators.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																	},
+																																},
+																															},
+																														},
+																													},
+																													"load_balancing_rules": schema.ListNestedAttribute{
+																														Description: "An array of references to load balancing rules that use this backend address pool.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.List{
+																															listplanmodifier.UseStateForUnknown(),
+																														},
+																														NestedObject: schema.NestedAttributeObject{
+																															Attributes: map[string]schema.Attribute{
+																																"id": schema.StringAttribute{
+																																	Description: "Resource ID.",
+																																	Required:    true,
+																																	Validators: []validator.String{
+																																		validators.AzureResourceID(),
+																																	},
+																																},
+																															},
+																														},
+																													},
+																													"location": schema.StringAttribute{
+																														Description: "The location of the backend address pool.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.String{
+																															planmodifiers.UseStateForEquivalentLocation(),
+																															stringplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"outbound_rule": schema.SingleNestedAttribute{
+																														Description: "A reference to an outbound rule that uses this backend address pool.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Object{
+																															objectplanmodifier.UseStateForUnknown(),
+																														},
+																														Attributes: map[string]schema.Attribute{
+																															"id": schema.StringAttribute{
+																																Description: "Resource ID.",
+																																Required:    true,
+																																Validators: []validator.String{
+																																	validators.AzureResourceID(),
+																																},
+																															},
+																														},
+																													},
+																													"outbound_rules": schema.ListNestedAttribute{
+																														Description: "An array of references to outbound rules that use this backend address pool.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.List{
+																															listplanmodifier.UseStateForUnknown(),
+																														},
+																														NestedObject: schema.NestedAttributeObject{
+																															Attributes: map[string]schema.Attribute{
+																																"id": schema.StringAttribute{
+																																	Description: "Resource ID.",
+																																	Required:    true,
+																																	Validators: []validator.String{
+																																		validators.AzureResourceID(),
+																																	},
+																																},
+																															},
+																														},
+																													},
+																													"provisioning_state": schema.StringAttribute{
+																														Description: "The provisioning state of the backend address pool resource.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.String{
+																															stringplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"sync_mode": schema.StringAttribute{
+																														Description: "Backend address synchronous mode for the backend pool",
+																														Optional:    true,
+																														Computed:    true,
+																														Validators: []validator.String{
+																															stringvalidator.OneOf(
+																																"Automatic",
+																																"Manual",
+																															),
+																														},
+																														PlanModifiers: []planmodifier.String{
+																															stringplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"tunnel_interfaces": schema.ListNestedAttribute{
+																														Description: "An array of gateway load balancer tunnel interfaces.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.List{
+																															listplanmodifier.UseStateForUnknown(),
+																														},
+																														NestedObject: schema.NestedAttributeObject{
+																															Attributes: map[string]schema.Attribute{
+																																"identifier": schema.Int64Attribute{
+																																	Description: "Identifier of gateway load balancer tunnel interface.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Int64{
+																																		int64planmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"port": schema.Int64Attribute{
+																																	Description: "Port of gateway load balancer tunnel interface.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Int64{
+																																		int64planmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"protocol": schema.StringAttribute{
+																																	Description: "Protocol of gateway load balancer tunnel interface.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"None",
+																																			"Native",
+																																			"VXLAN",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"type": schema.StringAttribute{
+																																	Description: "Traffic type of gateway load balancer tunnel interface.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"None",
+																																			"Internal",
+																																			"External",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																															},
+																														},
+																													},
+																													"virtual_network": schema.SingleNestedAttribute{
+																														Description: "A reference to a virtual network.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Object{
+																															objectplanmodifier.UseStateForUnknown(),
+																														},
+																														Attributes: map[string]schema.Attribute{
+																															"id": schema.StringAttribute{
+																																Description: "Resource ID.",
+																																Required:    true,
+																																Validators: []validator.String{
+																																	validators.AzureResourceID(),
+																																},
+																															},
+																														},
+																													},
+																												},
+																											},
+																											"type": schema.StringAttribute{
+																												Description: "Resource type.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																										},
+																									},
+																								},
+																								"load_balancer_inbound_nat_rules": schema.ListNestedAttribute{
+																									Description: "A list of references of LoadBalancerInboundNatRules.",
+																									Optional:    true,
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.List{
+																										listplanmodifier.UseStateForUnknown(),
+																									},
+																									NestedObject: schema.NestedAttributeObject{
+																										Attributes: map[string]schema.Attribute{
+																											"etag": schema.StringAttribute{
+																												Description: "A unique read-only string that changes whenever the resource is updated.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"id": schema.StringAttribute{
+																												Description: "Resource ID.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"name": schema.StringAttribute{
+																												Description: "Name of the resource.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"properties": schema.SingleNestedAttribute{
+																												Description: "Properties of load balancer inbound NAT rule.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.Object{
+																													objectplanmodifier.UseStateForUnknown(),
+																												},
+																												Attributes: map[string]schema.Attribute{
+																													"backend_address_pool": schema.SingleNestedAttribute{
+																														Description: "A reference to backendAddressPool resource.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Object{
+																															objectplanmodifier.UseStateForUnknown(),
+																														},
+																														Attributes: map[string]schema.Attribute{
+																															"id": schema.StringAttribute{
+																																Description: "Resource ID.",
+																																Required:    true,
+																																Validators: []validator.String{
+																																	validators.AzureResourceID(),
+																																},
+																															},
+																														},
+																													},
+																													"backend_ip_configuration": schema.StringAttribute{
+																														Description: "A reference to a private IP address defined on a network interface of a VM. Traffic sent to the frontend port of each of the frontend IP configurations is forwarded to the backend IP.",
+																														Computed:    true,
+																													},
+																													"backend_port": schema.Int64Attribute{
+																														Description: "The port used for the internal endpoint. Acceptable values range from 1 to 65535.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Int64{
+																															int64planmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"enable_floating_ip": schema.BoolAttribute{
+																														Description: "Configures a virtual machine's endpoint for the floating IP capability required to configure a SQL AlwaysOn Availability Group. This setting is required when using the SQL AlwaysOn Availability Groups...",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Bool{
+																															boolplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"enable_tcp_reset": schema.BoolAttribute{
+																														Description: "Receive bidirectional TCP Reset on TCP flow idle timeout or unexpected connection termination. This element is only used when the protocol is set to TCP.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Bool{
+																															boolplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"frontend_ip_configuration": schema.SingleNestedAttribute{
+																														Description: "A reference to frontend IP addresses.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Object{
+																															objectplanmodifier.UseStateForUnknown(),
+																														},
+																														Attributes: map[string]schema.Attribute{
+																															"id": schema.StringAttribute{
+																																Description: "Resource ID.",
+																																Required:    true,
+																																Validators: []validator.String{
+																																	validators.AzureResourceID(),
+																																},
+																															},
+																														},
+																													},
+																													"frontend_port": schema.Int64Attribute{
+																														Description: "The port for the external endpoint. Port numbers for each rule must be unique within the Load Balancer. Acceptable values range from 1 to 65534.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Int64{
+																															int64planmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"frontend_port_range_end": schema.Int64Attribute{
+																														Description: "The port range end for the external endpoint. This property is used together with BackendAddressPool and FrontendPortRangeStart. Individual inbound NAT rule port mappings will be created for each back...",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Int64{
+																															int64planmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"frontend_port_range_start": schema.Int64Attribute{
+																														Description: "The port range start for the external endpoint. This property is used together with BackendAddressPool and FrontendPortRangeEnd. Individual inbound NAT rule port mappings will be created for each back...",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Int64{
+																															int64planmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"idle_timeout_in_minutes": schema.Int64Attribute{
+																														Description: "The timeout for the TCP idle connection. The value can be set between 4 and 30 minutes. The default value is 4 minutes. This element is only used when the protocol is set to TCP.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Int64{
+																															int64planmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"protocol": schema.StringAttribute{
+																														Description: "The reference to the transport protocol used by the load balancing rule.",
+																														Optional:    true,
+																														Computed:    true,
+																														Validators: []validator.String{
+																															stringvalidator.OneOf(
+																																"Udp",
+																																"Tcp",
+																																"All",
+																																"Quic",
+																															),
+																														},
+																														PlanModifiers: []planmodifier.String{
+																															stringplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"provisioning_state": schema.StringAttribute{
+																														Description: "The provisioning state of the inbound NAT rule resource.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.String{
+																															stringplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																												},
+																											},
+																											"type": schema.StringAttribute{
+																												Description: "Resource type.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																										},
+																									},
+																								},
+																								"primary": schema.BoolAttribute{
+																									Description: "Whether this is a primary customer address on the network interface.",
+																									Optional:    true,
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.Bool{
+																										boolplanmodifier.UseStateForUnknown(),
+																									},
+																								},
+																								"private_ip_address": schema.StringAttribute{
+																									Description: "Private IP address of the IP configuration. It can be a single IP address or a CIDR block in the format <address>/<prefix-length>.",
+																									Optional:    true,
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.String{
+																										stringplanmodifier.UseStateForUnknown(),
+																									},
+																								},
+																								"private_ip_address_prefix_length": schema.Int64Attribute{
+																									Description: "The private IP address prefix length. If specified and the allocation method is dynamic, the service will allocate a CIDR block instead of a single IP address.",
+																									Optional:    true,
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.Int64{
+																										int64planmodifier.UseStateForUnknown(),
+																									},
+																								},
+																								"private_ip_address_version": schema.StringAttribute{
+																									Description: "Whether the specific IP configuration is IPv4 or IPv6. Default is IPv4.",
+																									Optional:    true,
+																									Computed:    true,
+																									Validators: []validator.String{
+																										stringvalidator.OneOf(
+																											"IPv4",
+																											"IPv6",
+																										),
+																									},
+																									PlanModifiers: []planmodifier.String{
+																										stringplanmodifier.UseStateForUnknown(),
+																									},
+																								},
+																								"private_ip_allocation_method": schema.StringAttribute{
+																									Description: "The private IP address allocation method.",
+																									Optional:    true,
+																									Computed:    true,
+																									Validators: []validator.String{
+																										stringvalidator.OneOf(
+																											"Static",
+																											"Dynamic",
+																										),
+																									},
+																									PlanModifiers: []planmodifier.String{
+																										stringplanmodifier.UseStateForUnknown(),
+																									},
+																								},
+																								"private_link_connection_properties": schema.SingleNestedAttribute{
+																									Description: "PrivateLinkConnection properties for the network interface.",
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.Object{
+																										objectplanmodifier.UseStateForUnknown(),
+																									},
+																									Attributes: map[string]schema.Attribute{
+																										"fqdns": schema.ListAttribute{
+																											Description: "List of FQDNs for current private link connection.",
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.List{
+																												listplanmodifier.UseStateForUnknown(),
+																											},
+																											ElementType: types.StringType,
+																										},
+																										"group_id": schema.StringAttribute{
+																											Description: "The group ID for current private link connection.",
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.String{
+																												stringplanmodifier.UseStateForUnknown(),
+																											},
+																										},
+																										"required_member_name": schema.StringAttribute{
+																											Description: "The required member name for current private link connection.",
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.String{
+																												stringplanmodifier.UseStateForUnknown(),
+																											},
+																										},
+																									},
+																								},
+																								"provisioning_state": schema.StringAttribute{
+																									Description: "The provisioning state of the network interface IP configuration.",
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.String{
+																										stringplanmodifier.UseStateForUnknown(),
+																									},
+																								},
+																								"public_ip_address": schema.SingleNestedAttribute{
+																									Description: "Public IP address bound to the IP configuration.",
+																									Optional:    true,
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.Object{
+																										objectplanmodifier.UseStateForUnknown(),
+																									},
+																									Attributes: map[string]schema.Attribute{
+																										"etag": schema.StringAttribute{
+																											Description: "A unique read-only string that changes whenever the resource is updated.",
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.String{
+																												stringplanmodifier.UseStateForUnknown(),
+																											},
+																										},
+																										"extended_location": schema.SingleNestedAttribute{
+																											Description: "The extended location of the public ip address.",
+																											Optional:    true,
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.Object{
+																												objectplanmodifier.UseStateForUnknown(),
+																											},
+																											Attributes: map[string]schema.Attribute{
+																												"name": schema.StringAttribute{
+																													Description: "The name of the extended location.",
+																													Optional:    true,
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																												"type": schema.StringAttribute{
+																													Description: "The type of the extended location.",
+																													Optional:    true,
+																													Computed:    true,
+																													Validators: []validator.String{
+																														stringvalidator.OneOf(
+																															"EdgeZone",
+																														),
+																													},
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																											},
+																										},
+																										"id": schema.StringAttribute{
+																											Description: "Resource ID.",
+																											Optional:    true,
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.String{
+																												stringplanmodifier.UseStateForUnknown(),
+																											},
+																										},
+																										"location": schema.StringAttribute{
+																											Description: "Resource location.",
+																											Optional:    true,
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.String{
+																												planmodifiers.UseStateForEquivalentLocation(),
+																												stringplanmodifier.UseStateForUnknown(),
+																											},
+																										},
+																										"name": schema.StringAttribute{
+																											Description: "Resource name.",
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.String{
+																												stringplanmodifier.UseStateForUnknown(),
+																											},
+																										},
+																										"properties": schema.SingleNestedAttribute{
+																											Description: "Public IP address properties.",
+																											Optional:    true,
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.Object{
+																												objectplanmodifier.UseStateForUnknown(),
+																											},
+																											Attributes: map[string]schema.Attribute{
+																												"ddos_settings": schema.SingleNestedAttribute{
+																													Description: "The DDoS protection custom policy associated with the public IP address.",
+																													Optional:    true,
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.Object{
+																														objectplanmodifier.UseStateForUnknown(),
+																													},
+																													Attributes: map[string]schema.Attribute{
+																														"ddos_custom_policy": schema.SingleNestedAttribute{
+																															Description: "The DDoS custom policy associated with the public IP.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.Object{
+																																objectplanmodifier.UseStateForUnknown(),
+																															},
+																															Attributes: map[string]schema.Attribute{
+																																"id": schema.StringAttribute{
+																																	Description: "Resource ID.",
+																																	Required:    true,
+																																	Validators: []validator.String{
+																																		validators.AzureResourceID(),
+																																	},
+																																},
+																															},
+																														},
+																														"ddos_protection_plan": schema.SingleNestedAttribute{
+																															Description: "The DDoS protection plan associated with the public IP. Can only be set if ProtectionMode is Enabled",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.Object{
+																																objectplanmodifier.UseStateForUnknown(),
+																															},
+																															Attributes: map[string]schema.Attribute{
+																																"id": schema.StringAttribute{
+																																	Description: "Resource ID.",
+																																	Required:    true,
+																																	Validators: []validator.String{
+																																		validators.AzureResourceID(),
+																																	},
+																																},
+																															},
+																														},
+																														"protection_mode": schema.StringAttribute{
+																															Description: "The DDoS protection mode of the public IP",
+																															Optional:    true,
+																															Computed:    true,
+																															Validators: []validator.String{
+																																stringvalidator.OneOf(
+																																	"VirtualNetworkInherited",
+																																	"Enabled",
+																																	"Disabled",
+																																),
+																															},
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																													},
+																												},
+																												"delete_option": schema.StringAttribute{
+																													Description: "Specify what happens to the public IP address when the VM using it is deleted",
+																													Optional:    true,
+																													Computed:    true,
+																													Validators: []validator.String{
+																														stringvalidator.OneOf(
+																															"Delete",
+																															"Detach",
+																														),
+																													},
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																												"dns_settings": schema.SingleNestedAttribute{
+																													Description: "The FQDN of the DNS record associated with the public IP address.",
+																													Optional:    true,
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.Object{
+																														objectplanmodifier.UseStateForUnknown(),
+																													},
+																													Attributes: map[string]schema.Attribute{
+																														"domain_name_label": schema.StringAttribute{
+																															Description: "The domain name label. The concatenation of the domain name label and the regionalized DNS zone make up the fully qualified domain name associated with the public IP address. If a domain name label is...",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"domain_name_label_scope": schema.StringAttribute{
+																															Description: "The domain name label scope. If a domain name label and a domain name label scope are specified, an A DNS record is created for the public IP in the Microsoft Azure DNS system with a hashed value incl...",
+																															Optional:    true,
+																															Computed:    true,
+																															Validators: []validator.String{
+																																stringvalidator.OneOf(
+																																	"TenantReuse",
+																																	"SubscriptionReuse",
+																																	"ResourceGroupReuse",
+																																	"NoReuse",
+																																),
+																															},
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"fqdn": schema.StringAttribute{
+																															Description: "The Fully Qualified Domain Name of the A DNS record associated with the public IP. This is the concatenation of the domainNameLabel and the regionalized DNS zone.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"reverse_fqdn": schema.StringAttribute{
+																															Description: "The reverse FQDN. A user-visible, fully qualified domain name that resolves to this public IP address. If the reverseFqdn is specified, then a PTR DNS record is created pointing from the IP address in...",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																													},
+																												},
+																												"idle_timeout_in_minutes": schema.Int64Attribute{
+																													Description: "The idle timeout of the public IP address.",
+																													Optional:    true,
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.Int64{
+																														int64planmodifier.UseStateForUnknown(),
+																													},
+																												},
+																												"ip_address": schema.StringAttribute{
+																													Description: "The IP address associated with the public IP address resource.",
+																													Optional:    true,
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																												"ip_configuration": schema.StringAttribute{
+																													Description: "The IP configuration associated with the public IP address.",
+																													Computed:    true,
+																												},
+																												"ip_tags": schema.ListNestedAttribute{
+																													Description: "The list of tags associated with the public IP address.",
+																													Optional:    true,
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.List{
+																														listplanmodifier.UseStateForUnknown(),
+																													},
+																													NestedObject: schema.NestedAttributeObject{
+																														Attributes: map[string]schema.Attribute{
+																															"ip_tag_type": schema.StringAttribute{
+																																Description: "The IP tag type. Example: FirstPartyUsage.",
+																																Optional:    true,
+																																Computed:    true,
+																																PlanModifiers: []planmodifier.String{
+																																	stringplanmodifier.UseStateForUnknown(),
+																																},
+																															},
+																															"tag": schema.StringAttribute{
+																																Description: "The value of the IP tag associated with the public IP. Example: SQL.",
+																																Optional:    true,
+																																Computed:    true,
+																																PlanModifiers: []planmodifier.String{
+																																	stringplanmodifier.UseStateForUnknown(),
+																																},
+																															},
+																														},
+																													},
+																												},
+																												"linked_public_ip_address": schema.StringAttribute{
+																													Description: "The linked public IP address of the public IP address resource.",
+																													Optional:    true,
+																													Computed:    true,
+																												},
+																												"migration_phase": schema.StringAttribute{
+																													Description: "Migration phase of Public IP Address.",
+																													Optional:    true,
+																													Computed:    true,
+																													Validators: []validator.String{
+																														stringvalidator.OneOf(
+																															"None",
+																															"Prepare",
+																															"Commit",
+																															"Abort",
+																															"Committed",
+																														),
+																													},
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																												"nat_gateway": schema.SingleNestedAttribute{
+																													Description: "The NatGateway for the Public IP address.",
+																													Optional:    true,
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.Object{
+																														objectplanmodifier.UseStateForUnknown(),
+																													},
+																													Attributes: map[string]schema.Attribute{
+																														"etag": schema.StringAttribute{
+																															Description: "A unique read-only string that changes whenever the resource is updated.",
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"id": schema.StringAttribute{
+																															Description: "Resource ID.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"location": schema.StringAttribute{
+																															Description: "Resource location.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																planmodifiers.UseStateForEquivalentLocation(),
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"name": schema.StringAttribute{
+																															Description: "Resource name.",
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"properties": schema.SingleNestedAttribute{
+																															Description: "Nat Gateway properties.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.Object{
+																																objectplanmodifier.UseStateForUnknown(),
+																															},
+																															Attributes: map[string]schema.Attribute{
+																																"idle_timeout_in_minutes": schema.Int64Attribute{
+																																	Description: "The idle timeout of the nat gateway.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Int64{
+																																		int64planmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"nat64": schema.StringAttribute{
+																																	Description: "Whether Nat64 is enabled for the NAT gateway resource.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"None",
+																																			"Enabled",
+																																			"Disabled",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"provisioning_state": schema.StringAttribute{
+																																	Description: "The provisioning state of the NAT gateway resource.",
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"public_ip_addresses": schema.ListNestedAttribute{
+																																	Description: "An array of public ip addresses V4 associated with the nat gateway resource.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.List{
+																																		listplanmodifier.UseStateForUnknown(),
+																																	},
+																																	NestedObject: schema.NestedAttributeObject{
+																																		Attributes: map[string]schema.Attribute{
+																																			"id": schema.StringAttribute{
+																																				Description: "Resource ID.",
+																																				Required:    true,
+																																				Validators: []validator.String{
+																																					validators.AzureResourceID(),
+																																				},
+																																			},
+																																		},
+																																	},
+																																},
+																																"public_ip_addresses_v6": schema.ListNestedAttribute{
+																																	Description: "An array of public ip addresses V6 associated with the nat gateway resource.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.List{
+																																		listplanmodifier.UseStateForUnknown(),
+																																	},
+																																	NestedObject: schema.NestedAttributeObject{
+																																		Attributes: map[string]schema.Attribute{
+																																			"id": schema.StringAttribute{
+																																				Description: "Resource ID.",
+																																				Required:    true,
+																																				Validators: []validator.String{
+																																					validators.AzureResourceID(),
+																																				},
+																																			},
+																																		},
+																																	},
+																																},
+																																"public_ip_prefixes": schema.ListNestedAttribute{
+																																	Description: "An array of public ip prefixes V4 associated with the nat gateway resource.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.List{
+																																		listplanmodifier.UseStateForUnknown(),
+																																	},
+																																	NestedObject: schema.NestedAttributeObject{
+																																		Attributes: map[string]schema.Attribute{
+																																			"id": schema.StringAttribute{
+																																				Description: "Resource ID.",
+																																				Required:    true,
+																																				Validators: []validator.String{
+																																					validators.AzureResourceID(),
+																																				},
+																																			},
+																																		},
+																																	},
+																																},
+																																"public_ip_prefixes_v6": schema.ListNestedAttribute{
+																																	Description: "An array of public ip prefixes V6 associated with the nat gateway resource.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.List{
+																																		listplanmodifier.UseStateForUnknown(),
+																																	},
+																																	NestedObject: schema.NestedAttributeObject{
+																																		Attributes: map[string]schema.Attribute{
+																																			"id": schema.StringAttribute{
+																																				Description: "Resource ID.",
+																																				Required:    true,
+																																				Validators: []validator.String{
+																																					validators.AzureResourceID(),
+																																				},
+																																			},
+																																		},
+																																	},
+																																},
+																																"resource_guid": schema.StringAttribute{
+																																	Description: "The resource GUID property of the NAT gateway resource.",
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"service_gateway": schema.SingleNestedAttribute{
+																																	Description: "Reference to an existing service gateway.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Object{
+																																		objectplanmodifier.UseStateForUnknown(),
+																																	},
+																																	Attributes: map[string]schema.Attribute{
+																																		"id": schema.StringAttribute{
+																																			Description: "Resource ID.",
+																																			Required:    true,
+																																			Validators: []validator.String{
+																																				validators.AzureResourceID(),
+																																			},
+																																		},
+																																	},
+																																},
+																																"source_virtual_network": schema.SingleNestedAttribute{
+																																	Description: "A reference to the source virtual network using this nat gateway resource.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Object{
+																																		objectplanmodifier.UseStateForUnknown(),
+																																	},
+																																	Attributes: map[string]schema.Attribute{
+																																		"id": schema.StringAttribute{
+																																			Description: "Resource ID.",
+																																			Required:    true,
+																																			Validators: []validator.String{
+																																				validators.AzureResourceID(),
+																																			},
+																																		},
+																																	},
+																																},
+																																"subnets": schema.ListNestedAttribute{
+																																	Description: "An array of references to the subnets using this nat gateway resource.",
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.List{
+																																		listplanmodifier.UseStateForUnknown(),
+																																	},
+																																	NestedObject: schema.NestedAttributeObject{
+																																		Attributes: map[string]schema.Attribute{
+																																			"id": schema.StringAttribute{
+																																				Description: "Resource ID.",
+																																				Required:    true,
+																																				Validators: []validator.String{
+																																					validators.AzureResourceID(),
+																																				},
+																																			},
+																																		},
+																																	},
+																																},
+																															},
+																														},
+																														"sku": schema.SingleNestedAttribute{
+																															Description: "The nat gateway SKU.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.Object{
+																																objectplanmodifier.UseStateForUnknown(),
+																															},
+																															Attributes: map[string]schema.Attribute{
+																																"name": schema.StringAttribute{
+																																	Description: "Name of Nat Gateway SKU.",
+																																	Required:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"Standard",
+																																			"StandardV2",
+																																		),
+																																	},
+																																},
+																															},
+																														},
+																														"tags": schema.MapAttribute{
+																															Description: "Resource tags.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.Map{
+																																mapplanmodifier.UseStateForUnknown(),
+																															},
+																															ElementType: types.StringType,
+																														},
+																														"type": schema.StringAttribute{
+																															Description: "Resource type.",
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"zones": schema.ListAttribute{
+																															Description: "A list of availability zones denoting the zone in which Nat Gateway should be deployed.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.List{
+																																listplanmodifier.UseStateForUnknown(),
+																															},
+																															ElementType: types.StringType,
+																														},
+																													},
+																												},
+																												"provisioning_state": schema.StringAttribute{
+																													Description: "The provisioning state of the public IP address resource.",
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																												"public_ip_address_version": schema.StringAttribute{
+																													Description: "The public IP address version.",
+																													Optional:    true,
+																													Computed:    true,
+																													Validators: []validator.String{
+																														stringvalidator.OneOf(
+																															"IPv4",
+																															"IPv6",
+																														),
+																													},
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																												"public_ip_allocation_method": schema.StringAttribute{
+																													Description: "The public IP address allocation method.",
+																													Optional:    true,
+																													Computed:    true,
+																													Validators: []validator.String{
+																														stringvalidator.OneOf(
+																															"Static",
+																															"Dynamic",
+																														),
+																													},
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																												"public_ip_prefix": schema.SingleNestedAttribute{
+																													Description: "The Public IP Prefix this Public IP Address should be allocated from.",
+																													Optional:    true,
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.Object{
+																														objectplanmodifier.UseStateForUnknown(),
+																													},
+																													Attributes: map[string]schema.Attribute{
+																														"id": schema.StringAttribute{
+																															Description: "Resource ID.",
+																															Required:    true,
+																															Validators: []validator.String{
+																																validators.AzureResourceID(),
+																															},
+																														},
+																													},
+																												},
+																												"resource_guid": schema.StringAttribute{
+																													Description: "The resource GUID property of the public IP address resource.",
+																													Computed:    true,
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																												"service_public_ip_address": schema.StringAttribute{
+																													Description: "The service public IP address of the public IP address resource.",
+																													Optional:    true,
+																													Computed:    true,
+																												},
+																											},
+																										},
+																										"sku": schema.SingleNestedAttribute{
+																											Description: "The public IP address SKU.",
+																											Optional:    true,
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.Object{
+																												objectplanmodifier.UseStateForUnknown(),
+																											},
+																											Attributes: map[string]schema.Attribute{
+																												"name": schema.StringAttribute{
+																													Description: "Name of a public IP address SKU.",
+																													Optional:    true,
+																													Computed:    true,
+																													Validators: []validator.String{
+																														stringvalidator.OneOf(
+																															"Basic",
+																															"Standard",
+																															"StandardV2",
+																														),
+																													},
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																												"tier": schema.StringAttribute{
+																													Description: "Tier of a public IP address SKU.",
+																													Optional:    true,
+																													Computed:    true,
+																													Validators: []validator.String{
+																														stringvalidator.OneOf(
+																															"Regional",
+																															"Global",
+																														),
+																													},
+																													PlanModifiers: []planmodifier.String{
+																														stringplanmodifier.UseStateForUnknown(),
+																													},
+																												},
+																											},
+																										},
+																										"tags": schema.MapAttribute{
+																											Description: "Resource tags.",
+																											Optional:    true,
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.Map{
+																												mapplanmodifier.UseStateForUnknown(),
+																											},
+																											ElementType: types.StringType,
+																										},
+																										"type": schema.StringAttribute{
+																											Description: "Resource type.",
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.String{
+																												stringplanmodifier.UseStateForUnknown(),
+																											},
+																										},
+																										"zones": schema.ListAttribute{
+																											Description: "A list of availability zones denoting the IP allocated for the resource needs to come from.",
+																											Optional:    true,
+																											Computed:    true,
+																											PlanModifiers: []planmodifier.List{
+																												listplanmodifier.UseStateForUnknown(),
+																											},
+																											ElementType: types.StringType,
+																										},
+																									},
+																								},
+																								"subnet": schema.StringAttribute{
+																									Description: "Subnet bound to the IP configuration.",
+																									Optional:    true,
+																									Computed:    true,
+																								},
+																								"virtual_network_taps": schema.ListNestedAttribute{
+																									Description: "The reference to Virtual Network Taps.",
+																									Optional:    true,
+																									Computed:    true,
+																									PlanModifiers: []planmodifier.List{
+																										listplanmodifier.UseStateForUnknown(),
+																									},
+																									NestedObject: schema.NestedAttributeObject{
+																										Attributes: map[string]schema.Attribute{
+																											"etag": schema.StringAttribute{
+																												Description: "A unique read-only string that changes whenever the resource is updated.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"id": schema.StringAttribute{
+																												Description: "Resource ID.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"location": schema.StringAttribute{
+																												Description: "Resource location.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													planmodifiers.UseStateForEquivalentLocation(),
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"name": schema.StringAttribute{
+																												Description: "Resource name.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																											"properties": schema.SingleNestedAttribute{
+																												Description: "Virtual Network Tap Properties.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.Object{
+																													objectplanmodifier.UseStateForUnknown(),
+																												},
+																												Attributes: map[string]schema.Attribute{
+																													"destination_load_balancer_front_end_ip_configuration": schema.SingleNestedAttribute{
+																														Description: "The reference to the private IP address on the internal Load Balancer that will receive the tap.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Object{
+																															objectplanmodifier.UseStateForUnknown(),
+																														},
+																														Attributes: map[string]schema.Attribute{
+																															"etag": schema.StringAttribute{
+																																Description: "A unique read-only string that changes whenever the resource is updated.",
+																																Computed:    true,
+																																PlanModifiers: []planmodifier.String{
+																																	stringplanmodifier.UseStateForUnknown(),
+																																},
+																															},
+																															"id": schema.StringAttribute{
+																																Description: "Resource ID.",
+																																Optional:    true,
+																																Computed:    true,
+																																PlanModifiers: []planmodifier.String{
+																																	stringplanmodifier.UseStateForUnknown(),
+																																},
+																															},
+																															"name": schema.StringAttribute{
+																																Description: "Name of the resource.",
+																																Optional:    true,
+																																Computed:    true,
+																																PlanModifiers: []planmodifier.String{
+																																	stringplanmodifier.UseStateForUnknown(),
+																																},
+																															},
+																															"properties": schema.SingleNestedAttribute{
+																																Description: "Properties of the load balancer probe.",
+																																Optional:    true,
+																																Computed:    true,
+																																PlanModifiers: []planmodifier.Object{
+																																	objectplanmodifier.UseStateForUnknown(),
+																																},
+																																Attributes: map[string]schema.Attribute{
+																																	"ddos_settings": schema.SingleNestedAttribute{
+																																		Description: "The DDoS protection settings associated with the frontend IP configuration.",
+																																		Optional:    true,
+																																		Computed:    true,
+																																		PlanModifiers: []planmodifier.Object{
+																																			objectplanmodifier.UseStateForUnknown(),
+																																		},
+																																		Attributes: map[string]schema.Attribute{
+																																			"ddos_custom_policy": schema.SingleNestedAttribute{
+																																				Description: "The reference to the DDoS Custom Policy resource.",
+																																				Required:    true,
+																																				Attributes: map[string]schema.Attribute{
+																																					"id": schema.StringAttribute{
+																																						Description: "Resource ID.",
+																																						Required:    true,
+																																						Validators: []validator.String{
+																																							validators.AzureResourceID(),
+																																						},
+																																					},
+																																				},
+																																			},
+																																		},
+																																	},
+																																	"gateway_load_balancer": schema.SingleNestedAttribute{
+																																		Description: "The reference to gateway load balancer frontend IP.",
+																																		Optional:    true,
+																																		Computed:    true,
+																																		PlanModifiers: []planmodifier.Object{
+																																			objectplanmodifier.UseStateForUnknown(),
+																																		},
+																																		Attributes: map[string]schema.Attribute{
+																																			"id": schema.StringAttribute{
+																																				Description: "Resource ID.",
+																																				Required:    true,
+																																				Validators: []validator.String{
+																																					validators.AzureResourceID(),
+																																				},
+																																			},
+																																		},
+																																	},
+																																	"inbound_nat_pools": schema.ListNestedAttribute{
+																																		Description: "An array of references to inbound pools that use this frontend IP.",
+																																		Computed:    true,
+																																		PlanModifiers: []planmodifier.List{
+																																			listplanmodifier.UseStateForUnknown(),
+																																		},
+																																		NestedObject: schema.NestedAttributeObject{
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						validators.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																	},
+																																	"inbound_nat_rules": schema.ListNestedAttribute{
+																																		Description: "An array of references to inbound rules that use this frontend IP.",
+																																		Computed:    true,
+																																		PlanModifiers: []planmodifier.List{
+																																			listplanmodifier.UseStateForUnknown(),
+																																		},
+																																		NestedObject: schema.NestedAttributeObject{
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						validators.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																	},
+																																	"load_balancing_rules": schema.ListNestedAttribute{
+																																		Description: "An array of references to load balancing rules that use this frontend IP.",
+																																		Computed:    true,
+																																		PlanModifiers: []planmodifier.List{
+																																			listplanmodifier.UseStateForUnknown(),
+																																		},
+																																		NestedObject: schema.NestedAttributeObject{
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						validators.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																	},
+																																	"outbound_rules": schema.ListNestedAttribute{
+																																		Description: "An array of references to outbound rules that use this frontend IP.",
+																																		Computed:    true,
+																																		PlanModifiers: []planmodifier.List{
+																																			listplanmodifier.UseStateForUnknown(),
+																																		},
+																																		NestedObject: schema.NestedAttributeObject{
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						validators.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																	},
+																																	"private_ip_address": schema.StringAttribute{
+																																		Description: "The private IP address of the IP configuration.",
+																																		Optional:    true,
+																																		Computed:    true,
+																																		PlanModifiers: []planmodifier.String{
+																																			stringplanmodifier.UseStateForUnknown(),
+																																		},
+																																	},
+																																	"private_ip_address_version": schema.StringAttribute{
+																																		Description: "Whether the specific ipconfiguration is IPv4 or IPv6. Default is taken as IPv4.",
+																																		Optional:    true,
+																																		Computed:    true,
+																																		Validators: []validator.String{
+																																			stringvalidator.OneOf(
+																																				"IPv4",
+																																				"IPv6",
+																																			),
+																																		},
+																																		PlanModifiers: []planmodifier.String{
+																																			stringplanmodifier.UseStateForUnknown(),
+																																		},
+																																	},
+																																	"private_ip_allocation_method": schema.StringAttribute{
+																																		Description: "The Private IP allocation method.",
+																																		Optional:    true,
+																																		Computed:    true,
+																																		Validators: []validator.String{
+																																			stringvalidator.OneOf(
+																																				"Static",
+																																				"Dynamic",
+																																			),
+																																		},
+																																		PlanModifiers: []planmodifier.String{
+																																			stringplanmodifier.UseStateForUnknown(),
+																																		},
+																																	},
+																																	"provisioning_state": schema.StringAttribute{
+																																		Description: "The provisioning state of the frontend IP configuration resource.",
+																																		Computed:    true,
+																																		PlanModifiers: []planmodifier.String{
+																																			stringplanmodifier.UseStateForUnknown(),
+																																		},
+																																	},
+																																	"public_ip_address": schema.SingleNestedAttribute{
+																																		Description: "The reference to the Public IP resource.",
+																																		Optional:    true,
+																																		Computed:    true,
+																																		PlanModifiers: []planmodifier.Object{
+																																			objectplanmodifier.UseStateForUnknown(),
+																																		},
+																																		Attributes: map[string]schema.Attribute{
+																																			"etag": schema.StringAttribute{
+																																				Description: "A unique read-only string that changes whenever the resource is updated.",
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.String{
+																																					stringplanmodifier.UseStateForUnknown(),
+																																				},
+																																			},
+																																			"extended_location": schema.SingleNestedAttribute{
+																																				Description: "The extended location of the public ip address.",
+																																				Optional:    true,
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.Object{
+																																					objectplanmodifier.UseStateForUnknown(),
+																																				},
+																																				Attributes: map[string]schema.Attribute{
+																																					"name": schema.StringAttribute{
+																																						Description: "The name of the extended location.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"type": schema.StringAttribute{
+																																						Description: "The type of the extended location.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						Validators: []validator.String{
+																																							stringvalidator.OneOf(
+																																								"EdgeZone",
+																																							),
+																																						},
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																				},
+																																			},
+																																			"id": schema.StringAttribute{
+																																				Description: "Resource ID.",
+																																				Optional:    true,
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.String{
+																																					stringplanmodifier.UseStateForUnknown(),
+																																				},
+																																			},
+																																			"location": schema.StringAttribute{
+																																				Description: "Resource location.",
+																																				Optional:    true,
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.String{
+																																					planmodifiers.UseStateForEquivalentLocation(),
+																																					stringplanmodifier.UseStateForUnknown(),
+																																				},
+																																			},
+																																			"name": schema.StringAttribute{
+																																				Description: "Resource name.",
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.String{
+																																					stringplanmodifier.UseStateForUnknown(),
+																																				},
+																																			},
+																																			"properties": schema.SingleNestedAttribute{
+																																				Description: "Public IP address properties.",
+																																				Optional:    true,
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.Object{
+																																					objectplanmodifier.UseStateForUnknown(),
+																																				},
+																																				Attributes: map[string]schema.Attribute{
+																																					"ddos_settings": schema.SingleNestedAttribute{
+																																						Description: "The DDoS protection custom policy associated with the public IP address.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.Object{
+																																							objectplanmodifier.UseStateForUnknown(),
+																																						},
+																																						Attributes: map[string]schema.Attribute{
+																																							"ddos_custom_policy": schema.SingleNestedAttribute{
+																																								Description: "The DDoS custom policy associated with the public IP.",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.Object{
+																																									objectplanmodifier.UseStateForUnknown(),
+																																								},
+																																								Attributes: map[string]schema.Attribute{
+																																									"id": schema.StringAttribute{
+																																										Description: "Resource ID.",
+																																										Required:    true,
+																																										Validators: []validator.String{
+																																											validators.AzureResourceID(),
+																																										},
+																																									},
+																																								},
+																																							},
+																																							"ddos_protection_plan": schema.SingleNestedAttribute{
+																																								Description: "The DDoS protection plan associated with the public IP. Can only be set if ProtectionMode is Enabled",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.Object{
+																																									objectplanmodifier.UseStateForUnknown(),
+																																								},
+																																								Attributes: map[string]schema.Attribute{
+																																									"id": schema.StringAttribute{
+																																										Description: "Resource ID.",
+																																										Required:    true,
+																																										Validators: []validator.String{
+																																											validators.AzureResourceID(),
+																																										},
+																																									},
+																																								},
+																																							},
+																																							"protection_mode": schema.StringAttribute{
+																																								Description: "The DDoS protection mode of the public IP",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								Validators: []validator.String{
+																																									stringvalidator.OneOf(
+																																										"VirtualNetworkInherited",
+																																										"Enabled",
+																																										"Disabled",
+																																									),
+																																								},
+																																								PlanModifiers: []planmodifier.String{
+																																									stringplanmodifier.UseStateForUnknown(),
+																																								},
+																																							},
+																																						},
+																																					},
+																																					"delete_option": schema.StringAttribute{
+																																						Description: "Specify what happens to the public IP address when the VM using it is deleted",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						Validators: []validator.String{
+																																							stringvalidator.OneOf(
+																																								"Delete",
+																																								"Detach",
+																																							),
+																																						},
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"dns_settings": schema.SingleNestedAttribute{
+																																						Description: "The FQDN of the DNS record associated with the public IP address.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.Object{
+																																							objectplanmodifier.UseStateForUnknown(),
+																																						},
+																																						Attributes: map[string]schema.Attribute{
+																																							"domain_name_label": schema.StringAttribute{
+																																								Description: "The domain name label. The concatenation of the domain name label and the regionalized DNS zone make up the fully qualified domain name associated with the public IP address. If a domain name label is...",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.String{
+																																									stringplanmodifier.UseStateForUnknown(),
+																																								},
+																																							},
+																																							"domain_name_label_scope": schema.StringAttribute{
+																																								Description: "The domain name label scope. If a domain name label and a domain name label scope are specified, an A DNS record is created for the public IP in the Microsoft Azure DNS system with a hashed value incl...",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								Validators: []validator.String{
+																																									stringvalidator.OneOf(
+																																										"TenantReuse",
+																																										"SubscriptionReuse",
+																																										"ResourceGroupReuse",
+																																										"NoReuse",
+																																									),
+																																								},
+																																								PlanModifiers: []planmodifier.String{
+																																									stringplanmodifier.UseStateForUnknown(),
+																																								},
+																																							},
+																																							"fqdn": schema.StringAttribute{
+																																								Description: "The Fully Qualified Domain Name of the A DNS record associated with the public IP. This is the concatenation of the domainNameLabel and the regionalized DNS zone.",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.String{
+																																									stringplanmodifier.UseStateForUnknown(),
+																																								},
+																																							},
+																																							"reverse_fqdn": schema.StringAttribute{
+																																								Description: "The reverse FQDN. A user-visible, fully qualified domain name that resolves to this public IP address. If the reverseFqdn is specified, then a PTR DNS record is created pointing from the IP address in...",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.String{
+																																									stringplanmodifier.UseStateForUnknown(),
+																																								},
+																																							},
+																																						},
+																																					},
+																																					"idle_timeout_in_minutes": schema.Int64Attribute{
+																																						Description: "The idle timeout of the public IP address.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.Int64{
+																																							int64planmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"ip_address": schema.StringAttribute{
+																																						Description: "The IP address associated with the public IP address resource.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"ip_configuration": schema.StringAttribute{
+																																						Description: "The IP configuration associated with the public IP address.",
+																																						Computed:    true,
+																																					},
+																																					"ip_tags": schema.ListNestedAttribute{
+																																						Description: "The list of tags associated with the public IP address.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.List{
+																																							listplanmodifier.UseStateForUnknown(),
+																																						},
+																																						NestedObject: schema.NestedAttributeObject{
+																																							Attributes: map[string]schema.Attribute{
+																																								"ip_tag_type": schema.StringAttribute{
+																																									Description: "The IP tag type. Example: FirstPartyUsage.",
+																																									Optional:    true,
+																																									Computed:    true,
+																																									PlanModifiers: []planmodifier.String{
+																																										stringplanmodifier.UseStateForUnknown(),
+																																									},
+																																								},
+																																								"tag": schema.StringAttribute{
+																																									Description: "The value of the IP tag associated with the public IP. Example: SQL.",
+																																									Optional:    true,
+																																									Computed:    true,
+																																									PlanModifiers: []planmodifier.String{
+																																										stringplanmodifier.UseStateForUnknown(),
+																																									},
+																																								},
+																																							},
+																																						},
+																																					},
+																																					"linked_public_ip_address": schema.StringAttribute{
+																																						Description: "The linked public IP address of the public IP address resource.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																					},
+																																					"migration_phase": schema.StringAttribute{
+																																						Description: "Migration phase of Public IP Address.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						Validators: []validator.String{
+																																							stringvalidator.OneOf(
+																																								"None",
+																																								"Prepare",
+																																								"Commit",
+																																								"Abort",
+																																								"Committed",
+																																							),
+																																						},
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"nat_gateway": schema.SingleNestedAttribute{
+																																						Description: "The NatGateway for the Public IP address.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.Object{
+																																							objectplanmodifier.UseStateForUnknown(),
+																																						},
+																																						Attributes: map[string]schema.Attribute{
+																																							"etag": schema.StringAttribute{
+																																								Description: "A unique read-only string that changes whenever the resource is updated.",
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.String{
+																																									stringplanmodifier.UseStateForUnknown(),
+																																								},
+																																							},
+																																							"id": schema.StringAttribute{
+																																								Description: "Resource ID.",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.String{
+																																									stringplanmodifier.UseStateForUnknown(),
+																																								},
+																																							},
+																																							"location": schema.StringAttribute{
+																																								Description: "Resource location.",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.String{
+																																									planmodifiers.UseStateForEquivalentLocation(),
+																																									stringplanmodifier.UseStateForUnknown(),
+																																								},
+																																							},
+																																							"name": schema.StringAttribute{
+																																								Description: "Resource name.",
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.String{
+																																									stringplanmodifier.UseStateForUnknown(),
+																																								},
+																																							},
+																																							"properties": schema.SingleNestedAttribute{
+																																								Description: "Nat Gateway properties.",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.Object{
+																																									objectplanmodifier.UseStateForUnknown(),
+																																								},
+																																								Attributes: map[string]schema.Attribute{
+																																									"idle_timeout_in_minutes": schema.Int64Attribute{
+																																										Description: "The idle timeout of the nat gateway.",
+																																										Optional:    true,
+																																										Computed:    true,
+																																										PlanModifiers: []planmodifier.Int64{
+																																											int64planmodifier.UseStateForUnknown(),
+																																										},
+																																									},
+																																									"nat64": schema.StringAttribute{
+																																										Description: "Whether Nat64 is enabled for the NAT gateway resource.",
+																																										Optional:    true,
+																																										Computed:    true,
+																																										Validators: []validator.String{
+																																											stringvalidator.OneOf(
+																																												"None",
+																																												"Enabled",
+																																												"Disabled",
+																																											),
+																																										},
+																																										PlanModifiers: []planmodifier.String{
+																																											stringplanmodifier.UseStateForUnknown(),
+																																										},
+																																									},
+																																									"provisioning_state": schema.StringAttribute{
+																																										Description: "The provisioning state of the NAT gateway resource.",
+																																										Computed:    true,
+																																										PlanModifiers: []planmodifier.String{
+																																											stringplanmodifier.UseStateForUnknown(),
+																																										},
+																																									},
+																																									"public_ip_addresses": schema.ListNestedAttribute{
+																																										Description: "An array of public ip addresses V4 associated with the nat gateway resource.",
+																																										Optional:    true,
+																																										Computed:    true,
+																																										PlanModifiers: []planmodifier.List{
+																																											listplanmodifier.UseStateForUnknown(),
+																																										},
+																																										NestedObject: schema.NestedAttributeObject{
+																																											Attributes: map[string]schema.Attribute{
+																																												"id": schema.StringAttribute{
+																																													Description: "Resource ID.",
+																																													Required:    true,
+																																													Validators: []validator.String{
+																																														validators.AzureResourceID(),
+																																													},
+																																												},
+																																											},
+																																										},
+																																									},
+																																									"public_ip_addresses_v6": schema.ListNestedAttribute{
+																																										Description: "An array of public ip addresses V6 associated with the nat gateway resource.",
+																																										Optional:    true,
+																																										Computed:    true,
+																																										PlanModifiers: []planmodifier.List{
+																																											listplanmodifier.UseStateForUnknown(),
+																																										},
+																																										NestedObject: schema.NestedAttributeObject{
+																																											Attributes: map[string]schema.Attribute{
+																																												"id": schema.StringAttribute{
+																																													Description: "Resource ID.",
+																																													Required:    true,
+																																													Validators: []validator.String{
+																																														validators.AzureResourceID(),
+																																													},
+																																												},
+																																											},
+																																										},
+																																									},
+																																									"public_ip_prefixes": schema.ListNestedAttribute{
+																																										Description: "An array of public ip prefixes V4 associated with the nat gateway resource.",
+																																										Optional:    true,
+																																										Computed:    true,
+																																										PlanModifiers: []planmodifier.List{
+																																											listplanmodifier.UseStateForUnknown(),
+																																										},
+																																										NestedObject: schema.NestedAttributeObject{
+																																											Attributes: map[string]schema.Attribute{
+																																												"id": schema.StringAttribute{
+																																													Description: "Resource ID.",
+																																													Required:    true,
+																																													Validators: []validator.String{
+																																														validators.AzureResourceID(),
+																																													},
+																																												},
+																																											},
+																																										},
+																																									},
+																																									"public_ip_prefixes_v6": schema.ListNestedAttribute{
+																																										Description: "An array of public ip prefixes V6 associated with the nat gateway resource.",
+																																										Optional:    true,
+																																										Computed:    true,
+																																										PlanModifiers: []planmodifier.List{
+																																											listplanmodifier.UseStateForUnknown(),
+																																										},
+																																										NestedObject: schema.NestedAttributeObject{
+																																											Attributes: map[string]schema.Attribute{
+																																												"id": schema.StringAttribute{
+																																													Description: "Resource ID.",
+																																													Required:    true,
+																																													Validators: []validator.String{
+																																														validators.AzureResourceID(),
+																																													},
+																																												},
+																																											},
+																																										},
+																																									},
+																																									"resource_guid": schema.StringAttribute{
+																																										Description: "The resource GUID property of the NAT gateway resource.",
+																																										Computed:    true,
+																																										PlanModifiers: []planmodifier.String{
+																																											stringplanmodifier.UseStateForUnknown(),
+																																										},
+																																									},
+																																									"service_gateway": schema.SingleNestedAttribute{
+																																										Description: "Reference to an existing service gateway.",
+																																										Optional:    true,
+																																										Computed:    true,
+																																										PlanModifiers: []planmodifier.Object{
+																																											objectplanmodifier.UseStateForUnknown(),
+																																										},
+																																										Attributes: map[string]schema.Attribute{
+																																											"id": schema.StringAttribute{
+																																												Description: "Resource ID.",
+																																												Required:    true,
+																																												Validators: []validator.String{
+																																													validators.AzureResourceID(),
+																																												},
+																																											},
+																																										},
+																																									},
+																																									"source_virtual_network": schema.SingleNestedAttribute{
+																																										Description: "A reference to the source virtual network using this nat gateway resource.",
+																																										Optional:    true,
+																																										Computed:    true,
+																																										PlanModifiers: []planmodifier.Object{
+																																											objectplanmodifier.UseStateForUnknown(),
+																																										},
+																																										Attributes: map[string]schema.Attribute{
+																																											"id": schema.StringAttribute{
+																																												Description: "Resource ID.",
+																																												Required:    true,
+																																												Validators: []validator.String{
+																																													validators.AzureResourceID(),
+																																												},
+																																											},
+																																										},
+																																									},
+																																									"subnets": schema.ListNestedAttribute{
+																																										Description: "An array of references to the subnets using this nat gateway resource.",
+																																										Computed:    true,
+																																										PlanModifiers: []planmodifier.List{
+																																											listplanmodifier.UseStateForUnknown(),
+																																										},
+																																										NestedObject: schema.NestedAttributeObject{
+																																											Attributes: map[string]schema.Attribute{
+																																												"id": schema.StringAttribute{
+																																													Description: "Resource ID.",
+																																													Required:    true,
+																																													Validators: []validator.String{
+																																														validators.AzureResourceID(),
+																																													},
+																																												},
+																																											},
+																																										},
+																																									},
+																																								},
+																																							},
+																																							"sku": schema.SingleNestedAttribute{
+																																								Description: "The nat gateway SKU.",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.Object{
+																																									objectplanmodifier.UseStateForUnknown(),
+																																								},
+																																								Attributes: map[string]schema.Attribute{
+																																									"name": schema.StringAttribute{
+																																										Description: "Name of Nat Gateway SKU.",
+																																										Required:    true,
+																																										Validators: []validator.String{
+																																											stringvalidator.OneOf(
+																																												"Standard",
+																																												"StandardV2",
+																																											),
+																																										},
+																																									},
+																																								},
+																																							},
+																																							"tags": schema.MapAttribute{
+																																								Description: "Resource tags.",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.Map{
+																																									mapplanmodifier.UseStateForUnknown(),
+																																								},
+																																								ElementType: types.StringType,
+																																							},
+																																							"type": schema.StringAttribute{
+																																								Description: "Resource type.",
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.String{
+																																									stringplanmodifier.UseStateForUnknown(),
+																																								},
+																																							},
+																																							"zones": schema.ListAttribute{
+																																								Description: "A list of availability zones denoting the zone in which Nat Gateway should be deployed.",
+																																								Optional:    true,
+																																								Computed:    true,
+																																								PlanModifiers: []planmodifier.List{
+																																									listplanmodifier.UseStateForUnknown(),
+																																								},
+																																								ElementType: types.StringType,
+																																							},
+																																						},
+																																					},
+																																					"provisioning_state": schema.StringAttribute{
+																																						Description: "The provisioning state of the public IP address resource.",
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"public_ip_address_version": schema.StringAttribute{
+																																						Description: "The public IP address version.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						Validators: []validator.String{
+																																							stringvalidator.OneOf(
+																																								"IPv4",
+																																								"IPv6",
+																																							),
+																																						},
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"public_ip_allocation_method": schema.StringAttribute{
+																																						Description: "The public IP address allocation method.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						Validators: []validator.String{
+																																							stringvalidator.OneOf(
+																																								"Static",
+																																								"Dynamic",
+																																							),
+																																						},
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"public_ip_prefix": schema.SingleNestedAttribute{
+																																						Description: "The Public IP Prefix this Public IP Address should be allocated from.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.Object{
+																																							objectplanmodifier.UseStateForUnknown(),
+																																						},
+																																						Attributes: map[string]schema.Attribute{
+																																							"id": schema.StringAttribute{
+																																								Description: "Resource ID.",
+																																								Required:    true,
+																																								Validators: []validator.String{
+																																									validators.AzureResourceID(),
+																																								},
+																																							},
+																																						},
+																																					},
+																																					"resource_guid": schema.StringAttribute{
+																																						Description: "The resource GUID property of the public IP address resource.",
+																																						Computed:    true,
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"service_public_ip_address": schema.StringAttribute{
+																																						Description: "The service public IP address of the public IP address resource.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																					},
+																																				},
+																																			},
+																																			"sku": schema.SingleNestedAttribute{
+																																				Description: "The public IP address SKU.",
+																																				Optional:    true,
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.Object{
+																																					objectplanmodifier.UseStateForUnknown(),
+																																				},
+																																				Attributes: map[string]schema.Attribute{
+																																					"name": schema.StringAttribute{
+																																						Description: "Name of a public IP address SKU.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						Validators: []validator.String{
+																																							stringvalidator.OneOf(
+																																								"Basic",
+																																								"Standard",
+																																								"StandardV2",
+																																							),
+																																						},
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																					"tier": schema.StringAttribute{
+																																						Description: "Tier of a public IP address SKU.",
+																																						Optional:    true,
+																																						Computed:    true,
+																																						Validators: []validator.String{
+																																							stringvalidator.OneOf(
+																																								"Regional",
+																																								"Global",
+																																							),
+																																						},
+																																						PlanModifiers: []planmodifier.String{
+																																							stringplanmodifier.UseStateForUnknown(),
+																																						},
+																																					},
+																																				},
+																																			},
+																																			"tags": schema.MapAttribute{
+																																				Description: "Resource tags.",
+																																				Optional:    true,
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.Map{
+																																					mapplanmodifier.UseStateForUnknown(),
+																																				},
+																																				ElementType: types.StringType,
+																																			},
+																																			"type": schema.StringAttribute{
+																																				Description: "Resource type.",
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.String{
+																																					stringplanmodifier.UseStateForUnknown(),
+																																				},
+																																			},
+																																			"zones": schema.ListAttribute{
+																																				Description: "A list of availability zones denoting the IP allocated for the resource needs to come from.",
+																																				Optional:    true,
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.List{
+																																					listplanmodifier.UseStateForUnknown(),
+																																				},
+																																				ElementType: types.StringType,
+																																			},
+																																		},
+																																	},
+																																	"public_ip_prefix": schema.SingleNestedAttribute{
+																																		Description: "The reference to the Public IP Prefix resource.",
+																																		Optional:    true,
+																																		Computed:    true,
+																																		PlanModifiers: []planmodifier.Object{
+																																			objectplanmodifier.UseStateForUnknown(),
+																																		},
+																																		Attributes: map[string]schema.Attribute{
+																																			"id": schema.StringAttribute{
+																																				Description: "Resource ID.",
+																																				Required:    true,
+																																				Validators: []validator.String{
+																																					validators.AzureResourceID(),
+																																				},
+																																			},
+																																		},
+																																	},
+																																	"subnet": schema.StringAttribute{
+																																		Description: "The reference to the subnet resource.",
+																																		Optional:    true,
+																																		Computed:    true,
+																																	},
+																																},
+																															},
+																															"type": schema.StringAttribute{
+																																Description: "Resource type.",
+																																Computed:    true,
+																																PlanModifiers: []planmodifier.String{
+																																	stringplanmodifier.UseStateForUnknown(),
+																																},
+																															},
+																															"zones": schema.ListAttribute{
+																																Description: "A list of availability zones denoting the IP allocated for the resource needs to come from.",
+																																Optional:    true,
+																																Computed:    true,
+																																PlanModifiers: []planmodifier.List{
+																																	listplanmodifier.UseStateForUnknown(),
+																																},
+																																ElementType: types.StringType,
+																															},
+																														},
+																													},
+																													"destination_network_interface_ip_configuration": schema.StringAttribute{
+																														Description: "The reference to the private IP Address of the collector nic that will receive the tap.",
+																														Optional:    true,
+																														Computed:    true,
+																													},
+																													"destination_port": schema.Int64Attribute{
+																														Description: "The VXLAN destination port that will receive the tapped traffic.",
+																														Optional:    true,
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.Int64{
+																															int64planmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"network_interface_tap_configurations": schema.ListNestedAttribute{
+																														Description: "Specifies the list of resource IDs for the network interface IP configuration that needs to be tapped.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.List{
+																															listplanmodifier.UseStateForUnknown(),
+																														},
+																														NestedObject: schema.NestedAttributeObject{
+																															Attributes: map[string]schema.Attribute{
+																																"etag": schema.StringAttribute{
+																																	Description: "A unique read-only string that changes whenever the resource is updated.",
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"id": schema.StringAttribute{
+																																	Description: "Resource ID.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"name": schema.StringAttribute{
+																																	Description: "Name of the resource.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"properties": schema.SingleNestedAttribute{
+																																	Description: "Properties of the Virtual Network Tap configuration.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Object{
+																																		objectplanmodifier.UseStateForUnknown(),
+																																	},
+																																	Attributes: map[string]schema.Attribute{
+																																		"provisioning_state": schema.StringAttribute{
+																																			Description: "The provisioning state of the network interface tap configuration resource.",
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"virtual_network_tap": schema.StringAttribute{
+																																			Description: "The reference to the Virtual Network Tap resource.",
+																																			Required:    true,
+																																		},
+																																	},
+																																},
+																																"type": schema.StringAttribute{
+																																	Description: "Resource type.",
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																															},
+																														},
+																													},
+																													"provisioning_state": schema.StringAttribute{
+																														Description: "The provisioning state of the virtual network tap resource.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.String{
+																															stringplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																													"resource_guid": schema.StringAttribute{
+																														Description: "The resource GUID property of the virtual network tap resource.",
+																														Computed:    true,
+																														PlanModifiers: []planmodifier.String{
+																															stringplanmodifier.UseStateForUnknown(),
+																														},
+																													},
+																												},
+																											},
+																											"tags": schema.MapAttribute{
+																												Description: "Resource tags.",
+																												Optional:    true,
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.Map{
+																													mapplanmodifier.UseStateForUnknown(),
+																												},
+																												ElementType: types.StringType,
+																											},
+																											"type": schema.StringAttribute{
+																												Description: "Resource type.",
+																												Computed:    true,
+																												PlanModifiers: []planmodifier.String{
+																													stringplanmodifier.UseStateForUnknown(),
+																												},
+																											},
+																										},
+																									},
+																								},
+																							},
+																						},
+																						"type": schema.StringAttribute{
+																							Description: "Resource type.",
+																							Computed:    true,
+																							PlanModifiers: []planmodifier.String{
+																								stringplanmodifier.UseStateForUnknown(),
+																							},
+																						},
+																					},
+																				},
 																			},
 																			"mac_address": schema.StringAttribute{
 																				Description: "The MAC address of the network interface.",
@@ -2832,10 +6175,669 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																														stringplanmodifier.UseStateForUnknown(),
 																													},
 																												},
-																												"public_ip_address": schema.StringAttribute{
+																												"public_ip_address": schema.SingleNestedAttribute{
 																													Description: "The reference to the Public IP resource.",
 																													Optional:    true,
 																													Computed:    true,
+																													PlanModifiers: []planmodifier.Object{
+																														objectplanmodifier.UseStateForUnknown(),
+																													},
+																													Attributes: map[string]schema.Attribute{
+																														"etag": schema.StringAttribute{
+																															Description: "A unique read-only string that changes whenever the resource is updated.",
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"extended_location": schema.SingleNestedAttribute{
+																															Description: "The extended location of the public ip address.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.Object{
+																																objectplanmodifier.UseStateForUnknown(),
+																															},
+																															Attributes: map[string]schema.Attribute{
+																																"name": schema.StringAttribute{
+																																	Description: "The name of the extended location.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"type": schema.StringAttribute{
+																																	Description: "The type of the extended location.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"EdgeZone",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																															},
+																														},
+																														"id": schema.StringAttribute{
+																															Description: "Resource ID.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"location": schema.StringAttribute{
+																															Description: "Resource location.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																planmodifiers.UseStateForEquivalentLocation(),
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"name": schema.StringAttribute{
+																															Description: "Resource name.",
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"properties": schema.SingleNestedAttribute{
+																															Description: "Public IP address properties.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.Object{
+																																objectplanmodifier.UseStateForUnknown(),
+																															},
+																															Attributes: map[string]schema.Attribute{
+																																"ddos_settings": schema.SingleNestedAttribute{
+																																	Description: "The DDoS protection custom policy associated with the public IP address.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Object{
+																																		objectplanmodifier.UseStateForUnknown(),
+																																	},
+																																	Attributes: map[string]schema.Attribute{
+																																		"ddos_custom_policy": schema.SingleNestedAttribute{
+																																			Description: "The DDoS custom policy associated with the public IP.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.Object{
+																																				objectplanmodifier.UseStateForUnknown(),
+																																			},
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						validators.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																		"ddos_protection_plan": schema.SingleNestedAttribute{
+																																			Description: "The DDoS protection plan associated with the public IP. Can only be set if ProtectionMode is Enabled",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.Object{
+																																				objectplanmodifier.UseStateForUnknown(),
+																																			},
+																																			Attributes: map[string]schema.Attribute{
+																																				"id": schema.StringAttribute{
+																																					Description: "Resource ID.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						validators.AzureResourceID(),
+																																					},
+																																				},
+																																			},
+																																		},
+																																		"protection_mode": schema.StringAttribute{
+																																			Description: "The DDoS protection mode of the public IP",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			Validators: []validator.String{
+																																				stringvalidator.OneOf(
+																																					"VirtualNetworkInherited",
+																																					"Enabled",
+																																					"Disabled",
+																																				),
+																																			},
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																	},
+																																},
+																																"delete_option": schema.StringAttribute{
+																																	Description: "Specify what happens to the public IP address when the VM using it is deleted",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"Delete",
+																																			"Detach",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"dns_settings": schema.SingleNestedAttribute{
+																																	Description: "The FQDN of the DNS record associated with the public IP address.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Object{
+																																		objectplanmodifier.UseStateForUnknown(),
+																																	},
+																																	Attributes: map[string]schema.Attribute{
+																																		"domain_name_label": schema.StringAttribute{
+																																			Description: "The domain name label. The concatenation of the domain name label and the regionalized DNS zone make up the fully qualified domain name associated with the public IP address. If a domain name label is...",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"domain_name_label_scope": schema.StringAttribute{
+																																			Description: "The domain name label scope. If a domain name label and a domain name label scope are specified, an A DNS record is created for the public IP in the Microsoft Azure DNS system with a hashed value incl...",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			Validators: []validator.String{
+																																				stringvalidator.OneOf(
+																																					"TenantReuse",
+																																					"SubscriptionReuse",
+																																					"ResourceGroupReuse",
+																																					"NoReuse",
+																																				),
+																																			},
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"fqdn": schema.StringAttribute{
+																																			Description: "The Fully Qualified Domain Name of the A DNS record associated with the public IP. This is the concatenation of the domainNameLabel and the regionalized DNS zone.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"reverse_fqdn": schema.StringAttribute{
+																																			Description: "The reverse FQDN. A user-visible, fully qualified domain name that resolves to this public IP address. If the reverseFqdn is specified, then a PTR DNS record is created pointing from the IP address in...",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																	},
+																																},
+																																"idle_timeout_in_minutes": schema.Int64Attribute{
+																																	Description: "The idle timeout of the public IP address.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Int64{
+																																		int64planmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"ip_address": schema.StringAttribute{
+																																	Description: "The IP address associated with the public IP address resource.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"ip_configuration": schema.StringAttribute{
+																																	Description: "The IP configuration associated with the public IP address.",
+																																	Computed:    true,
+																																},
+																																"ip_tags": schema.ListNestedAttribute{
+																																	Description: "The list of tags associated with the public IP address.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.List{
+																																		listplanmodifier.UseStateForUnknown(),
+																																	},
+																																	NestedObject: schema.NestedAttributeObject{
+																																		Attributes: map[string]schema.Attribute{
+																																			"ip_tag_type": schema.StringAttribute{
+																																				Description: "The IP tag type. Example: FirstPartyUsage.",
+																																				Optional:    true,
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.String{
+																																					stringplanmodifier.UseStateForUnknown(),
+																																				},
+																																			},
+																																			"tag": schema.StringAttribute{
+																																				Description: "The value of the IP tag associated with the public IP. Example: SQL.",
+																																				Optional:    true,
+																																				Computed:    true,
+																																				PlanModifiers: []planmodifier.String{
+																																					stringplanmodifier.UseStateForUnknown(),
+																																				},
+																																			},
+																																		},
+																																	},
+																																},
+																																"linked_public_ip_address": schema.StringAttribute{
+																																	Description: "The linked public IP address of the public IP address resource.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																},
+																																"migration_phase": schema.StringAttribute{
+																																	Description: "Migration phase of Public IP Address.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"None",
+																																			"Prepare",
+																																			"Commit",
+																																			"Abort",
+																																			"Committed",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"nat_gateway": schema.SingleNestedAttribute{
+																																	Description: "The NatGateway for the Public IP address.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Object{
+																																		objectplanmodifier.UseStateForUnknown(),
+																																	},
+																																	Attributes: map[string]schema.Attribute{
+																																		"etag": schema.StringAttribute{
+																																			Description: "A unique read-only string that changes whenever the resource is updated.",
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"id": schema.StringAttribute{
+																																			Description: "Resource ID.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"location": schema.StringAttribute{
+																																			Description: "Resource location.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.String{
+																																				planmodifiers.UseStateForEquivalentLocation(),
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"name": schema.StringAttribute{
+																																			Description: "Resource name.",
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"properties": schema.SingleNestedAttribute{
+																																			Description: "Nat Gateway properties.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.Object{
+																																				objectplanmodifier.UseStateForUnknown(),
+																																			},
+																																			Attributes: map[string]schema.Attribute{
+																																				"idle_timeout_in_minutes": schema.Int64Attribute{
+																																					Description: "The idle timeout of the nat gateway.",
+																																					Optional:    true,
+																																					Computed:    true,
+																																					PlanModifiers: []planmodifier.Int64{
+																																						int64planmodifier.UseStateForUnknown(),
+																																					},
+																																				},
+																																				"nat64": schema.StringAttribute{
+																																					Description: "Whether Nat64 is enabled for the NAT gateway resource.",
+																																					Optional:    true,
+																																					Computed:    true,
+																																					Validators: []validator.String{
+																																						stringvalidator.OneOf(
+																																							"None",
+																																							"Enabled",
+																																							"Disabled",
+																																						),
+																																					},
+																																					PlanModifiers: []planmodifier.String{
+																																						stringplanmodifier.UseStateForUnknown(),
+																																					},
+																																				},
+																																				"provisioning_state": schema.StringAttribute{
+																																					Description: "The provisioning state of the NAT gateway resource.",
+																																					Computed:    true,
+																																					PlanModifiers: []planmodifier.String{
+																																						stringplanmodifier.UseStateForUnknown(),
+																																					},
+																																				},
+																																				"public_ip_addresses": schema.ListNestedAttribute{
+																																					Description: "An array of public ip addresses V4 associated with the nat gateway resource.",
+																																					Optional:    true,
+																																					Computed:    true,
+																																					PlanModifiers: []planmodifier.List{
+																																						listplanmodifier.UseStateForUnknown(),
+																																					},
+																																					NestedObject: schema.NestedAttributeObject{
+																																						Attributes: map[string]schema.Attribute{
+																																							"id": schema.StringAttribute{
+																																								Description: "Resource ID.",
+																																								Required:    true,
+																																								Validators: []validator.String{
+																																									validators.AzureResourceID(),
+																																								},
+																																							},
+																																						},
+																																					},
+																																				},
+																																				"public_ip_addresses_v6": schema.ListNestedAttribute{
+																																					Description: "An array of public ip addresses V6 associated with the nat gateway resource.",
+																																					Optional:    true,
+																																					Computed:    true,
+																																					PlanModifiers: []planmodifier.List{
+																																						listplanmodifier.UseStateForUnknown(),
+																																					},
+																																					NestedObject: schema.NestedAttributeObject{
+																																						Attributes: map[string]schema.Attribute{
+																																							"id": schema.StringAttribute{
+																																								Description: "Resource ID.",
+																																								Required:    true,
+																																								Validators: []validator.String{
+																																									validators.AzureResourceID(),
+																																								},
+																																							},
+																																						},
+																																					},
+																																				},
+																																				"public_ip_prefixes": schema.ListNestedAttribute{
+																																					Description: "An array of public ip prefixes V4 associated with the nat gateway resource.",
+																																					Optional:    true,
+																																					Computed:    true,
+																																					PlanModifiers: []planmodifier.List{
+																																						listplanmodifier.UseStateForUnknown(),
+																																					},
+																																					NestedObject: schema.NestedAttributeObject{
+																																						Attributes: map[string]schema.Attribute{
+																																							"id": schema.StringAttribute{
+																																								Description: "Resource ID.",
+																																								Required:    true,
+																																								Validators: []validator.String{
+																																									validators.AzureResourceID(),
+																																								},
+																																							},
+																																						},
+																																					},
+																																				},
+																																				"public_ip_prefixes_v6": schema.ListNestedAttribute{
+																																					Description: "An array of public ip prefixes V6 associated with the nat gateway resource.",
+																																					Optional:    true,
+																																					Computed:    true,
+																																					PlanModifiers: []planmodifier.List{
+																																						listplanmodifier.UseStateForUnknown(),
+																																					},
+																																					NestedObject: schema.NestedAttributeObject{
+																																						Attributes: map[string]schema.Attribute{
+																																							"id": schema.StringAttribute{
+																																								Description: "Resource ID.",
+																																								Required:    true,
+																																								Validators: []validator.String{
+																																									validators.AzureResourceID(),
+																																								},
+																																							},
+																																						},
+																																					},
+																																				},
+																																				"resource_guid": schema.StringAttribute{
+																																					Description: "The resource GUID property of the NAT gateway resource.",
+																																					Computed:    true,
+																																					PlanModifiers: []planmodifier.String{
+																																						stringplanmodifier.UseStateForUnknown(),
+																																					},
+																																				},
+																																				"service_gateway": schema.SingleNestedAttribute{
+																																					Description: "Reference to an existing service gateway.",
+																																					Optional:    true,
+																																					Computed:    true,
+																																					PlanModifiers: []planmodifier.Object{
+																																						objectplanmodifier.UseStateForUnknown(),
+																																					},
+																																					Attributes: map[string]schema.Attribute{
+																																						"id": schema.StringAttribute{
+																																							Description: "Resource ID.",
+																																							Required:    true,
+																																							Validators: []validator.String{
+																																								validators.AzureResourceID(),
+																																							},
+																																						},
+																																					},
+																																				},
+																																				"source_virtual_network": schema.SingleNestedAttribute{
+																																					Description: "A reference to the source virtual network using this nat gateway resource.",
+																																					Optional:    true,
+																																					Computed:    true,
+																																					PlanModifiers: []planmodifier.Object{
+																																						objectplanmodifier.UseStateForUnknown(),
+																																					},
+																																					Attributes: map[string]schema.Attribute{
+																																						"id": schema.StringAttribute{
+																																							Description: "Resource ID.",
+																																							Required:    true,
+																																							Validators: []validator.String{
+																																								validators.AzureResourceID(),
+																																							},
+																																						},
+																																					},
+																																				},
+																																				"subnets": schema.ListNestedAttribute{
+																																					Description: "An array of references to the subnets using this nat gateway resource.",
+																																					Computed:    true,
+																																					PlanModifiers: []planmodifier.List{
+																																						listplanmodifier.UseStateForUnknown(),
+																																					},
+																																					NestedObject: schema.NestedAttributeObject{
+																																						Attributes: map[string]schema.Attribute{
+																																							"id": schema.StringAttribute{
+																																								Description: "Resource ID.",
+																																								Required:    true,
+																																								Validators: []validator.String{
+																																									validators.AzureResourceID(),
+																																								},
+																																							},
+																																						},
+																																					},
+																																				},
+																																			},
+																																		},
+																																		"sku": schema.SingleNestedAttribute{
+																																			Description: "The nat gateway SKU.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.Object{
+																																				objectplanmodifier.UseStateForUnknown(),
+																																			},
+																																			Attributes: map[string]schema.Attribute{
+																																				"name": schema.StringAttribute{
+																																					Description: "Name of Nat Gateway SKU.",
+																																					Required:    true,
+																																					Validators: []validator.String{
+																																						stringvalidator.OneOf(
+																																							"Standard",
+																																							"StandardV2",
+																																						),
+																																					},
+																																				},
+																																			},
+																																		},
+																																		"tags": schema.MapAttribute{
+																																			Description: "Resource tags.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.Map{
+																																				mapplanmodifier.UseStateForUnknown(),
+																																			},
+																																			ElementType: types.StringType,
+																																		},
+																																		"type": schema.StringAttribute{
+																																			Description: "Resource type.",
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.String{
+																																				stringplanmodifier.UseStateForUnknown(),
+																																			},
+																																		},
+																																		"zones": schema.ListAttribute{
+																																			Description: "A list of availability zones denoting the zone in which Nat Gateway should be deployed.",
+																																			Optional:    true,
+																																			Computed:    true,
+																																			PlanModifiers: []planmodifier.List{
+																																				listplanmodifier.UseStateForUnknown(),
+																																			},
+																																			ElementType: types.StringType,
+																																		},
+																																	},
+																																},
+																																"provisioning_state": schema.StringAttribute{
+																																	Description: "The provisioning state of the public IP address resource.",
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"public_ip_address_version": schema.StringAttribute{
+																																	Description: "The public IP address version.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"IPv4",
+																																			"IPv6",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"public_ip_allocation_method": schema.StringAttribute{
+																																	Description: "The public IP address allocation method.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"Static",
+																																			"Dynamic",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"public_ip_prefix": schema.SingleNestedAttribute{
+																																	Description: "The Public IP Prefix this Public IP Address should be allocated from.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.Object{
+																																		objectplanmodifier.UseStateForUnknown(),
+																																	},
+																																	Attributes: map[string]schema.Attribute{
+																																		"id": schema.StringAttribute{
+																																			Description: "Resource ID.",
+																																			Required:    true,
+																																			Validators: []validator.String{
+																																				validators.AzureResourceID(),
+																																			},
+																																		},
+																																	},
+																																},
+																																"resource_guid": schema.StringAttribute{
+																																	Description: "The resource GUID property of the public IP address resource.",
+																																	Computed:    true,
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"service_public_ip_address": schema.StringAttribute{
+																																	Description: "The service public IP address of the public IP address resource.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																},
+																															},
+																														},
+																														"sku": schema.SingleNestedAttribute{
+																															Description: "The public IP address SKU.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.Object{
+																																objectplanmodifier.UseStateForUnknown(),
+																															},
+																															Attributes: map[string]schema.Attribute{
+																																"name": schema.StringAttribute{
+																																	Description: "Name of a public IP address SKU.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"Basic",
+																																			"Standard",
+																																			"StandardV2",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																																"tier": schema.StringAttribute{
+																																	Description: "Tier of a public IP address SKU.",
+																																	Optional:    true,
+																																	Computed:    true,
+																																	Validators: []validator.String{
+																																		stringvalidator.OneOf(
+																																			"Regional",
+																																			"Global",
+																																		),
+																																	},
+																																	PlanModifiers: []planmodifier.String{
+																																		stringplanmodifier.UseStateForUnknown(),
+																																	},
+																																},
+																															},
+																														},
+																														"tags": schema.MapAttribute{
+																															Description: "Resource tags.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.Map{
+																																mapplanmodifier.UseStateForUnknown(),
+																															},
+																															ElementType: types.StringType,
+																														},
+																														"type": schema.StringAttribute{
+																															Description: "Resource type.",
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.String{
+																																stringplanmodifier.UseStateForUnknown(),
+																															},
+																														},
+																														"zones": schema.ListAttribute{
+																															Description: "A list of availability zones denoting the IP allocated for the resource needs to come from.",
+																															Optional:    true,
+																															Computed:    true,
+																															PlanModifiers: []planmodifier.List{
+																																listplanmodifier.UseStateForUnknown(),
+																															},
+																															ElementType: types.StringType,
+																														},
+																													},
 																												},
 																												"public_ip_prefix": schema.SingleNestedAttribute{
 																													Description: "The reference to the Public IP Prefix resource.",
@@ -3661,344 +7663,9 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																										stringplanmodifier.UseStateForUnknown(),
 																									},
 																								},
-																								"virtual_network_tap": schema.SingleNestedAttribute{
+																								"virtual_network_tap": schema.StringAttribute{
 																									Description: "The reference to the Virtual Network Tap resource.",
 																									Required:    true,
-																									Attributes: map[string]schema.Attribute{
-																										"etag": schema.StringAttribute{
-																											Description: "A unique read-only string that changes whenever the resource is updated.",
-																											Computed:    true,
-																											PlanModifiers: []planmodifier.String{
-																												stringplanmodifier.UseStateForUnknown(),
-																											},
-																										},
-																										"id": schema.StringAttribute{
-																											Description: "Resource ID.",
-																											Optional:    true,
-																											Computed:    true,
-																											PlanModifiers: []planmodifier.String{
-																												stringplanmodifier.UseStateForUnknown(),
-																											},
-																										},
-																										"location": schema.StringAttribute{
-																											Description: "Resource location.",
-																											Optional:    true,
-																											Computed:    true,
-																											PlanModifiers: []planmodifier.String{
-																												planmodifiers.UseStateForEquivalentLocation(),
-																												stringplanmodifier.UseStateForUnknown(),
-																											},
-																										},
-																										"name": schema.StringAttribute{
-																											Description: "Resource name.",
-																											Computed:    true,
-																											PlanModifiers: []planmodifier.String{
-																												stringplanmodifier.UseStateForUnknown(),
-																											},
-																										},
-																										"properties": schema.SingleNestedAttribute{
-																											Description: "Virtual Network Tap Properties.",
-																											Optional:    true,
-																											Computed:    true,
-																											PlanModifiers: []planmodifier.Object{
-																												objectplanmodifier.UseStateForUnknown(),
-																											},
-																											Attributes: map[string]schema.Attribute{
-																												"destination_load_balancer_front_end_ip_configuration": schema.SingleNestedAttribute{
-																													Description: "The reference to the private IP address on the internal Load Balancer that will receive the tap.",
-																													Optional:    true,
-																													Computed:    true,
-																													PlanModifiers: []planmodifier.Object{
-																														objectplanmodifier.UseStateForUnknown(),
-																													},
-																													Attributes: map[string]schema.Attribute{
-																														"etag": schema.StringAttribute{
-																															Description: "A unique read-only string that changes whenever the resource is updated.",
-																															Computed:    true,
-																															PlanModifiers: []planmodifier.String{
-																																stringplanmodifier.UseStateForUnknown(),
-																															},
-																														},
-																														"id": schema.StringAttribute{
-																															Description: "Resource ID.",
-																															Optional:    true,
-																															Computed:    true,
-																															PlanModifiers: []planmodifier.String{
-																																stringplanmodifier.UseStateForUnknown(),
-																															},
-																														},
-																														"name": schema.StringAttribute{
-																															Description: "Name of the resource.",
-																															Optional:    true,
-																															Computed:    true,
-																															PlanModifiers: []planmodifier.String{
-																																stringplanmodifier.UseStateForUnknown(),
-																															},
-																														},
-																														"properties": schema.SingleNestedAttribute{
-																															Description: "Properties of the load balancer probe.",
-																															Optional:    true,
-																															Computed:    true,
-																															PlanModifiers: []planmodifier.Object{
-																																objectplanmodifier.UseStateForUnknown(),
-																															},
-																															Attributes: map[string]schema.Attribute{
-																																"ddos_settings": schema.SingleNestedAttribute{
-																																	Description: "The DDoS protection settings associated with the frontend IP configuration.",
-																																	Optional:    true,
-																																	Computed:    true,
-																																	PlanModifiers: []planmodifier.Object{
-																																		objectplanmodifier.UseStateForUnknown(),
-																																	},
-																																	Attributes: map[string]schema.Attribute{
-																																		"ddos_custom_policy": schema.SingleNestedAttribute{
-																																			Description: "The reference to the DDoS Custom Policy resource.",
-																																			Required:    true,
-																																			Attributes: map[string]schema.Attribute{
-																																				"id": schema.StringAttribute{
-																																					Description: "Resource ID.",
-																																					Required:    true,
-																																					Validators: []validator.String{
-																																						validators.AzureResourceID(),
-																																					},
-																																				},
-																																			},
-																																		},
-																																	},
-																																},
-																																"gateway_load_balancer": schema.SingleNestedAttribute{
-																																	Description: "The reference to gateway load balancer frontend IP.",
-																																	Optional:    true,
-																																	Computed:    true,
-																																	PlanModifiers: []planmodifier.Object{
-																																		objectplanmodifier.UseStateForUnknown(),
-																																	},
-																																	Attributes: map[string]schema.Attribute{
-																																		"id": schema.StringAttribute{
-																																			Description: "Resource ID.",
-																																			Required:    true,
-																																			Validators: []validator.String{
-																																				validators.AzureResourceID(),
-																																			},
-																																		},
-																																	},
-																																},
-																																"inbound_nat_pools": schema.ListNestedAttribute{
-																																	Description: "An array of references to inbound pools that use this frontend IP.",
-																																	Computed:    true,
-																																	PlanModifiers: []planmodifier.List{
-																																		listplanmodifier.UseStateForUnknown(),
-																																	},
-																																	NestedObject: schema.NestedAttributeObject{
-																																		Attributes: map[string]schema.Attribute{
-																																			"id": schema.StringAttribute{
-																																				Description: "Resource ID.",
-																																				Required:    true,
-																																				Validators: []validator.String{
-																																					validators.AzureResourceID(),
-																																				},
-																																			},
-																																		},
-																																	},
-																																},
-																																"inbound_nat_rules": schema.ListNestedAttribute{
-																																	Description: "An array of references to inbound rules that use this frontend IP.",
-																																	Computed:    true,
-																																	PlanModifiers: []planmodifier.List{
-																																		listplanmodifier.UseStateForUnknown(),
-																																	},
-																																	NestedObject: schema.NestedAttributeObject{
-																																		Attributes: map[string]schema.Attribute{
-																																			"id": schema.StringAttribute{
-																																				Description: "Resource ID.",
-																																				Required:    true,
-																																				Validators: []validator.String{
-																																					validators.AzureResourceID(),
-																																				},
-																																			},
-																																		},
-																																	},
-																																},
-																																"load_balancing_rules": schema.ListNestedAttribute{
-																																	Description: "An array of references to load balancing rules that use this frontend IP.",
-																																	Computed:    true,
-																																	PlanModifiers: []planmodifier.List{
-																																		listplanmodifier.UseStateForUnknown(),
-																																	},
-																																	NestedObject: schema.NestedAttributeObject{
-																																		Attributes: map[string]schema.Attribute{
-																																			"id": schema.StringAttribute{
-																																				Description: "Resource ID.",
-																																				Required:    true,
-																																				Validators: []validator.String{
-																																					validators.AzureResourceID(),
-																																				},
-																																			},
-																																		},
-																																	},
-																																},
-																																"outbound_rules": schema.ListNestedAttribute{
-																																	Description: "An array of references to outbound rules that use this frontend IP.",
-																																	Computed:    true,
-																																	PlanModifiers: []planmodifier.List{
-																																		listplanmodifier.UseStateForUnknown(),
-																																	},
-																																	NestedObject: schema.NestedAttributeObject{
-																																		Attributes: map[string]schema.Attribute{
-																																			"id": schema.StringAttribute{
-																																				Description: "Resource ID.",
-																																				Required:    true,
-																																				Validators: []validator.String{
-																																					validators.AzureResourceID(),
-																																				},
-																																			},
-																																		},
-																																	},
-																																},
-																																"private_ip_address": schema.StringAttribute{
-																																	Description: "The private IP address of the IP configuration.",
-																																	Optional:    true,
-																																	Computed:    true,
-																																	PlanModifiers: []planmodifier.String{
-																																		stringplanmodifier.UseStateForUnknown(),
-																																	},
-																																},
-																																"private_ip_address_version": schema.StringAttribute{
-																																	Description: "Whether the specific ipconfiguration is IPv4 or IPv6. Default is taken as IPv4.",
-																																	Optional:    true,
-																																	Computed:    true,
-																																	Validators: []validator.String{
-																																		stringvalidator.OneOf(
-																																			"IPv4",
-																																			"IPv6",
-																																		),
-																																	},
-																																	PlanModifiers: []planmodifier.String{
-																																		stringplanmodifier.UseStateForUnknown(),
-																																	},
-																																},
-																																"private_ip_allocation_method": schema.StringAttribute{
-																																	Description: "The Private IP allocation method.",
-																																	Optional:    true,
-																																	Computed:    true,
-																																	Validators: []validator.String{
-																																		stringvalidator.OneOf(
-																																			"Static",
-																																			"Dynamic",
-																																		),
-																																	},
-																																	PlanModifiers: []planmodifier.String{
-																																		stringplanmodifier.UseStateForUnknown(),
-																																	},
-																																},
-																																"provisioning_state": schema.StringAttribute{
-																																	Description: "The provisioning state of the frontend IP configuration resource.",
-																																	Computed:    true,
-																																	PlanModifiers: []planmodifier.String{
-																																		stringplanmodifier.UseStateForUnknown(),
-																																	},
-																																},
-																																"public_ip_address": schema.StringAttribute{
-																																	Description: "The reference to the Public IP resource.",
-																																	Optional:    true,
-																																	Computed:    true,
-																																},
-																																"public_ip_prefix": schema.SingleNestedAttribute{
-																																	Description: "The reference to the Public IP Prefix resource.",
-																																	Optional:    true,
-																																	Computed:    true,
-																																	PlanModifiers: []planmodifier.Object{
-																																		objectplanmodifier.UseStateForUnknown(),
-																																	},
-																																	Attributes: map[string]schema.Attribute{
-																																		"id": schema.StringAttribute{
-																																			Description: "Resource ID.",
-																																			Required:    true,
-																																			Validators: []validator.String{
-																																				validators.AzureResourceID(),
-																																			},
-																																		},
-																																	},
-																																},
-																																"subnet": schema.StringAttribute{
-																																	Description: "The reference to the subnet resource.",
-																																	Optional:    true,
-																																	Computed:    true,
-																																},
-																															},
-																														},
-																														"type": schema.StringAttribute{
-																															Description: "Resource type.",
-																															Computed:    true,
-																															PlanModifiers: []planmodifier.String{
-																																stringplanmodifier.UseStateForUnknown(),
-																															},
-																														},
-																														"zones": schema.ListAttribute{
-																															Description: "A list of availability zones denoting the IP allocated for the resource needs to come from.",
-																															Optional:    true,
-																															Computed:    true,
-																															PlanModifiers: []planmodifier.List{
-																																listplanmodifier.UseStateForUnknown(),
-																															},
-																															ElementType: types.StringType,
-																														},
-																													},
-																												},
-																												"destination_network_interface_ip_configuration": schema.StringAttribute{
-																													Description: "The reference to the private IP Address of the collector nic that will receive the tap.",
-																													Optional:    true,
-																													Computed:    true,
-																												},
-																												"destination_port": schema.Int64Attribute{
-																													Description: "The VXLAN destination port that will receive the tapped traffic.",
-																													Optional:    true,
-																													Computed:    true,
-																													PlanModifiers: []planmodifier.Int64{
-																														int64planmodifier.UseStateForUnknown(),
-																													},
-																												},
-																												"network_interface_tap_configurations": schema.ListAttribute{
-																													Description: "Specifies the list of resource IDs for the network interface IP configuration that needs to be tapped.",
-																													Computed:    true,
-																													PlanModifiers: []planmodifier.List{
-																														listplanmodifier.UseStateForUnknown(),
-																													},
-																													ElementType: types.StringType,
-																												},
-																												"provisioning_state": schema.StringAttribute{
-																													Description: "The provisioning state of the virtual network tap resource.",
-																													Computed:    true,
-																													PlanModifiers: []planmodifier.String{
-																														stringplanmodifier.UseStateForUnknown(),
-																													},
-																												},
-																												"resource_guid": schema.StringAttribute{
-																													Description: "The resource GUID property of the virtual network tap resource.",
-																													Computed:    true,
-																													PlanModifiers: []planmodifier.String{
-																														stringplanmodifier.UseStateForUnknown(),
-																													},
-																												},
-																											},
-																										},
-																										"tags": schema.MapAttribute{
-																											Description: "Resource tags.",
-																											Optional:    true,
-																											Computed:    true,
-																											PlanModifiers: []planmodifier.Map{
-																												mapplanmodifier.UseStateForUnknown(),
-																											},
-																											ElementType: types.StringType,
-																										},
-																										"type": schema.StringAttribute{
-																											Description: "Resource type.",
-																											Computed:    true,
-																											PlanModifiers: []planmodifier.String{
-																												stringplanmodifier.UseStateForUnknown(),
-																											},
-																										},
-																									},
 																								},
 																							},
 																						},
@@ -4266,14 +7933,6 @@ func AzapiVirtualNetworkSchema() schema.Schema {
 																				Description: "The priority of the rule. The value can be between 100 and 4096. The priority number must be unique for each rule in the collection. The lower the priority number, the higher the priority of the rule.",
 																				Required:    true,
 																				Validators: []validator.Int64{
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
-																					int64validator.Between(100, 4096),
 																					int64validator.Between(100, 4096),
 																				},
 																			},

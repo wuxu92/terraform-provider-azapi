@@ -11,6 +11,7 @@ import (
 // Sources:
 //   - AzureRM key_vault_resource.go schema + CRUD functions
 //   - AzureRM access_policy_schema.go (permission enums)
+//   - AzureRM key_vault_access_policy_resource.go (application_id → accessPolicies[*].applicationId, IsUUID)
 //   - AzureRM validate/vault_name.go
 //   - AzureRM helpers/validate/network.go (IPv4/CIDR)
 //   - Azure SDK vaults/constants.go (2023-02-01)
@@ -126,6 +127,13 @@ func NewKeyVault() *KeyVault {
 				// validation.IsUUID in schema.
 				{
 					PropertyPath: "properties.accessPolicies[*].objectId",
+					Regex:        `(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
+					Message:      "must be a valid UUID",
+				},
+				// ── properties.accessPolicies[*].applicationId ──
+				// key_vault_access_policy_resource.go application_id: validation.IsUUID (Optional, ForceNew).
+				{
+					PropertyPath: "properties.accessPolicies[*].applicationId",
 					Regex:        `(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
 					Message:      "must be a valid UUID",
 				},
