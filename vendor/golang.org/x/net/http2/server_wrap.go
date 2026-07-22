@@ -10,17 +10,11 @@ package http2
 
 import (
 	"context"
-<<<<<<< HEAD
-	"errors"
-	"net"
-	"net/http"
-=======
 	"crypto/tls"
 	"errors"
 	"net"
 	"net/http"
 	"slices"
->>>>>>> 014cb6fb9 (build(deps): bump ginkgo to v2.32.0, gomega to v1.40.0)
 	"sync"
 	"time"
 )
@@ -52,8 +46,6 @@ func configureServer(s *http.Server, conf *Server) error {
 			h2.IdleTimeout = h1.ReadTimeout
 		}
 	}
-<<<<<<< HEAD
-=======
 
 	// Register h2 and http/1.1 ALPN protocols on s.TLSConfig, matching
 	// the pre-wrapping implementation in server.go, so that TLS listeners
@@ -68,7 +60,6 @@ func configureServer(s *http.Server, conf *Server) error {
 		s.TLSConfig.NextProtos = append(s.TLSConfig.NextProtos, "http/1.1")
 	}
 
->>>>>>> 014cb6fb9 (build(deps): bump ginkgo to v2.32.0, gomega to v1.40.0)
 	conf.state = &serverInternalState{
 		s1: s,
 	}
