@@ -21,7 +21,7 @@ _Avoid_: typed resource, schema resource
 ### Generation
 
 **Azwise**:
-The curated, AzureRM-derived operational knowledge (ForceNew, real defaults, validation, sensitive/computed classification, timeouts) that sharpens the schema and lifecycle. Applied at **two times**: generation time (`ApplyAzwise`, baked into the compiled schema flags/validators) and runtime (`StripComputedFields`, `TimeoutDefault`, `CheckForceNew`). For `azapi_resource` it is toggleable via the `disable_resource_knowledge` feature; for azapin it is compiled in and **not** toggleable (see ADR-0005).
+The curated, AzureRM-derived operational knowledge (ForceNew, real defaults, validation, sensitive/computed classification, timeouts) that sharpens the schema and lifecycle. Primarily applied at **generation time** (`ApplyAzwise`, baked into the compiled schema flags/validators). The dynamic `azapi_resource` no longer consumes it at runtime (the `disable_resource_knowledge` experiment was removed — see ADR-0005); the azapin runtime `Base` still calls `StripComputedFields`, pending azwise's move to a separate repo used only by the generator.
 _Avoid_: knowledge base, overrides
 
 **Overlay**:

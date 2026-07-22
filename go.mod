@@ -24,8 +24,11 @@ require (
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.40.0
 	github.com/stretchr/testify v1.11.1
+	github.com/wuxu92/azwise v0.0.0-00010101000000-000000000000
 	github.com/zclconf/go-cty v1.19.0
 )
+
+replace github.com/wuxu92/azwise => ../azwise
 
 require (
 	dario.cat/mergo v1.0.1 // indirect

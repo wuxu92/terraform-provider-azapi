@@ -62,7 +62,7 @@ Two failure modes to internalize:
 | What | Path |
 |---|---|
 | ARM type constants | `internal/native/armtype/armtype.go` |
-| azwise knowledge (curated AzureRM) | `internal/azure/azwise/<resource>.go` + `register.go` |
+| azwise knowledge (curated AzureRM) | `github.com/wuxu92/azwise/services/<service>/<resource>.go` (self-registers via `init()`; new service → blank import in that repo's `services/all/all.go`) |
 | Generation targets | `internal/native/generator/cmd/generate_poc.go` |
 | Customizers (generation-time schema) | `internal/native/generator/customizers/<resource>.go` + `register.go` |
 | Schema validators (generic) | `internal/native/schema/validators/<rule>.go` |
@@ -80,9 +80,9 @@ Every workflow ends here (repo root):
 
 ```bash
 # 1. format + compile + vet
-gofmt -l internal/native/ internal/azure/azwise/      # must print nothing
+gofmt -l internal/native/                # must print nothing
 go build ./...
-go vet ./internal/native/... ./internal/azure/azwise/...
+go vet ./internal/native/...
 
 # 2. regenerate (schema is always generated, never hand-edited)
 go run ./internal/native/generator/cmd/generate_poc.go
@@ -91,7 +91,9 @@ go run ./internal/native/generator/cmd/generate_poc.go
 go run ./internal/native/cmd/azapin-validate/
 
 # 4. unit suites (offline)
-go test ./internal/native/... ./internal/azure/azwise/...
+go test ./internal/native/...
+# azwise knowledge is a separate module (github.com/wuxu92/azwise); verify it there:
+#   (cd ../azwise && gofmt -l . && go build ./... && go test ./...)
 
 # 5. acceptance (live Azure; needs TF_ACC=1 + ARM_SUBSCRIPTION_ID, else skips)
 # **DO NOT** run acceptance tests with AI Agent
@@ -311,28 +313,43 @@ loses curated ForceNew / validation / defaults / timeouts. Use the **azwise agen
    **Transfer all — never silently drop one.**
 4. `category=timeouts` / `category=softdelete`.
 5. `read`/`search` azurerm source only for paths automap couldn't verify.
-6. Write **one** `internal/azure/azwise/<resource>.go` embedding `BaseKnowledge`:
+6. Write **one** knowledge file in the external azwise repo at
+   `services/<service>/<resource>.go` (`package <service>`, importing
+   `github.com/wuxu92/azwise`), embedding `azwise.BaseKnowledge`:
 
 ```go
-type StorageAccountBlobService struct{ BaseKnowledge }
+package storage
 
-var _ ResourceKnowledge = (*StorageAccountBlobService)(nil)
+import (
+    "time"
+
+    "github.com/wuxu92/azwise"
+)
+
+type StorageAccountBlobService struct{ azwise.BaseKnowledge }
+
+var _ azwise.ResourceKnowledge = (*StorageAccountBlobService)(nil)
 
 func NewStorageAccountBlobService() *StorageAccountBlobService {
-    return &StorageAccountBlobService{BaseKnowledge: BaseKnowledge{
+    return &StorageAccountBlobService{BaseKnowledge: azwise.BaseKnowledge{
         ResourceType:   "Microsoft.Storage/storageAccounts/blobServices",
         ApiVersions:    []string{"2025-08-01"},
-        TimeoutsConfig: &Timeouts{Create: 30 * time.Minute /* … */},
-        StringRules:    []StringRule{ /* enum/regex/length, by ARM path */ },
-        IntRules:       []IntRule{ /* numeric ranges */ },
-        ArrayRules:     []ArrayRule{ /* MaxItems */ },
-        DefaultValues:  []DefaultValue{ /* {PropertyPath, Value} */ },
+        TimeoutsConfig: &azwise.Timeouts{Create: 30 * time.Minute /* … */},
+        StringRules:    []azwise.StringRule{ /* enum/regex/length, by ARM path */ },
+        IntRules:       []azwise.IntRule{ /* numeric ranges */ },
+        ArrayRules:     []azwise.ArrayRule{ /* MaxItems */ },
+        DefaultValues:  []azwise.DefaultValue{ /* {PropertyPath, Value} */ },
         // ForceNew / ComputedFields / SensitiveFields / RequiredFields as needed
     }}
 }
+
+// Self-registers into the azwise registry — no central register.go.
+func init() { azwise.Register(NewStorageAccountBlobService()) }
 ```
 
-7. Register in `register.go`'s `RegisterAll()`: `Register(NewStorageAccountBlobService())`.
+7. If this is a **new service** package, add a blank import for it to the azwise
+   repo's `services/all/all.go`. Existing service → nothing else to wire; the
+   `init()` above is picked up automatically.
 
 **Sub-service separation (critical).** Settings AzureRM bundles into a parent block —
 `blob_properties`, `share_properties`, `queue_properties` in `azurerm_storage_account` —
@@ -564,7 +581,7 @@ component's status changed.
 ### New-resource checklist
 
 - [ ] ARM type constant in `armtype.go`
-- [ ] azwise `<resource>.go` written + `Register(New…())` in `register.go`
+- [ ] azwise `services/<service>/<resource>.go` written with `init(){ azwise.Register(New…()) }` (+ blank import in azwise `services/all` if new service)
 - [ ] Sub-service settings in the sub-service file, not the parent
 - [ ] Target added to `generate_poc.go`
 - [ ] Customizer added *only if* bicep + azwise can't express the rule

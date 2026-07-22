@@ -44,7 +44,7 @@ polling:
 | GET | `internal/clients` | `ResourceClient.Get(ctx, resourceID, apiVersion, opts)` |
 | DELETE + poll | `internal/clients` | `ResourceClient.Delete(ctx, resourceID, apiVersion, opts)` |
 | Resource ID | `internal/services/parse` | `NewResourceID(name, parentID, "type@version")`, `ResourceIDWithResourceType(id, type)` |
-| Op knowledge | `internal/azure/azwise` | `CheckForceNew`, `Validate`, `StripComputedFields` (timeouts are baked into `services.Descriptor.Timeouts` at gen time) |
+| Op knowledge | `github.com/wuxu92/azwise` | `CheckForceNew`, `Validate`, `StripComputedFields` (timeouts are baked into `services.Descriptor.Timeouts` at gen time) |
 | ARM type graph | `internal/azure` / `internal/native/generator` | `azure.GetResourceDefinition` / `generator.ParseTypesJSON` |
 | Registry | `internal/native/services` | `Registry map[string]SchemaFunc` |
 
@@ -347,16 +347,16 @@ interface Base does not implement, or that must bypass the unified flow entirely
 ## ForceNew, Computed, Defaults
 
 - **ForceNew**: primarily schema-level (`RequiresReplace` plan modifiers on the
-  attribute, emitted by the generator from a future override list). `ModifyPlan`
-  additionally consults `azwise.CheckForceNew(ARMType, APIVersion, oldBody, newBody)`
-  for conditional rules the schema can't express (e.g. storage SKU zone migration),
-  expanding old/new state via the mapper.
+  attribute, emitted by the generator from the azwise overlay). Value-conditional
+  rules the schema can't express (e.g. storage SKU zone migration) live directly in
+  the resource's `ModifyPlan` hook as inlined predicates over the changed attribute.
 - **Computed / defaults**: already encoded in the generated schema (GENERATOR.md
   Rules 3, 6, 8). `Optional+Computed` fields read their server value back via
   Flatten; `Default(...)` fields get plan-time defaults natively.
 - **Computed-field diff suppression**: not needed — the typed schema marks
   read-only fields `Computed`, so Terraform never diffs user config against them.
-  (`azwise.StripComputedFields` is an `azapi_resource`-only concern.)
+  (The native `Base` still strips server-computed fields from the PUT body via
+  `azwise.StripComputedFields`, pending azwise's move out of the runtime.)
 
 ## Envelope & ID Details
 
@@ -423,7 +423,7 @@ A data source is read-only, so it runs no hooks; the lookup is by `name` +
 - **Hooks** — `hooks.go`: runtime behavior only — `Before/After` per op +
   `ValidateConfig`/`ModifyPlan` overrides; generated-service hook files such as
   `services/storage/storage_account_hooks.go` implement resource-specific runtime
-  behavior like the SKU zone-migration ForceNew via `azwise.CheckForceNew`.
+  behavior like the SKU zone-migration ForceNew via inlined value-conditional predicates.
 - **Schema customizers** — `internal/native/generator/customizers`: generation-time, per-ARM-type
   Go hooks that bake validators/defaults/parent-name into the generated schema
   (see GENERATOR.md Rule 9d). Not part of the provider runtime.

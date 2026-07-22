@@ -21,8 +21,10 @@ loses the curated AzureRM validation, defaults, and ForceNew knowledge.
 2. **Learn AzureRM knowledge (azwise).** Extract operational knowledge — ForceNew,
    validation (enum/regex/length/range), defaults, computed/sensitive fields,
    timeouts — from `terraform-provider-azurerm` into a knowledge file
-   `internal/azure/azwise/<resource>.go`, and add its `Register(New…())` call to
-   `register.go`. Use the **azwise agent/skill** (`.omp/agents/azwise.md`,
+   `github.com/wuxu92/azwise/services/<service>/<resource>.go`, which self-registers
+   via `func init() { azwise.Register(New…()) }` (a new service package also gets a
+   blank import in the azwise repo's `services/all/all.go`). Use the **azwise
+   agent/skill** (`.omp/agents/azwise.md`,
    `skill://azwise`), which drives the `azwise_extract` tool over the azurerm source.
    - **Sub-service API separation:** settings AzureRM bundles into a parent block
      (e.g. `blob_properties`, `share_properties` inside `azurerm_storage_account`)
@@ -49,7 +51,7 @@ loses the curated AzureRM validation, defaults, and ForceNew knowledge.
 
 7. **Test.** Add a runtime composition test (`resource/base_test.go`), an
    acceptance `Describe` file (`acceptance/`), and an azwise rule test
-   (`internal/azure/azwise/`).
+   (`github.com/wuxu92/azwise/`).
 
 8. **Document.** Refresh the DEVELOPER_SPEC.md "Current status" inventory (§7) if the
    resource set or component status changed.
@@ -177,7 +179,7 @@ Example: `Placement` has one property `zonePlacementPolicy` (Optional in bicep).
 **Rule 9b: Overlay curated AzureRM knowledge (azwise)**
 
 After the heuristic post-processing steps, `ApplyAzwise(def)` overlays the
-hand-verified AzureRM-derived knowledge from `internal/azure/azwise` onto the type
+hand-verified AzureRM-derived knowledge from `github.com/wuxu92/azwise` onto the type
 graph. azwise rules are authoritative and take precedence over the bicep-flag and
 description-mined heuristics. It is a no-op when no knowledge is registered for the
 resource type. Property paths are ARM dot paths (`properties.accessTier`,

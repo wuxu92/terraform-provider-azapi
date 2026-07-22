@@ -2,8 +2,8 @@ package documentdb
 
 import (
 	"context"
+	"strings"
 
-	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
 	nativeresource "github.com/Azure/terraform-provider-azapi/internal/native/resource"
 	"github.com/Azure/terraform-provider-azapi/internal/native/services"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -14,10 +14,10 @@ import (
 
 // Cosmos DB account hooks add the value-conditional replacements a static schema
 // plan modifier cannot express. The generated schema already carries the declarative
-// ForceNew rules from azwise as schema-level RequiresReplace; this hook handles the
-// change-dependent decisions encoded by azwise.CheckForceNew (analytical storage
-// cannot be disabled in place; the backup policy can only move Periodic->Continuous,
-// so a Continuous->Periodic change forces replacement).
+// ForceNew rules as schema-level RequiresReplace; this hook handles the
+// change-dependent decisions (analytical storage cannot be disabled in place; the
+// backup policy can only move Periodic->Continuous, so a Continuous->Periodic change
+// forces replacement) mirroring AzureRM's cosmosdb account CustomizeDiff.
 func init() {
 	nativeresource.RegisterHooks(CosmosdbAccount.Name, &nativeresource.Hooks{
 		ModifyPlan: cosmosDBModifyPlan,
@@ -41,9 +41,7 @@ func cosmosDBModifyPlan(ctx context.Context, req fwresource.ModifyPlanRequest, r
 	if !req.State.GetAttribute(ctx, asPath, &oldAS).HasError() &&
 		!req.Plan.GetAttribute(ctx, asPath, &newAS).HasError() &&
 		!oldAS.IsUnknown() && !newAS.IsUnknown() {
-		oldBody := map[string]interface{}{"properties": map[string]interface{}{"enableAnalyticalStorage": oldAS.ValueBool()}}
-		newBody := map[string]interface{}{"properties": map[string]interface{}{"enableAnalyticalStorage": newAS.ValueBool()}}
-		if azwise.CheckForceNew(CosmosdbAccount.ARMType, CosmosdbAccount.APIVersion, oldBody, newBody) {
+		if oldAS.ValueBool() && !newAS.ValueBool() {
 			resp.RequiresReplace = append(resp.RequiresReplace, asPath)
 		}
 	}
@@ -56,9 +54,7 @@ func cosmosDBModifyPlan(ctx context.Context, req fwresource.ModifyPlanRequest, r
 	newType := cosmosDBBackupType(ctx, req.Plan.GetAttribute)
 	if oldType != "" && newType != "" {
 		backupPath := path.Root("properties").AtName("backup_policy")
-		oldBody := map[string]interface{}{"properties": map[string]interface{}{"backupPolicy": map[string]interface{}{"type": oldType}}}
-		newBody := map[string]interface{}{"properties": map[string]interface{}{"backupPolicy": map[string]interface{}{"type": newType}}}
-		if azwise.CheckForceNew(CosmosdbAccount.ARMType, CosmosdbAccount.APIVersion, oldBody, newBody) {
+		if strings.EqualFold(oldType, "Continuous") && strings.EqualFold(newType, "Periodic") {
 			resp.RequiresReplace = append(resp.RequiresReplace, backupPath)
 		}
 	}

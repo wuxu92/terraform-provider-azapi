@@ -13,7 +13,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/terraform-provider-azapi/internal/azure"
-	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
 	"github.com/Azure/terraform-provider-azapi/internal/azure/identity"
 	"github.com/Azure/terraform-provider-azapi/internal/azure/location"
 	"github.com/Azure/terraform-provider-azapi/internal/azure/tags"
@@ -525,23 +524,6 @@ func (r *AzapiResource) ValidateConfig(ctx context.Context, request resource.Val
 			return
 		}
 	}
-
-	// azwise: resource-type-specific validation
-	if r.ProviderData != nil && !r.ProviderData.Features.DisableResourceKnowledge {
-		azureResourceType, apiVersion, _ := utils.GetAzureResourceTypeApiVersion(resourceType)
-
-		var name string
-		if !config.Name.IsNull() && !config.Name.IsUnknown() {
-			name = config.Name.ValueString()
-		}
-
-		var body map[string]interface{}
-		if !config.Body.IsNull() && !config.Body.IsUnknown() {
-			_ = unmarshalBody(config.Body, &body)
-		}
-
-		response.Diagnostics.Append(azwise.Validate(azureResourceType, apiVersion, name, body, !config.SensitiveBody.IsNull())...)
-	}
 }
 
 func (r *AzapiResource) ModifyPlan(ctx context.Context, request resource.ModifyPlanRequest, response *resource.ModifyPlanResponse) {
@@ -644,14 +626,6 @@ func (r *AzapiResource) ModifyPlan(ctx context.Context, request resource.ModifyP
 			option.IgnoreOtherItemsInList = m
 		}
 		remoteBody := utils.UpdateObject(configBody, responseBody, option)
-		// azwise: strip computed (read-only) fields from both sides so
-		// server-computed properties don't prevent no-op detection.
-		if !r.ProviderData.Features.DisableResourceKnowledge {
-			azwise.StripComputedFields(azureResourceType, apiVersion, configBody)
-			if m, ok := remoteBody.(map[string]interface{}); ok {
-				azwise.StripComputedFields(azureResourceType, apiVersion, m)
-			}
-		}
 		// suppress the change if the remote body is equal to the config body
 		if reflect.DeepEqual(remoteBody, configBody) {
 			plan.Body = state.Body
@@ -697,20 +671,6 @@ func (r *AzapiResource) ModifyPlan(ctx context.Context, request resource.ModifyP
 		if state != nil && location.Normalize(state.Location.ValueString()) != location.Normalize(plan.Location.ValueString()) {
 			// if the location is changed, replace the resource
 			response.RequiresReplace.Append(path.Root("location"))
-		}
-
-		// azwise: check for body-property ForceNew rules
-		if r.ProviderData != nil && !r.ProviderData.Features.DisableResourceKnowledge {
-			if state != nil && dynamic.IsFullyKnown(plan.Body) {
-				var oldBody, newBody map[string]interface{}
-				if err := unmarshalBody(state.Body, &oldBody); err == nil {
-					if err := unmarshalBody(plan.Body, &newBody); err == nil {
-						if azwise.CheckForceNew(azureResourceType, apiVersion, oldBody, newBody) {
-							response.RequiresReplace.Append(path.Root("body"))
-						}
-					}
-				}
-			}
 		}
 
 		// Check if any paths in replace_triggers_refs have changed
@@ -835,11 +795,6 @@ func (r *AzapiResource) CreateUpdate(ctx context.Context, requestConfig tfsdk.Co
 
 	createDefault := 30 * time.Minute
 	updateDefault := 30 * time.Minute
-	if !r.ProviderData.Features.DisableResourceKnowledge {
-		azureResourceType, apiVersion, _ := utils.GetAzureResourceTypeApiVersion(plan.Type.ValueString())
-		createDefault = azwise.TimeoutDefault(azureResourceType, apiVersion, "create", createDefault)
-		updateDefault = azwise.TimeoutDefault(azureResourceType, apiVersion, "update", updateDefault)
-	}
 
 	if isNewResource {
 		timeout, diags = plan.Timeouts.Create(ctx, createDefault)
@@ -1057,10 +1012,6 @@ func (r *AzapiResource) Read(ctx context.Context, request resource.ReadRequest, 
 	}
 
 	readDefault := 5 * time.Minute
-	if !r.ProviderData.Features.DisableResourceKnowledge {
-		azureResourceType, apiVersion, _ := utils.GetAzureResourceTypeApiVersion(model.Type.ValueString())
-		readDefault = azwise.TimeoutDefault(azureResourceType, apiVersion, "read", readDefault)
-	}
 	readTimeout, diags := model.Timeouts.Read(ctx, readDefault)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
@@ -1231,10 +1182,6 @@ func (r *AzapiResource) Delete(ctx context.Context, request resource.DeleteReque
 	ctx = tflog.SetField(ctx, "resource_id", id.ID())
 
 	deleteDefault := 30 * time.Minute
-	if !r.ProviderData.Features.DisableResourceKnowledge {
-		azureResourceType, apiVersion, _ := utils.GetAzureResourceTypeApiVersion(model.Type.ValueString())
-		deleteDefault = azwise.TimeoutDefault(azureResourceType, apiVersion, "delete", deleteDefault)
-	}
 	deleteTimeout, diags := model.Timeouts.Delete(ctx, deleteDefault)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {

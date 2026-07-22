@@ -81,7 +81,7 @@ go run ./internal/native/generator/cmd/generate_poc.go
 go run ./internal/native/cmd/azapin-validate/            # 0 mismatches, no INVARIANT lines
 go test ./internal/native/generator/ -run TestApplyAzwise -count=1
 go test ./internal/native/resource/ -run Test.*SchemaComposition -count=1
-go test ./internal/azure/azwise/ ./internal/native/services/<service>/ -count=1
+go test ./internal/native/services/<service>/ -count=1   # azwise knowledge lives in github.com/wuxu92/azwise (separate module)
 ```
 
 ## Report

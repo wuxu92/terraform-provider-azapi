@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
 	"github.com/Azure/terraform-provider-azapi/internal/native/naming"
+	"github.com/wuxu92/azwise"
+	// Registers every resource's azwise knowledge via each service package's
+	// init(); the root azwise package no longer self-registers (push, not pull).
+	_ "github.com/wuxu92/azwise/services/all"
 )
 
 // ApplyAzwise overlays curated AzureRM-derived knowledge (azwise) onto a parsed
@@ -33,7 +36,6 @@ func ApplyAzwise(def *ResourceDefinition) {
 		armType = armType[:at]
 	}
 
-	azwise.EnsureRegistered()
 	k := azwise.Get(armType, apiVersion)
 	if k == nil {
 		return

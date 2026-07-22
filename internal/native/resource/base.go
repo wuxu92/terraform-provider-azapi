@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/terraform-provider-azapi/internal/azure/azwise"
 	"github.com/Azure/terraform-provider-azapi/internal/clients"
 	"github.com/Azure/terraform-provider-azapi/internal/native/armjson"
 	"github.com/Azure/terraform-provider-azapi/internal/native/mapper"
@@ -28,6 +27,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/wuxu92/azwise"
 )
 
 // Base is the generic resource implementation shared by every native static

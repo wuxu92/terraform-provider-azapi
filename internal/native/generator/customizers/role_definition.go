@@ -19,7 +19,7 @@ import (
 //
 // The role type default ("CustomRole"), the not-empty rules, and the dynamic
 // assignable_scopes default (a runtime hook) are handled by the azwise overlay and
-// role_definition_hooks.go respectively; see internal/azure/azwise/role_definition.go.
+// role_definition_hooks.go respectively; see github.com/wuxu92/azwise/role_definition.go.
 func customizeRoleDefinition(def *typegraph.ResourceDefinition) {
 	def.SetNameValidators(typegraph.Validator(validators.UUID))
 	def.SetParent("scope_id", "The scope ID where this role definition is defined.")

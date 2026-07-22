@@ -11,7 +11,7 @@ Solve-effort figures are `[INFERENCE]`; the measured surface sizes are not.
 | Surface | Total LOC | Resources touched | ~LOC / resource | Tooling status |
 |---|---:|---:|---:|---|
 | `*_gen.go` (generated) | 18,864 | 16/16 | ~1,180 | **free** (regenerated) |
-| azwise overlay (`internal/azure/azwise/*.go`) | 6,016 | 16/16 | ~376 | **semi-tooled** — `skill://azwise` drafts, `azwise_validate` checks |
+| azwise overlay (`github.com/wuxu92/azwise/*.go`) | 6,016 | 16/16 | ~376 | **semi-tooled** — `skill://azwise` drafts, `azwise_validate` checks |
 | acceptance `*_test.go` (Ginkgo wiring) | 2,390 | 16/16 | ~149 | **untooled** |
 | acceptance `*_config.go` (builders) | 2,189 | 16/16 | ~137 | **tooled** — `skill://azapi-acceptance-author` (new) |
 | customizers | 1,615 | 15/16 | ~108 | **semi-tooled** — fluent helpers on `ResourceDefinition` (new) |
@@ -37,7 +37,7 @@ Each: what it costs today, why, solve complexity/effort `[INFERENCE]`, and depen
 ### P1 — Multi-site manual registration & wiring (mechanical, forget-one hazard)
 **Cost today:** Adding one resource edits **3–4 redundant sites**, all keyed by the same
 ARM type / Terraform name:
-`armtype.go` const → `azwise/register.go` `Register(New…())` → `generate_poc.go` target
+`armtype.go` const → azwise `services/<service>/<resource>.go` `init(){ Register(New…()) }` → `generate_poc.go` target
 → `customizers/register.go` (when a customizer exists) → `services/all/all.go` blank
 import (only for a *new* service). No single source of truth; the same identifier is
 re-spelled 3–5×.

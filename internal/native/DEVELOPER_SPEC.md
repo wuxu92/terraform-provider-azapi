@@ -2,9 +2,10 @@
 
 Status: Draft (PoC proven end-to-end against live Azure; productionization in progress)
 Owners: azapi provider team
-Related docs: `GENERATOR.md`, `RESOURCE.md` (under `internal/native/`),
-`azapin-vs-azapi.md`, `static-schema-generation-analysis.md`,
-`approach-comparison-report.md` (under `tools/azwise/`).
+Related docs: `GENERATOR.md`, `RESOURCE.md` (under `internal/native/`). The azwise
+design docs (`azapin-vs-azapi.md`, `static-schema-generation-analysis.md`,
+`approach-comparison-report.md`) now live in the external azwise repo
+(`github.com/wuxu92/azwise`, under `docs/`).
 
 ---
 
@@ -21,10 +22,13 @@ alongside the dynamic `azapi_resource`.
 
 Two subsystems:
 
-- **azwise** (`internal/azure/azwise/`) — a registry of per-resource operational
-  knowledge (ForceNew rules, validation, real default values, sensitive/computed
-  classification, timeouts). Consumed at runtime by `azapi_resource` and at
-  build-time by the azapin generator.
+- **azwise** (`github.com/wuxu92/azwise`) — a **separate Go module** (wired into the
+  provider via a `replace` directive during local dev) holding a registry of
+  per-resource operational knowledge (ForceNew rules, validation, real default
+  values, sensitive/computed classification, timeouts). Consumed at build time by
+  the azapin generator overlay. (The dynamic `azapi_resource` no longer consumes it
+  at runtime; the azapin runtime `Base` still reads it for computed-field stripping,
+  pending full extraction.)
 - **azapin** (`internal/native/`) — the static-schema generator, the generic
   runtime resource base, and the supporting tooling (validators, acceptance
   framework, CLI).
@@ -200,8 +204,6 @@ User stories with acceptance criteria. **MUST/SHOULD/MAY** per RFC 2119.
 - azwise knowledge MUST be expressible declaratively (ForceNew paths, string/int
   rules, sensitive/computed fields, default values, timeouts).
 - The generator MUST apply azwise as an overlay that wins over heuristics.
-- azwise MUST be toggleable for `azapi_resource` via the
-  `disable_resource_knowledge` provider feature.
 
 ### 2.8 Operator — safe defaults
 
@@ -248,7 +250,7 @@ terraform CLI ──tfprotov6──► terraform-provider-azapi (plugin process)
    internal/clients.ResourceClient ──REST──► Azure Resource Manager
         ▲                  ▲
         │                  │
-   internal/azure/azwise (knowledge): Validate / CheckForceNew /
+   github.com/wuxu92/azwise (knowledge): Validate / CheckForceNew /
    StripComputedFields / TimeoutDefault — used by BOTH paths
 ```
 
@@ -273,7 +275,7 @@ internal/azure/generated/*/types.json  (embedded source of truth)
 
 | Package | Responsibility |
 |---|---|
-| `internal/azure/azwise` | Knowledge registry + interface; `Validate`, `CheckForceNew`, `StripComputedFields`, `TimeoutDefault`, `SchemaKnowledge` accessors |
+| `github.com/wuxu92/azwise` | Knowledge registry + interface; `Validate`, `CheckForceNew`, `StripComputedFields`, `TimeoutDefault`, `SchemaKnowledge` accessors |
 | `internal/native/naming` | ARM type → TF resource name; camelCase ↔ snake_case; parent-reference attribute naming + ID-shape patterns |
 | `internal/native/generator` | `types.json` walker, post-processing, azwise overlay, schema emitter, source-string validator |
 | `internal/native/generator/customizers` | Generation-time per-ARM-type schema customizers (`Register`/`Apply`) — bake validators/defaults/ForceNew into the schema |
@@ -692,7 +694,7 @@ go run ./internal/native/generator/cmd/generate_poc.go
 go run ./internal/native/cmd/azapin-validate/ -r azapi_storage_account
 
 # offline unit tests (skips acceptance)
-TF_ACC= go test ./internal/native/... ./internal/azure/azwise/...
+TF_ACC= go test ./internal/native/...   # azwise is a separate module: (cd ../azwise && go test ./...)
 
 # acceptance (creates real Azure resources)
 TF_ACC=1 go test ./internal/native/services/storage/ -run TestStorageAcceptance \
@@ -732,4 +734,4 @@ discriminated-type and dynamic-in-collection handling.
 
 ## Appendix B — azapi vs azapin
 
-See `tools/azwise/azapin-vs-azapi.md` for the stakeholder-facing feature comparison.
+See `azapin-vs-azapi.md` in the azwise repo (`github.com/wuxu92/azwise`, under `docs/`) for the stakeholder-facing feature comparison.

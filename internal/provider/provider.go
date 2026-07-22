@@ -90,7 +90,6 @@ type providerData struct {
 	IgnoreNoOpChanges            types.Bool   `tfsdk:"ignore_no_op_changes"`
 	DisableDefaultOutput         types.Bool   `tfsdk:"disable_default_output"`
 	AlwaysAcquirePolicyToken     types.Bool   `tfsdk:"always_acquire_policy_token"`
-	DisableResourceKnowledge     types.Bool   `tfsdk:"disable_resource_knowledge"`
 	MaximumBusyRetryAttempts     types.Int32  `tfsdk:"maximum_busy_retry_attempts"`
 }
 
@@ -329,11 +328,6 @@ func (p Provider) Schema(ctx context.Context, request provider.SchemaRequest, re
 				Optional:            true,
 				MarkdownDescription: "Always acquire a policy token for write requests, regardless of whether one is required. The default is `false`. The default behaviour is to wait for a qualifying `403` response indicating that a policy token is required, and then retry the request with an acquired policy token. When this attribute is set to `true`, the provider proactively acquires a policy token and attaches it to every write request, avoiding the extra round-trip per request. Performance will be improved if the number of changed resources is known to be large beforehand. This can also be sourced from the `ARM_ALWAYS_ACQUIRE_POLICY_TOKEN` Environment Variable. See [Feature: Acquire Policy Token](guides/feature_acquire_policy_token.html) to learn more.",
 			},
-			"disable_resource_knowledge": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Disable resource knowledge checks. The default is false. When set to true, the provider will skip all azwise-derived validations (naming, property constraints, sensitive fields, body-property ForceNew rules, and per-resource timeout defaults). This can also be sourced from the `ARM_DISABLE_RESOURCE_KNOWLEDGE` Environment Variable.",
-			},
-
 			"maximum_busy_retry_attempts": schema.Int32Attribute{
 				Optional:            true,
 				MarkdownDescription: "DEPRECATED - The maximum number of retries to attempt if the Azure API returns an HTTP 408, 429, 500, 502, 503, or 504 response. The default is `32767`, this allows the provider to rely on the resource timeout values rather than a maximum retry count. The resource-specific retry configuration may additionally be used to retry on other errors and conditions. This property will be removed in a future version.",
@@ -596,13 +590,6 @@ func (p Provider) Configure(ctx context.Context, request provider.ConfigureReque
 			model.DisableDefaultOutput = types.BoolValue(false)
 		}
 	}
-	if model.DisableResourceKnowledge.IsNull() {
-		if v := os.Getenv("ARM_DISABLE_RESOURCE_KNOWLEDGE"); v != "" {
-			model.DisableResourceKnowledge = types.BoolValue(v == "true")
-		} else {
-			model.DisableResourceKnowledge = types.BoolValue(false)
-		}
-	}
 
 	if model.AlwaysAcquirePolicyToken.IsNull() {
 		if v := os.Getenv("ARM_ALWAYS_ACQUIRE_POLICY_TOKEN"); v != "" {
@@ -705,13 +692,12 @@ func (p Provider) Configure(ctx context.Context, request provider.ConfigureReque
 		ApplicationUserAgent: buildUserAgent(request.TerraformVersion, model.PartnerID.ValueString(), model.DisableTerraformPartnerID.ValueBool()),
 		MaxGoSdkRetries:      maxGoSdkRetryAttempts,
 		Features: features.UserFeatures{
-			DefaultTags:              tags.ExpandTags(model.DefaultTags),
-			DefaultLocation:          location.Normalize(model.DefaultLocation.ValueString()),
-			DefaultNaming:            model.DefaultName.ValueString(),
-			EnablePreflight:          model.EnablePreflight.ValueBool(),
-			IgnoreNoOpChanges:        model.IgnoreNoOpChanges.ValueBool(),
-			DisableDefaultOutput:     model.DisableDefaultOutput.ValueBool(),
-			DisableResourceKnowledge: model.DisableResourceKnowledge.ValueBool(),
+			DefaultTags:          tags.ExpandTags(model.DefaultTags),
+			DefaultLocation:      location.Normalize(model.DefaultLocation.ValueString()),
+			DefaultNaming:        model.DefaultName.ValueString(),
+			EnablePreflight:      model.EnablePreflight.ValueBool(),
+			IgnoreNoOpChanges:    model.IgnoreNoOpChanges.ValueBool(),
+			DisableDefaultOutput: model.DisableDefaultOutput.ValueBool(),
 		},
 		SkipProviderRegistration:    model.SkipProviderRegistration.ValueBool(),
 		DisableCorrelationRequestID: model.DisableCorrelationRequestID.ValueBool(),

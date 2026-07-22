@@ -15,7 +15,7 @@ import (
 // Timeouts block, the "time" import, or any per-op duration is dropped.
 func TestEmitTimeoutsBakedIntoDescriptor(t *testing.T) {
 	// --- Storage account: Create 60m / Read 5m / Update 60m / Delete 60m ---
-	// (source of truth: internal/azure/azwise/storage_account.go TimeoutsConfig)
+	// (source of truth: github.com/wuxu92/azwise/storage_account.go TimeoutsConfig)
 	saDefs, saVer := latestStorageDefs(t)
 	typegraph.PostProcess(saDefs)
 	saSource := emitByTag(t, saDefs, "Microsoft.Storage/storageAccounts@"+saVer)
@@ -44,7 +44,7 @@ func TestEmitTimeoutsBakedIntoDescriptor(t *testing.T) {
 	}
 
 	// --- Role definition: Create 30m / Read 5m / Update 60m / Delete 30m ---
-	// (source of truth: internal/azure/azwise/role_definition.go TimeoutsConfig)
+	// (source of truth: github.com/wuxu92/azwise/role_definition.go TimeoutsConfig)
 	// Asserting BOTH create (30m) and update (60m) proves per-op values are
 	// preserved distinctly, not collapsed onto a single shared duration.
 	rdDefs, rdVer := latestStableDefs(t, "Microsoft.Authorization/roleDefinitions")
